@@ -46,6 +46,7 @@ namespace faiss
       void check_connectivity(int level = 0) const;//fxy_add
       /// internal storage of vectors (32 bits: this is expensive)
       using storage_idx_t = int32_t;
+      typedef std::vector<storage_idx_t> node_array_t;// fxy_add:NaviX 用于批量计算的缓存数组
 
       typedef std::pair<float, storage_idx_t>
           Node; // for heaps with distance, storage
@@ -263,11 +264,18 @@ namespace faiss
           float *D,
           VisitedTable &vt,
           char *filter_map,
-          bool if_bfs_filter,
+          int search_algo,
           // int filter,
           // Operation op,
           // std::string regex,
           const SearchParametersACORN *params = nullptr) const;
+
+      // === NaviX 辅助函数声明 ===
+      void navix_one_hop(size_t begin, size_t end, VisitedTable &vt, const char *filter_map, node_array_t &node_array, int &size) const;
+      int navix_directed(size_t begin, size_t end, DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, VisitedTable &vt, const char *filter_map, int filter_nbrs_to_find, node_array_t &node_array, int &size, ACORNStats &stats) const;
+      void navix_full_two_hop(size_t begin, size_t end, VisitedTable &vt, const char *filter_map, node_array_t &node_array, int &size, ACORNStats &stats) const;
+      int navix_batch_compute_distance(node_array_t &node_array, int &size, DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, ACORNStats &stats) const;
+      int navix_add_filtered_nodes_to_candidates(DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, VisitedTable &vt, const char* filter_map, int num_of_nodes) const;
 
       /**************************************************************
       **************************************************************/

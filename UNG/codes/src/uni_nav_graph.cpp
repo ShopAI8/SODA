@@ -1116,90 +1116,111 @@ namespace ANNS
       return all_bitmaps;
    }
 
-
-  // fxy_add:离线预计算所有属性（Label）的 std::bitset 全局掩码
-   void UniNavGraph::build_label_bitsets(uint32_t num_threads) {
-      /* - 确保向量-属性二分图已建立，根据属性总数 (_num_attributes) 分配 vector 数组空间。
-         - 遍历二分图中所有的属性节点（其 ID 为 _num_points + attr_id）。
-         - 提取该属性连接的所有向量 ID，将其对应位置的 std::bitset 设为 1，完成预计算。
-      */
-      std::cout << "\nBuilding offline std::bitset for Exact Baseline using " << num_threads << " threads..." << std::endl;
-      auto start_time = std::chrono::high_resolution_clock::now();
-
-      // 防御性检查：确保二分图已存在
-      if (_vector_attr_graph.empty()) {
-         build_vector_and_attr_graph();
+   /**
+    * 1.一句话概括函数核心作用：在线生成查询掩码，计算精确候选集大小，并返回该掩码供后续搜索直接复用。
+    * 2.思路说明：
+    * - 使用 thread_local 预分配复用的 bitset。
+    * - 动态生成最终的交集掩码 final_bitmap。
+    * - 顺便通过 .count() 算出大小返回给外部记录特征，同时将掩码引用返回。
+    * 3.输入参数：
+    * - query_labels: const std::vector<LabelType>&，查询标签列表（必填）
+    * - cand_size: size_t&，用于输出精确候选集大小的引用（必填）
+    * 4.返回值类型和具体含义：
+    * - const std::bitset<16000000>&: 返回算好的掩码引用，避免二次计算和拷贝。
+    */
+   const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
+      const std::vector<LabelType>& query_labels,
+      size_t& cand_size) const
+   {
+      // 复用内存
+      static thread_local std::bitset<16000000> final_bitmap;
+      static thread_local std::bitset<16000000> temp_bitmap;
+      
+      final_bitmap.set(); 
+      
+      if (query_labels.empty()) {
+         cand_size = _num_points;
+         return final_bitmap;
       }
 
-      // 预分配空间（主线程执行，确保内存连续性）
-      _precomputed_bitsets.clear();
-      _precomputed_bitsets.resize(_num_attributes);
-
-      // 设置线程数并开始并行化构建
-      omp_set_num_threads(num_threads);
-      #pragma omp parallel for schedule(dynamic, 64)
-      for (AtrType attr_id = 0; attr_id < _num_attributes; ++attr_id) {
-         IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
-         
-         // 遍历该属性关联的所有向量 ID
-         for (IdxType vec_id : _vector_attr_graph[attr_node_id]) {
-               // 写入独立的 bitset 对象，线程安全
-               _precomputed_bitsets[attr_id].set(vec_id);
+      for (LabelType attr_label : query_labels) {
+         auto it = _attr_to_id.find(attr_label);
+         if (it == _attr_to_id.end()) {
+               final_bitmap.reset(); // 遇到未知标签，交集全清零
+               cand_size = 0;
+               return final_bitmap;
          }
+         
+         AtrType attr_id = it->second;
+         IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
+         const auto& vec_list = _vector_attr_graph[attr_node_id];
+         
+         for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
+         final_bitmap &= temp_bitmap;
+         for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
       }
-
-      auto cost = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count();
-      std::cout << "- Precomputed std::bitset for " << _num_attributes << " attributes in " << cost << " ms." << std::endl;
+      
+      cand_size = final_bitmap.count();
+      return final_bitmap;
    }
 
-  //fxy_add：执行基于预计算 std::bitset 按位求交的暴力精确搜索（Exact Baseline）
+   /**
+    * 1.一句话概括函数核心作用：接收预先算好的查询掩码，直接执行暴力距离计算。
+    * 2.思路说明：
+    * - 直接遍历传入的 final_bitmap。
+    * - 对位图为 1 的有效点计算真实距离，利用优先队列维护 Top-K。
+    * 3.输入参数：
+    * - query: const char*，查询向量指针（必填）
+    * - final_bitmap: const std::bitset<16000000>&，复用刚才算好的掩码（必填）
+    * - K: IdxType，近邻数量（必填）
+    * - results: std::pair<IdxType, float>*，存储结果的数组（必填）
+    * - num_distance_calcs: size_t&，距离计算次数（必填）
+    * 4.返回值类型和具体含义：
+    * - void: 结果直接写入 results 数组
+    */
    void UniNavGraph::search_baseline_exact(
       const char* query,
-      const std::vector<LabelType>& query_labels,
+      const std::bitset<16000000>& final_bitmap,
       IdxType K,
       std::pair<IdxType, float>* results,
       size_t& num_distance_calcs)
    {
-      /*   
-      * - 初始化全 1 的 std::bitset。
-      * - 遍历查询标签，通过 _attr_to_id 获取连续整数 ID，使用 O(1) 数组寻址取出预计算的 bitset 并进行按位与（&=）操作。
-      * - 遍历最终位图的有效位（测试 test()），对满足条件的向量计算真实距离，利用 Max-Heap 保留 Top-K。*/
-
-      // std::cout<<" \nBegin bitset + force" << std::endl;
       num_distance_calcs = 0;
-      // 默认初始化结果集为无效占位符
       for (IdxType i = 0; i < K; ++i) {
          results[i] = {-1, std::numeric_limits<float>::max()};
       }
 
-      if (query_labels.empty()) return;
-
-      std::bitset<16000000> final_bitmap;
-      final_bitmap.set(); // 初始设置所有位为 1
-
-      // 1. 获取所有查询标签对应的 bitset 并求交
-      for (LabelType attr_label : query_labels) {
-         auto it = _attr_to_id.find(attr_label);
-         if (it == _attr_to_id.end()) {
-               return; // 存在未知标签，没有任何点能满足所有条件，提前返回
-         }
-         
-         AtrType attr_id = it->second;
-         // 直接使用数组下标访问，避免 unordered_map 的 Hash 开销，同时处理 &= 
-         final_bitmap &= _precomputed_bitsets[attr_id]; 
-      }
-
-      // 2. 暴力计算：遍历最终位图中的每个有效点
-      std::priority_queue<std::pair<float, IdxType>> top_k_heap; // Max-Heap
+      std::priority_queue<std::pair<float, IdxType>> top_k_heap; 
       auto dim = _base_storage->get_dim();
 
-      // 扫描整个 bitset 检查候选点
+      // 直接用传入的掩码找候选点，跳过了所有重复的交集运算
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id) {
          if (final_bitmap.test(vec_id)) {
                float dist = _distance_handler->compute(query, _base_storage->get_vector(vec_id), dim);
+
+               // if (vec_id == _old_to_new_vec_ids[14976854]) {
+               //    // 定义一个静态锁，所有线程共享这个锁
+               //    static std::mutex debug_mutex; 
+               //    // 加锁：离开这个 if 块的作用域时会自动解锁
+               //    std::lock_guard<std::mutex> lock(debug_mutex); 
+
+               //    std::cout << "\n[FATAL DEBUG] C++ computed distance for 14976854 is: " << dist << std::endl;
+
+               //    const char* vec_data = _base_storage->get_vector(vec_id); 
+               //    std::cout << "[DATA CHECK] First 5 dims of 14976854 in C++: [ ";
+               //    for(int d = 0; d < 5; ++d) {
+               //       std::cout << vec_data[d] << " ";
+               //    }
+               //    std::cout << "]" << std::endl;
+
+               //    // 算一下它的模长（Norm），如果接近 0，实锤是零向量
+               //    float norm = 0;
+               //    for(int d = 0; d < dim; ++d) norm += vec_data[d] * vec_data[d];
+               //    std::cout << "[DATA CHECK] L2 Norm squared of 14976854 is: " << norm << std::endl;
+               // }
+
                num_distance_calcs++;
 
-               // 维护 Top-K 堆
                if (top_k_heap.size() < K) {
                   top_k_heap.push({dist, vec_id});
                } else if (dist < top_k_heap.top().first) {
@@ -1209,10 +1230,9 @@ namespace ANNS
          }
       }
 
-      // 3. 将结果提取到 results 中（按距离从小到大反向填充）
       size_t valid_k = top_k_heap.size();
       for (int i = valid_k - 1; i >= 0; --i) {
-         results[i].first = top_k_heap.top().second; // 注意：这是内部 ID
+         results[i].first = top_k_heap.top().second; 
          results[i].second = top_k_heap.top().first;
          top_k_heap.pop();
       }
@@ -3330,7 +3350,7 @@ void UniNavGraph::calculate_query_features_only(
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
-                                   int force_use_alg, bool is_bfs_filter, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
+                                   int force_use_alg, int acorn_search_algo, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
                                    bool is_naive_routing,
                                    const std::vector<IdxType> &true_query_group_ids){
          omp_set_num_threads(1);
@@ -3361,6 +3381,8 @@ void UniNavGraph::calculate_query_features_only(
          std::vector<IdxType> entry_group_ids;
 
          // --- 1.2 Calculate common features, needed for selectors ---
+         auto feature_start = std::chrono::high_resolution_clock::now();
+         
          stats.query_length = query_labels.size();
          if (!query_labels.empty())
          {
@@ -3370,6 +3392,11 @@ void UniNavGraph::calculate_query_features_only(
          {
             stats.candidate_set_size = 0; 
          }
+         // 获取大小的同时，拿到算好的掩码
+         const std::bitset<16000000>& exact_mask = get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
+         stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
+         
+         stats.feature_extract_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count();
 
          // --- PRE-TRIE 启发式规则 ---
          std::optional<bool> pre_heuristic_decision = std::nullopt;
@@ -3449,7 +3476,7 @@ void UniNavGraph::calculate_query_features_only(
                {
                   stats.num_entry_points = entry_group_ids.size();
                   
-                  // 【修改点 3】：引入傻瓜式计算分支
+                  // 引入傻瓜式计算分支
                   if (is_naive_routing) {
                      // 傻瓜式特征提取：使用无优化的 unordered_set 遍历合并去重
                      std::unordered_set<IdxType> naive_descendants;
@@ -3541,14 +3568,9 @@ void UniNavGraph::calculate_query_features_only(
                break;
             case 3: // ACORN (分为 Standard 和 Imp)
             case 4: // ACORN-1
-               // 这里实现了对 Imp 的强制支持：
-               // 如果脚本传参 is_bfs_filter=true，则对应类别 1
-               // 如果脚本传参 is_bfs_filter=false，则对应类别 2 (Imp)
-               if (is_bfs_filter) {
-                  final_algo_choice = 1; //ACORN-gamma
-               } else {
-                  final_algo_choice = 2; //Imp
-               }
+               // 将 acorn_search_algo (0/1/2) 映射为 final_algo_choice (1/2/3)
+               // 1: ACORN-gamma, 2: ACORN-improved, 3: NaviX on ACORN
+               final_algo_choice = acorn_search_algo + 1;
                break;
             case 5: // 强制使用 bitmap暴力的Exact Baseline
                final_algo_choice = 5;
@@ -3592,19 +3614,29 @@ void UniNavGraph::calculate_query_features_only(
              
              size_t dist_calcs = 0;
              std::vector<std::pair<IdxType, float>> exact_results(K);
-             search_baseline_exact(query, query_labels, K, exact_results.data(), dist_calcs);
+             search_baseline_exact(query, exact_mask, K, exact_results.data(), dist_calcs);
 
-             cur_result.clear();
+             // 彻底跳过 cur_result，将真实算出的新 ID 转换为旧 ID 后，直接写入最终 results 数组
              for (size_t i = 0; i < K; ++i) {
                  if (exact_results[i].first != -1) {
-                     cur_result.insert(exact_results[i].first, exact_results[i].second);
+                     results[id * K + i].first = _new_to_old_vec_ids[exact_results[i].first];
+                     results[id * K + i].second = exact_results[i].second;
+                 } else {
+                     results[id * K + i].first = -1;
+                     results[id * K + i].second = std::numeric_limits<float>::max();
                  }
              }
 
+             // 记录统计指标
              stats.num_distance_calcs = dist_calcs;
              stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
              stats.search_time_ms = stats.core_search_time_ms;
              num_cmps[id] = dist_calcs;
+             stats.time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - total_search_start_time).count();
+             search_cache_list.release_cache(search_cache);
+             
+             // 直接返回，跳过原函数底部的 STAGE 3，防止我们刚刚写入的数据被空队列覆盖！
+             return; 
          }
          else if (final_algo_choice == 6) 
          {
@@ -3643,7 +3675,6 @@ void UniNavGraph::calculate_query_features_only(
                      is_possible = false; // 查询了底库中根本不存在的属性
                      break;
                  }
-                 // 💡核心修复：在 _vector_attr_graph 中，属性节点的索引是从 _num_points 开始的
                  mapped_query_attrs.push_back(_num_points + static_cast<ANNS::IdxType>(it->second));
              }
 
@@ -3651,8 +3682,6 @@ void UniNavGraph::calculate_query_features_only(
              if (!is_possible) {
                  navix_mask_vec.assign(_num_points, 0); // 存在无效属性，掩码全 0
              } else {
-                 // 💡核心修复：传入 _vector_attr_graph 作为真正的倒排索引！
-                 // 因为 _vector_attr_graph 存的就是 Old ID，所以这直接就是 Old ID 掩码！
                  navix_mask_vec = generate_single_filter_map(this->_vector_attr_graph, _num_points, mapped_query_attrs);
              }
 
@@ -3692,8 +3721,6 @@ void UniNavGraph::calculate_query_features_only(
              cur_result.clear();
              for (int i = 0; i < K; ++i) {
                  if (labels_vec[i] != -1) { 
-                     // 💡核心逻辑：NaviX 吐出来的是 Old ID，这里通过 _old_to_new_vec_ids 翻译回 New ID
-                     // 因为在 STAGE 3 中，UNG 会统一将所有的新 ID 再转回 Old ID 供最终评估。
                      cur_result.insert(_old_to_new_vec_ids[labels_vec[i]], distances_vec[i]); 
                  }
              }
@@ -3703,7 +3730,6 @@ void UniNavGraph::calculate_query_features_only(
              stats.num_nodes_visited = navix_stats.n1;
              stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
-         //if (final_algo_choice > 0)
          else if (final_algo_choice > 0 && final_algo_choice != 5 && final_algo_choice != 6)
          {
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
@@ -3760,14 +3786,15 @@ void UniNavGraph::calculate_query_features_only(
             std::vector<faiss::idx_t> result_original_ids(K);
             std::vector<float> result_dists(K);
 
-            // [在 search 调用前，确定本次是否使用 BFS]
-            // 如果是自动模式 (force=0): 看模型预测结果 (1是BFS, 2是Imp/NoBFS)
-            // 如果是强制模式 (force>0): 看命令行参数 is_bfs_filter
-            bool current_use_bfs_filter = true;
+            // 确定当前使用哪种 ACORN 内部搜索策略 (0: ACORN, 1: Imp, 2: NaviX)
+            int current_acorn_search_algo = 0;
             if (force_use_alg == 0) {
-               current_use_bfs_filter = (final_algo_choice == 1);
+               // SmartRoute 自动模式：将模型的输出 (1, 2, 3) 还原给底层算法参数 (0, 1, 2)
+               current_acorn_search_algo = final_algo_choice - 1;
+               if (current_acorn_search_algo < 0) current_acorn_search_algo = 0; // 防御性保护
             } else {
-               current_use_bfs_filter = is_bfs_filter;
+               // 强制 Baseline 模式：直接透传脚本传进来的参数
+               current_acorn_search_algo = acorn_search_algo;
             }
 
             
@@ -3780,7 +3807,7 @@ void UniNavGraph::calculate_query_features_only(
 
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
                selected_acorn_index->search_old_bitmap(
-                   1, query_vector_float, K, result_dists.data(), result_original_ids.data(), query_attrs_for_acorn, nullptr, nullptr, nullptr, current_use_bfs_filter);
+                   1, query_vector_float, K, result_dists.data(), result_original_ids.data(), query_attrs_for_acorn, nullptr, nullptr, nullptr, current_acorn_search_algo);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
             else
@@ -3798,7 +3825,7 @@ void UniNavGraph::calculate_query_features_only(
                }
                stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
-               selected_acorn_index->search(1, query_vector_float, K, result_dists.data(), result_original_ids.data(), filter_map.data(), nullptr, nullptr, nullptr, current_use_bfs_filter);
+               selected_acorn_index->search(1, query_vector_float, K, result_dists.data(), result_original_ids.data(), filter_map.data(), nullptr, nullptr, nullptr, current_acorn_search_algo);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
             cur_result.clear();
@@ -3871,7 +3898,7 @@ void UniNavGraph::calculate_query_features_only(
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
-                                   int force_use_alg,bool is_bfs_filter, faiss_navix::IndexHNSWFlat* navix_index, bool is_naive_routing,const std::vector<IdxType> &true_query_group_ids)
+                                   int force_use_alg,int acorn_search_algo, faiss_navix::IndexHNSWFlat* navix_index, bool is_naive_routing,const std::vector<IdxType> &true_query_group_ids)
    {
       // --- Initializations ---
       auto num_queries = query_storage->get_num_points();
@@ -3900,11 +3927,11 @@ void UniNavGraph::calculate_query_features_only(
                 pool.enqueue([this,&Qid_595,&query_storage,&distance_handler,&num_threads,&Lsearch,&num_entry_points,&scenario,&K, results,&num_cmps,&query_stats,&is_idea2_available,
                                    &is_new_trie_method, &is_rec_more_start,&is_ung_more_entry,&lsearch_start,&lsearch_step,
                                    &efs_start, &efs_step_slow,&efs_step_fast,&lsearch_threshold,
-                                   &force_use_alg, &is_bfs_filter,&num_queries,  &true_query_group_ids, navix_index,&is_naive_routing] { // pass const type value j to thread; [] can be empty
+                                   &force_use_alg, &acorn_search_algo,&num_queries,  &true_query_group_ids, navix_index,&is_naive_routing] { // pass const type value j to thread; [] can be empty
                     this->thread_function(Qid_595,query_storage,distance_handler,num_threads,Lsearch,num_entry_points,scenario,K, results,num_cmps,query_stats,is_idea2_available,
                                    is_new_trie_method, is_rec_more_start,is_ung_more_entry,lsearch_start,lsearch_step,
                                    efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,
-                                   force_use_alg, is_bfs_filter, num_queries, navix_index,is_naive_routing,true_query_group_ids);
+                                   force_use_alg, acorn_search_algo, num_queries, navix_index,is_naive_routing,true_query_group_ids);
                     return 1; // return to results; the return type must be the same with results
                 }));   
       }

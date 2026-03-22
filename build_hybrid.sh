@@ -231,16 +231,16 @@ if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
     ung_pid=$!
     build_acorn &
     acorn_pid=$!
-    build_navix &
-    navix_pid=$!
+    # build_navix &
+    # navix_pid=$!
     wait $ung_pid
     wait $acorn_pid
-    wait $navix_pid
+    # wait $navix_pid
 elif [ "$BUILD_MODE" == "serial" ]; then
     echo "--- [Executing in SERIAL mode] ---"
     build_ung
     build_acorn
-    build_navix
+    # build_navix
 elif [ "$BUILD_MODE" == "ung_only" ]; then
     echo "--- [Executing in UNG_ONLY mode] ---"
     build_ung

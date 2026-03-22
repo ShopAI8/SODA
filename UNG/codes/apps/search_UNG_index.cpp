@@ -110,7 +110,8 @@ int main(int argc, char **argv)
    bool is_idea2_available = false;                            // true: use original ung
    bool is_new_trie_method = false, is_rec_more_start = false; // false:默认的UNG原始trie tree方法,true：递归；false:默认的root
    bool is_ung_more_entry = false;                             // false:默认的UNG原始entry point选择方法,true：更多entry points
-   bool is_bfs_filter = true;                                  //true：原始 ACORN；false：improved
+   // bool is_bfs_filter = true;                                  //true：原始 ACORN；false：improved
+   int acorn_search_algo = 0; // 0: ACORN, 1: ACORN-improved, 2: NaviX on ACORN
    int num_repeats = 1;                                        // 默认重复1次
    int force_use_alg = 0;                                      // 0: auto, 1: UNG (nT=false), 2: UNG-nTtrue, 3: ACORN
    int lsearch_start, lsearch_step;
@@ -170,7 +171,8 @@ int main(int argc, char **argv)
                          "is_new_trie_method");
       desc.add_options()("is_rec_more_start", po::value<bool>(&is_rec_more_start)->required(),
                          "is_rec_more_start");
-      desc.add_options()("is_bfs_filter", po::value<bool>(&is_bfs_filter)->default_value(true), "Whether to use BFS filter in ACORN");
+      // desc.add_options()("is_bfs_filter", po::value<bool>(&is_bfs_filter)->default_value(true), "Whether to use BFS filter in ACORN");
+      desc.add_options()("acorn_search_algo", po::value<int>(&acorn_search_algo)->default_value(0), "Algorithm to run on ACORN Index: 0=Original, 1=Improved, 2=NaviX");
       desc.add_options()("num_repeats", po::value<int>(&num_repeats)->default_value(1),
                          "Number of repeats for each Lsearch value");
       desc.add_options()("force_use_alg", po::value<int>(&force_use_alg)->required(),
@@ -219,10 +221,6 @@ int main(int argc, char **argv)
    index.load(index_path_prefix, selector_modle_prefix, data_type, acorn_index_path, acorn_1_index_path,dataset);
    index.load_bipartite_graph(index_path_prefix + "vector_attr_graph");
 
-   // bitmap_force
-   if (force_use_alg == 5) {
-       index.build_label_bitsets(num_threads);
-   }
 
    // Naxiv
    faiss_navix::IndexHNSWFlat* navix_index = nullptr;
@@ -324,7 +322,7 @@ int main(int argc, char **argv)
 //              << std::endl;
 //    auto bitmap_total_time = attr_bitmap_total_time; // 默认使用倒排索引方法
 
-   if (force_use_alg == 0){
+   // if (force_use_alg == 0){
       // calculate query features and save to CSV
       std::string features_csv_path = result_path_prefix + "query_features.csv";
       index.calculate_query_features_only(
@@ -334,7 +332,7 @@ int main(int argc, char **argv)
          true,              // is_new_trie_method
          true               // is_rec_more_start
       );
-   }
+   // }
       
 
    // Warm-up selector
@@ -383,7 +381,7 @@ int main(int argc, char **argv)
          else
          {
             index.search_hybrid(query_storage, distance_handler, num_threads, current_Lsearch,
-                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId], is_idea2_available, is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,force_use_alg, is_bfs_filter ,navix_index, is_naive_routing,true_query_group_ids);
+                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId], is_idea2_available, is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,force_use_alg, acorn_search_algo ,navix_index, is_naive_routing,true_query_group_ids);
          }
          auto time_cost = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count();
          
@@ -419,47 +417,49 @@ int main(int argc, char **argv)
          {
             std::cout << "    Query " << id << ":" << std::endl;
 
-            // --- 新增: 打印当前查询的召回率 ---
-            // 从已计算的query_stats中获取该查询的recall值
+            // --- 打印当前查询的召回率和真实的候选集大小 ---
             float single_query_recall = query_stats[repeat][LsearchId][id].recall;
+            size_t exact_cand_size = query_stats[repeat][LsearchId][id].exact_cand_size; // 新增：获取真实候选集大小
+            
             std::cout << "      Recall for this query: " << single_query_recall << std::endl;
+            std::cout << "      Exact matching vectors in entire DB: " << exact_cand_size << std::endl; // 新增：打印它
 
-            // --- 新增: 打印Ground Truth(标准答案)用于对比 ---
+            // --- 打印Ground Truth(标准答案)用于对比 ---
             std::cout << "      Ground Truth Neighbors:" << std::endl;
             for (int i = 0; i < K; ++i)
             {
-               const auto &gt_pair = gt[id * K + i]; // 从gt数组获取标准答案
+               const auto &gt_pair = gt[id * K + i];
                if (gt_pair.first != -1)
                {
-                  std::cout << "        - ID=" << gt_pair.first << ", Distance=" << gt_pair.second << std::endl;
+                     std::cout << "        - ID=" << gt_pair.first << ", Distance=" << gt_pair.second << std::endl;
                }
                else
                {
-                  break;
+                     break;
                }
             }
 
-            // --- 保留: 打印算法找到的近邻 ---
+            // --- 打印算法找到的近邻 ---
             std::cout << "      Algorithm's Found Neighbors:" << std::endl;
             for (int i = 0; i < K; ++i)
             {
                const auto &result_pair = results[id * K + i];
-               if (result_pair.first != -1) // 检查结果是否有效
+               if (result_pair.first != -1)
                {
-                  std::cout << "        - Rank " << i + 1
-                            << ": ID=" << result_pair.first
-                            << ", Distance=" << result_pair.second << std::endl;
+                     std::cout << "        - Rank " << i + 1
+                              << ": ID=" << result_pair.first
+                              << ", Distance=" << result_pair.second << std::endl;
                }
                else
                {
-                  std::cout << "        - Rank " << i + 1 << ": (No more valid results)" << std::endl;
-                  break;
+                     std::cout << "        - Rank " << i + 1 << ": (No more valid results)" << std::endl;
+                     break;
                }
             }
-            std::cout << "    ------------------------------------" << std::endl; // 为每个查询添加分隔符
+            std::cout << "    ------------------------------------" << std::endl;
          }
-         std::cout << "  --- End of K-NN Results ---" << std::endl;
-         */
+         std::cout << "  --- End of K-NN Results ---" << std::endl;*/
+
       }
    }
 
@@ -523,9 +523,9 @@ int main(int argc, char **argv)
    detail_out << "repeat,Lsearch,efs,QueryID,Time_ms,search_time_ms,core_search_time_ms,Recall,"         // 核心结果
               << "is_idea1_used,is_idea2_used,"                                                          // 使用的方法
               << "DistCalcs,NumNodeVisited,"                                                             // 性能指标
-              << "MinSupersetT_ms,idea1SelT_ms,idea2SelT_ms,idea1_flag_ms,idea2_flag_ms,BitmapT_new_ms," // 耗时分解
+              << "MinSupersetT_ms,idea1SelT_ms,idea2SelT_ms,idea1_flag_ms,idea2_flag_ms,BitmapT_new_ms,FeatureT_ms," // 耗时分解
               // --- Idea1 & Trie 特征 ---
-              << "QuerySize,CandSize,"
+              << "QuerySize,CandSize,ExactCandSize,GlobalPpass,"
               // --- Idea2 模型核心特征 ---
               << "NumEntries"
               << "\n";
@@ -554,9 +554,12 @@ int main(int argc, char **argv)
                        << stats.idea1_flag_time_ms << ","
                        << stats.idea2_flag_time_ms << ","
                        << stats.bitmap_time_ms << ","
+                       << stats.feature_extract_time_ms << ","
                        // Idea1 & Trie 特征
                        << stats.query_length << ","
                        << stats.candidate_set_size << ","
+                       << stats.exact_cand_size << ","  
+                       << stats.global_p_pass << ","
                        // Idea2 模型核心特征
                        << stats.num_entry_points << "\n";
          }

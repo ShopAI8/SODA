@@ -6,8 +6,9 @@
 
 set -e # 如果任何命令失败，则立即退出
 
-IS_BFS_FILTER="true"
+# IS_BFS_FILTER="true"
 IS_NAIVE_ROUTING="false"
+ACORN_SEARCH_ALGO="0"
 
 # --- Step 1: 解析命令行参数 ---
 while [[ $# -gt 0 ]]; do
@@ -18,8 +19,8 @@ while [[ $# -gt 0 ]]; do
             shift 2
             continue
         fi
-        if [[ $key == "IS_BFS_FILTER" ]]; then
-            IS_BFS_FILTER="$2"
+        if [[ $key == "ACORN_SEARCH_ALGO" ]]; then
+            ACORN_SEARCH_ALGO="$2"
             shift 2
             continue
         fi
@@ -76,13 +77,14 @@ echo "使用GT: $GT_PATH"
 echo "结果将保存到: $RESULT_OUTPUT_DIR"
 
 # --- Step 6: 执行搜索 ---
+# gdb --batch --ex "run" --ex "bt" --args \
 "$BUILD_DIR"/apps/search_UNG_index \
     --data_type float  --dataset "$DATASET" --dist_fn L2 --num_threads "$NUM_THREADS" --K "$K" --num_repeats "$NUM_REPEATS" \
     --is_new_method true \
     --force_use_alg "$FORCE_USE_ALG" \
     --is_idea2_available "$IS_IDEA2_AVAILABLE" \
     --is_new_trie_method "$IS_NEW_TRIE_METHOD" --is_rec_more_start "$IS_REC_MORE_START" \
-    --is_bfs_filter "$IS_BFS_FILTER" \
+    --acorn_search_algo "$ACORN_SEARCH_ALGO" \
     --base_bin_file "$DATA_DIR/${DATASET}_base.bin" \
     --query_bin_file "$QUERY_DIR/${DATASET}_query.bin" \
     --query_label_file "$QUERY_DIR/${DATASET}_query_labels.txt" \

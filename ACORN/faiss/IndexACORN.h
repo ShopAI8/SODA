@@ -105,7 +105,7 @@ namespace faiss
           std::vector<double> *query_times, // 记录每个查询耗时（毫秒/秒）
           std::vector<double> *query_qps,   // 记录每个查询QPS
           std::vector<size_t> *query_n3,    // 记录每个查询的n3
-          bool if_bfs_filter,
+          int search_algo,
           const SearchParameters *params = nullptr) const;
 
       void search(
@@ -118,7 +118,7 @@ namespace faiss
             std::vector<double> *query_times, // 记录每个查询耗时（毫秒/秒）
             std::vector<double> *query_qps,   // 记录每个查询QPS
             std::vector<size_t> *query_n3,    // 记录每个查询的n3
-            bool if_bfs_filter,
+            int search_algo,
             const SearchParameters *params = nullptr) const;
 
       void calculate_distances(

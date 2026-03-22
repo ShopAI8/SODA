@@ -68,6 +68,11 @@ namespace ANNS
       size_t num_lng_descendants;
       float entry_group_total_coverage;
 
+
+      size_t exact_cand_size = 0;
+      float global_p_pass = 0.0f;
+      double feature_extract_time_ms = 0.0;
+
       
    };
    struct NewEdgeCandidate
@@ -138,7 +143,7 @@ namespace ANNS
                          bool is_ung_more_entry,
                          int lsearch_start, int lsearch_step,
                          int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
-                         int force_use_alg,  bool is_bfs_filter, faiss_navix::IndexHNSWFlat* navix_index = nullptr, bool is_naive_routing = false,
+                         int force_use_alg, int acorn_search_algo, faiss_navix::IndexHNSWFlat* navix_index = nullptr, bool is_naive_routing = false,
                          const std::vector<IdxType> &true_query_group_ids = {}); // 包含每个查询其真实来源组ID的向量
 
       // I/O
@@ -237,15 +242,15 @@ namespace ANNS
 
     
     // 基础bitmap+暴力搜索
-    std::vector<std::bitset<16000000>> _precomputed_bitsets;// 离线预计算的全局位图数组
-    void build_label_bitsets(uint32_t num_threads);// 离线预计算bitmap函数
-    void search_baseline_exact( // 基础的精确求交及暴力搜索函数
-        const char* query,
-        const std::vector<LabelType>& query_labels,
-        IdxType K,
-        std::pair<IdxType, float>* results,
-        size_t& num_distance_calcs
-    );
+    void search_baseline_exact(
+      const char* query,
+      const std::bitset<16000000>& final_bitmap,
+      IdxType K,
+      std::pair<IdxType, float>* results,
+      size_t& num_distance_calcs);
+    const std::bitset<16000000>& get_exact_cand_size_and_mask(
+      const std::vector<LabelType>& query_labels,
+      size_t& cand_size) const;
 
 
       // 求search中flag需要的数据结构
@@ -283,7 +288,7 @@ namespace ANNS
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
-                                   int force_use_alg,bool is_bfs_filter, IdxType num_queries, 
+                                   int force_use_alg,int acorn_search_algo, IdxType num_queries, 
                                    faiss_navix::IndexHNSWFlat* navix_index, bool is_naive_routing,
                                    const std::vector<IdxType> &true_query_group_ids);
       size_t get_candidate_count_for_label(LabelType label) const;

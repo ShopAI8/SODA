@@ -409,7 +409,7 @@ namespace faiss
        std::vector<double> *query_times, // 记录每个查询耗时（毫秒/秒）
        std::vector<double> *query_qps,   // 记录每个查询QPS
        std::vector<size_t> *query_n3,    // 记录每个查询的n3
-       bool if_bfs_filter,
+       int search_algo,
        const SearchParameters *params_in) const
    {
 
@@ -467,7 +467,7 @@ namespace faiss
                    simi,
                    vt,
                    single_filter_map.data(),
-                   if_bfs_filter,
+                   search_algo,
                    params); // TODO edit to hybrid search
                // std::cout << "end hybrid search" << std::endl;
 
@@ -678,7 +678,7 @@ namespace faiss
       std::vector<double> *query_times, // 记录每个查询耗时（毫秒/秒）
       std::vector<double> *query_qps,   // 记录每个查询QPS
       std::vector<size_t> *query_n3,    // 记录每个查询的n3
-      bool if_bfs_filter,
+      int search_algo,
       const SearchParameters *params_in) const
    {
 
@@ -732,7 +732,7 @@ namespace faiss
                   simi,
                   vt,
                   filters,
-                  if_bfs_filter,
+                  search_algo,
                   params); // TODO edit to hybrid search
               // std::cout << "end hybrid search" << std::endl;
 

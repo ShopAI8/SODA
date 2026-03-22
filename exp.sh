@@ -56,6 +56,10 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
     export ACORN_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para_${DATASET}/acorn"
     export NAVIX_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para_${DATASET}/navix"
 
+    # export UNG_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/ung"
+    # export ACORN_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/acorn"
+    # export NAVIX_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/navix"
+
     
     # --- 中层循环: 遍历任务 (查询) ---
     echo "$dataset_config" | jq -c '.tasks[]' | while read -r task; do
@@ -83,27 +87,29 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
             # 根据算法名称设置详细参数
             case "$ALGORITHM_NAME" in
                 "SmartRoute" | "method3")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "NaiveRoute")        
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=true;;
+                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=true;;
                 "method1")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "method2")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "UNG-nTfalse")
-                    FORCE_USE_ALG=1; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=1; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "UNG-nTtrue")
-                    FORCE_USE_ALG=2; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=2; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "ACORN-gamma")
-                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 "ACORN-1")
-                    FORCE_USE_ALG=4; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=true; IS_NAIVE_ROUTING=false;;
-                "ACORN-gamma-improved") # FORCE_USE_ALG 依然是 3 (走 ACORN 逻辑)，但 IS_BFS_FILTER 设为 false
-                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=false; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=4; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                "ACORN-gamma-improved") # FORCE_USE_ALG 依然是 3 (走 ACORN 逻辑)，但 ACORN_SEARCH_ALGO 设为 1 (Improved/全图探索)
+                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=1; IS_NAIVE_ROUTING=false;;
+                "NaviX-ACORN") # 在 ACORN 索引上执行 NaviX 自适应路由
+                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=2; IS_NAIVE_ROUTING=false;;
                 "pre-filter")
-                    FORCE_USE_ALG=5; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=false; IS_NAIVE_ROUTING=false;;
-                "NaviX")  
-                    FORCE_USE_ALG=6; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; IS_BFS_FILTER=false; IS_NAIVE_ROUTING=false;;
+                    FORCE_USE_ALG=5; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                "NaviX")  # FORCE_USE_ALG=6 走完全独立的 NaviX 老索引对照组
+                    FORCE_USE_ALG=6; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
                 *)
                     echo "错误: 未知的算法名称 '$ALGORITHM_NAME'。请在 exp.sh 的 case 语句中定义它。"
                     exit 1;;
@@ -154,7 +160,7 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
                --num_threads "$NUM_THREADS" --K "$K" --num_repeats "$NUM_REPEATS" \
                --is_new_trie_method "$IS_NEW_TRIE_METHOD" --is_rec_more_start "$IS_REC_MORE_START" \
                --is_idea2_available "$IS_IDEA2_AVAILABLE" --force_use_alg "$FORCE_USE_ALG" \
-               --is_bfs_filter "$IS_BFS_FILTER" \
+               --acorn_search_algo "$ACORN_SEARCH_ALGO" \
                --efs_start "$ACORN_EFS_START" \
                --efs_step_slow "$ACORN_EFS_STEP_SLOW" --efs_step_fast "$ACORN_EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
                --is_naive_routing "$IS_NAIVE_ROUTING"

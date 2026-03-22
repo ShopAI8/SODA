@@ -1775,6 +1775,70 @@ namespace faiss
          return nres;
       }
 
+
+      // fxy_add: NaviX 的 Level 0 核心搜索调度
+      int navix_search_from_candidates(
+         const ACORN &hnsw, DistanceComputer &qdis, char *filter_map, int k, idx_t *I, float *D,
+         MinimaxHeap &candidates, VisitedTable &vt, ACORNStats &stats, int level,
+         int nres_in = 0, const SearchParametersACORN *params = nullptr)
+      {
+         int nres = nres_in;
+         int efSearch = params ? params->efSearch : hnsw.efSearch;
+
+         // 处理外层传进来的初始 nearest 节点,把它从 candidates 拿出来看看，如果满足过滤条件，就塞进结果堆
+         if (nres == 0 && candidates.size() > 0) {
+             float cand_dist = 0;
+             storage_idx_t nearest_id = candidates.pop_min(&cand_dist);
+             
+             if (filter_map[nearest_id]) {
+                 faiss::maxheap_push(++nres, D, I, cand_dist, nearest_id);
+             }
+             vt.set(nearest_id);
+             candidates.push(nearest_id, cand_dist); // 处理完再放回 candidates，供后续扩展邻居用
+         }
+
+         // 1. 随机添加一些符合条件的节点防孤岛
+         nres = hnsw.navix_add_filtered_nodes_to_candidates(qdis, k, I, D, candidates, nres, vt, filter_map, 10);
+
+         ACORN::node_array_t node_array(65536);
+         int size = 0;
+
+         while (candidates.size() > 0) {
+            float cand_dist = 0;
+            storage_idx_t candidate = candidates.pop_min(&cand_dist);
+
+            int n_dis_below = candidates.count_below(cand_dist);
+            if (n_dis_below >= efSearch) break;
+
+            size_t begin, end;
+            hnsw.neighbor_range(candidate, level, &begin, &end);
+            stats.n3 += 1; // NHops 统计
+
+            double total_nbrs = end - begin;
+            double filtered_nbrs = 0;
+            for (size_t j = begin; j < end; ++j) {
+               int v1 = hnsw.neighbors[j];
+               if (v1 < 0) { end = j; break; }
+               if (filter_map[v1]) filtered_nbrs++;
+            }
+
+            double local_selectivity = filtered_nbrs / (total_nbrs > 0 ? total_nbrs : 1);
+            auto estimated_full_two_hop_distance_comp = (total_nbrs * filtered_nbrs + filtered_nbrs) * 0.4;
+            auto estimated_directed_distance_comp = total_nbrs + (total_nbrs - filtered_nbrs);
+
+            if (local_selectivity >= 0.5) {
+               hnsw.navix_one_hop(begin, end, vt, filter_map, node_array, size);
+            } else if (estimated_full_two_hop_distance_comp > estimated_directed_distance_comp) {
+               nres = hnsw.navix_directed(begin, end, qdis, k, I, D, candidates, nres, vt, filter_map, total_nbrs, node_array, size, stats);
+            } else {
+               hnsw.navix_full_two_hop(begin, end, vt, filter_map, node_array, size, stats);
+            }
+
+            nres = hnsw.navix_batch_compute_distance(node_array, size, qdis, k, I, D, candidates, nres, stats);
+         }
+         return nres;
+      }
+
    } // anonymous namespace
 
    ACORNStats ACORN::search(
@@ -1882,7 +1946,7 @@ namespace faiss
        float *D,
        VisitedTable &vt,
        char *filter_map,
-       bool if_bfs_filter,
+       int search_algo,
        // int filter,
        // Operation op,
        // std::string regex,
@@ -1890,6 +1954,9 @@ namespace faiss
    {
       debug("%s\n", "reached");
       ACORNStats stats;
+
+      bool if_bfs_filter = (search_algo == 0);
+
       if (entry_point == -1)
       {
          return stats;
@@ -1923,7 +1990,15 @@ namespace faiss
 
             candidates.push(nearest, d_nearest);
 
-            hybrid_search_from_candidates(
+            if (search_algo == 2) {
+             // NaviX 分支
+             navix_search_from_candidates(
+                    *this, qdis, filter_map, k, I, D, candidates, vt, stats, 0, 0, params); 
+            }
+            else{
+               // 0: ACORN (if_bfs_filter = true)
+               // 1: ACORN-improved (if_bfs_filter = false)
+               hybrid_search_from_candidates(
                 *this,
                 qdis,
                 filter_map,
@@ -1937,6 +2012,7 @@ namespace faiss
                 0,
                 0,
                 params);
+            }
          }
          else
          {
@@ -2180,4 +2256,146 @@ namespace faiss
       printf("==================================================\n");
    }
 
+
+    /**************************************************************
+    * NaviX Helper Functions Implementation
+    **************************************************************/
+   void ACORN::navix_one_hop(size_t begin, size_t end, VisitedTable &vt, const char *filter_map, node_array_t &node_array, int &size) const {
+      for (size_t j = begin; j < end; ++j) {
+         int v1 = neighbors[j];
+         if (v1 >= 0 && filter_map[v1] && !vt.get(v1)) {
+               vt.set(v1);
+               if (size >= node_array.size()) node_array.resize(size * 2 + 100);
+               node_array[size++] = v1;
+         }
+      }
+   }
+
+   int ACORN::navix_batch_compute_distance(node_array_t &node_array, int &size, DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, ACORNStats &stats) const {
+       int nres = nres_in;
+       auto add_to_heap = [&](const storage_idx_t idx, const float dis) {
+           if (nres < k) {
+               faiss::maxheap_push(++nres, D, I, dis, idx);
+           } else if (dis < D[0]) {
+               faiss::maxheap_replace_top(nres, D, I, dis, idx);
+           }
+           candidates.push(idx, dis);
+       };
+
+       // 降级为单次遍历计算距离
+       for (int i = 0; i < size; i++) {
+           const float dist = qdis(node_array[i]);
+           stats.ndis += 1;
+           add_to_heap(node_array[i], dist);
+       }
+       
+       size = 0; // Reset
+       return nres;
+   }
+
+   int ACORN::navix_directed(size_t begin, size_t end, DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, VisitedTable &vt, const char *filter_map, int filter_nbrs_to_find, node_array_t &node_array, int &size, ACORNStats &stats) const {
+      std::priority_queue<NodeDistFarther> nbrs_to_explore;
+      int nres = nres_in;
+      int visited_set_size = 0;
+
+      auto add_to_heap_and_queue = [&](const storage_idx_t idx, const float dis) {
+         if (!filter_map[idx]) return;
+         if (nres < k) { faiss::maxheap_push(++nres, D, I, dis, idx); } 
+         else if (dis < D[0]) { faiss::maxheap_replace_top(nres, D, I, dis, idx); }
+         candidates.push(idx, dis);
+         nbrs_to_explore.emplace(dis, idx);
+      };
+
+      // Hop 1
+      for (size_t j = begin; j < end; ++j) {
+         auto v1 = neighbors[j];
+         if (v1 < 0) break;
+         if (filter_map[v1]) visited_set_size++;
+         if (vt.get(v1)) continue;
+         if (filter_map[v1]) { 
+            vt.set(v1); 
+            if (size >= node_array.size()) node_array.resize(size * 2 + 100);
+            node_array[size++] = v1; 
+         }
+      }
+
+      // Compute distance for Hop 1
+      for (int i = 0; i < size; i++) {
+           float dist = qdis(node_array[i]);
+           stats.ndis += 1;
+           add_to_heap_and_queue(node_array[i], dist);
+      }
+      size = 0;
+
+      // Hop 2
+      while (!nbrs_to_explore.empty()) {
+         auto nbrs = nbrs_to_explore.top();
+         nbrs_to_explore.pop();
+         if (visited_set_size >= filter_nbrs_to_find) break;
+         
+         // 删除了这里的 if(vt.get(nbrs.id)) continue;
+         // 因为 nbrs.id 在 Hop 1 已经被我们设为 visited，如果不删，Hop 2 会全部跳过。
+
+         size_t second_begin, second_end;
+         neighbor_range(nbrs.id, 0, &second_begin, &second_end);
+         stats.n3 += 1; // nhops
+
+         for (size_t j = second_begin; j < second_end; ++j) {
+               auto v2 = neighbors[j];
+               if (v2 < 0) break;
+               if (filter_map[v2]) visited_set_size++;
+               if (vt.get(v2)) continue;
+               if (filter_map[v2]) { 
+                  vt.set(v2);
+                  if (size >= node_array.size()) node_array.resize(size * 2 + 100);
+                  node_array[size++] = v2; 
+               }
+         }
+      }
+      return nres;
+   }
+
+   void ACORN::navix_full_two_hop(size_t begin, size_t end, VisitedTable &vt, const char *filter_map, node_array_t &node_array, int &size, ACORNStats &stats) const {
+      for (size_t i = begin; i < end; i++) {
+         auto v1 = neighbors[i];
+         if (v1 < 0) break;
+         if (filter_map[v1] && !vt.get(v1)) { 
+            vt.set(v1); 
+            if (size >= node_array.size()) node_array.resize(size * 2 + 100);
+            node_array[size++] = v1; 
+         }
+
+         size_t second_begin, second_end;
+         neighbor_range(v1, 0, &second_begin, &second_end);
+         stats.n3 += 1;
+
+         for (size_t j = second_begin; j < second_end; ++j) {
+               auto v2 = neighbors[j];
+               if (v2 < 0) break;
+               if (filter_map[v2] && !vt.get(v2)) { 
+                  vt.set(v2); 
+                  if (size >= node_array.size()) node_array.resize(size * 2 + 100);
+                  node_array[size++] = v2; 
+               }
+         }
+      }
+   }
+
+   int ACORN::navix_add_filtered_nodes_to_candidates(DistanceComputer &qdis, int k, idx_t *I, float *D, MinimaxHeap &candidates, int nres_in, VisitedTable &vt, const char* filter_map, int num_of_nodes) const {
+      int nres = nres_in;
+      auto ntotal = levels.size();
+      int count = 0;
+      for (storage_idx_t p_id = 0; p_id < ntotal; p_id++) {
+         if (filter_map[p_id] && !vt.get(p_id)) {
+               float dist = qdis(p_id);
+               if (nres < k) { faiss::maxheap_push(++nres, D, I, dist, p_id); } 
+               else if (dist < D[0]) { faiss::maxheap_replace_top(nres, D, I, dist, p_id); }
+               candidates.push(p_id, dist);
+               vt.set(p_id);
+               count++;
+         }
+         if (count >= num_of_nodes) break;
+      }
+      return nres;
+   }
 } // namespace faiss
