@@ -57,12 +57,9 @@ def fetch_data_for_subplot(config, dataset_name, base_params, algorithms, cache,
       "ACORN-γ": "ACORN-gamma",
       "ACORN-γ-improved": "ACORN-gamma-improved",
       "UNG": "UNG-nTfalse",
-      "IntelLANNS": "method2",
-      "SmartRoute": "method3",
-      "pre-filter": "pre-filter",  
-      "NaviX": "NaviX",                
-      "NaiveRoute": "NaiveRoute",
-      "ImprovedUNG": "ImprovedUNG"       
+      "pre-filtering": "pre-filter",  
+      "NaviX": "NaviX-ACORN",    
+      "SmartRoute": "SmartRoute"                 
    }
    
    if num_queries == 0:

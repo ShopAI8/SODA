@@ -77,12 +77,12 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
         "UNG": "tab:blue",
         "ACORN-1": "tab:purple",
         "ACORN-γ": "tab:orange",
-        "SmartRoute": "tab:red",
         "ACORN-γ-improved": "tab:pink",
-        "pre-filter": "gold",  
+        "pre-filtering": "gold",  
         "NaviX": "tab:green",          
-        "NaiveRoute": "tab:gray",
-        "ImprovedUNG": "tab:cyan"
+        "SmartRoute": "tab:gray",
+        "FastSmartRoute": "tab:red",
+        # "ImprovedUNG": "tab:cyan",
     }
 
     legend_label_map = plot_settings.get('legend_label_map', {})
@@ -96,12 +96,12 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
 
     # 2. 定义图例顺序 (Legend Order)
     # 这决定了图例中标签的排列顺序
-    default_legend_order = ["UNG", "ImprovedUNG","ACORN-1", "ACORN-γ", "ACORN-γ-improved", "NaviX", "pre-filter", "NaiveRoute", "SmartRoute"]
+    default_legend_order = ["UNG","ACORN-1", "ACORN-γ", "ACORN-γ-improved", "NaviX", "pre-filtering",  "SmartRoute"]
     alg_order = plot_settings.get('custom_alg_order', default_legend_order)
 
     # 3. 定义绘图层级顺序 (Drawing Order / Z-Order)
     # 列表越靠前的算法，越先被绘制 (即位于图层最底部/Under)
-    default_drawing_order = ["UNG", "ImprovedUNG", "ACORN-γ", "ACORN-1", "SmartRoute", "NaviX", "NaiveRoute","ACORN-γ-improved","pre-filter"]
+    default_drawing_order = ["UNG", "ACORN-γ", "ACORN-1","ACORN-γ-improved", "NaviX", "SmartRoute","pre-filtering"]
     drawing_order = plot_settings.get('custom_z_order', default_drawing_order)
 
     def get_marker_for_alg(name):
@@ -162,8 +162,8 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
                 display_label = legend_label_map.get(alg_name, alg_name)
                 
                 # 直接绘制折线
-                current_markersize = 20 if alg_name == "pre-filter" else 12
-                is_clip_on = False if alg_name == "pre-filter" else True
+                current_markersize = 20 if alg_name == "pre-filtering" else 12
+                is_clip_on = False if alg_name == "pre-filtering" else True
                 
                 # 直接绘制折线
                 ax.plot(df_sorted['Average_Recall'], df_sorted['QPS'], 

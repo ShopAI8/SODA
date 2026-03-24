@@ -22,7 +22,7 @@ except ImportError:
 DATASET_NAME = "BookReviews"  
 BASE_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
 CSV_PATH = os.path.join(BASE_DIR, "EDA_Plots", DATASET_NAME, f"{DATASET_NAME}_aligned_results.csv")
-OUTPUT_DIR = os.path.join(BASE_DIR, DATASET_NAME, "SelectModels", "smart_route_new")
+OUTPUT_DIR = os.path.join(BASE_DIR, DATASET_NAME, "SelectModels", "fast_smart_route")
 
 ALGO_LIST = ['ACORN-gamma', 'ACORN-improved', 'NaviX', 'UNG-nTfalse', 'UNG-nTtrue', 'pre-filter']
 ACORN_FAMILY = ['ACORN-gamma', 'ACORN-improved', 'NaviX']
@@ -360,9 +360,9 @@ def main():
     # ==========================================
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
-        f.write("┃               SmartRoute 动态自适应级联架构系统战报                ┃\n")
+        f.write("┃                           FastSmartRoute                           ┃\n")
         f.write("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n")
-        f.write(f"┃ 基座引擎: {CORE_MODEL_TYPE:<16}  数据集: {DATASET_NAME:<15}            ┃\n")
+        f.write(f"┃ 基座模型: {CORE_MODEL_TYPE:<16}  数据集: {DATASET_NAME:<15}            ┃\n")
         f.write(f"┃ 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S'):<40} ┃\n")
         f.write("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n")
         
@@ -394,7 +394,7 @@ def main():
             f.write(f"  ▶ 拟合耗时 : {l1_5_duration_ms:.2f} ms\n")
             f.write(f"  ▶ 规则准确率 : {l1_5_acc:.4%} ({l1_5_status_msg})\n\n")
             
-        f.write("【叁 | Layer 1 (极速先验拦截网关) 深度解析】\n")
+        f.write("【叁 | Layer 1 (极速先验拦截网关) 解析】\n")
         f.write("-" * 70 + "\n")
         f.write(f"  [特征池] 严格限定为 QuerySize, ExactCandSize, CandSize, GlobalPpass 及其衍生组合。\n")
         f.write(f"  [输出映射] {L1_TARGET_MAP}\n")
@@ -405,7 +405,7 @@ def main():
         f.write("  [特征重要性权重]\n")
         f.write("  " + imp_l1.replace('\n', '\n  ') + "\n\n")
         
-        f.write("【肆 | Layer 2 (全视野兜底裁判层) 深度解析】\n")
+        f.write("【肆 | Layer 2 (全视野兜底裁判层) 解析】\n")
         f.write("-" * 70 + "\n")
         f.write(f"  [特征池] 包含 L1 全集，并追加 NumEntries, NumDescendants 及其跨界衍生组合。\n")
         f.write(f"  [输出映射] {L2_TARGET_MAP}\n")
@@ -414,7 +414,7 @@ def main():
         f.write("  [特征重要性权重]\n")
         f.write("  " + imp_l2.replace('\n', '\n  ') + "\n\n")
         
-        f.write("【伍 | C++ 生产环境推理蓝图 (Deployment Logic)】\n")
+        f.write("【伍 | C++ code (Deployment Logic)】\n")
         f.write("-" * 70 + "\n")
         f.write("  // Step 1: 获取 O(1) 维度的 Layer 1 特征\n")
         f.write("  int l1_res = L1_Model.predict(L1_Features);\n\n")
@@ -439,7 +439,7 @@ def main():
         f.write("      }\n")
         f.write("  }\n")
         
-    print(f"\n✅ 全部构建完成！极致战报与部署矩阵已同步至: {report_path}")
+    print(f"\n✅ 全部构建完成！log已同步至: {report_path}")
 
 if __name__ == "__main__":
     main()

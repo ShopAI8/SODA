@@ -83,7 +83,7 @@ def load_and_prepare_data(file_path, alg_name, num_queries, dataset_name, config
 
 
    # Pruning Logic 1
-   if should_use_pruning_1 and alg_name in ["ACORN-1", "ACORN-γ", "UNG", "SmartRoute","pre-filter", "NaviX", "NaiveRoute", "ImprovedUNG"]:
+   if should_use_pruning_1 and alg_name in ["ACORN-1", "ACORN-γ", "UNG","pre-filtering", "NaviX", "SmartRoute"]:
       if not df.empty and df['Average_Recall'].notna().any():
             max_recall = df['Average_Recall'].max()
             peak_recall_df = df[df['Average_Recall'] >= (max_recall - 0.002)]

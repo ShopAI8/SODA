@@ -45,10 +45,10 @@ def rename_items_in_directory(directory_path, old_text, new_text):
     return renamed_count
 
 def main():
-    directory_path = "/home/fengxiaoyao/FilterVector"
+    directory_path = "/home/fengxiaoyao/FilterVector/FilterVectorResults/Laion/Results/SmartRoute"
     
-    old_text = "NaviX"
-    new_text = "NaviX"
+    old_text = "Ls1000-Le40000-Lp1000"
+    new_text = "Ls50-Le60000-Lp1000"
     
     print(f"开始在目录 '{directory_path}' 中查找并重命名包含 '{old_text}' 的文件和文件夹为 '{new_text}'")
     print("注意: 此操作会直接重命名文件和文件夹，请确保已备份重要数据！")

@@ -1163,9 +1163,73 @@ namespace ANNS
       cand_size = final_bitmap.count();
       return final_bitmap;
    }
+   /*const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
+    const std::vector<LabelType>& query_labels,
+    size_t& cand_size) const
+   {
+      // 复用内存
+      static thread_local std::bitset<16000000> final_bitmap;
+      static thread_local std::bitset<16000000> temp_bitmap;
+      
+      // 特殊情况：空查询，退化为全集
+      if (query_labels.empty()) {
+         final_bitmap.set(); 
+         cand_size = _num_points;
+         return final_bitmap;
+      }
+
+      // 1. 收集所有属性对应的向量列表，并提前拦截无效查询
+      std::vector<const std::vector<IdxType>*> valid_vec_lists;
+      // 提前分配空间，避免 vector 扩容开销
+      valid_vec_lists.reserve(query_labels.size()); 
+      
+      for (LabelType attr_label : query_labels) {
+         auto it = _attr_to_id.find(attr_label);
+         if (it == _attr_to_id.end()) {
+               final_bitmap.reset(); // 遇到未知标签，交集必然为空
+               cand_size = 0;
+               return final_bitmap;
+         }
+         AtrType attr_id = it->second;
+         IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
+         valid_vec_lists.push_back(&_vector_attr_graph[attr_node_id]);
+      }
+
+      // 2. 核心优化：按照候选集大小从小到大排序 (指针拷贝，耗时可忽略不计)
+      std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
+         [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
+               return a->size() < b->size();
+         });
+
+      // 3. 核心优化：用最小的集合来初始化 final_bitmap (彻底消灭了原来的 final_bitmap.set() 慢操作)
+      final_bitmap.reset(); 
+      const auto& first_list = *valid_vec_lists[0];
+      for (IdxType vec_id : first_list) {
+         final_bitmap.set(vec_id);
+      }
+
+      // 4. 依次与其余属性的集合求交集
+      for (size_t i = 1; i < valid_vec_lists.size(); ++i) {
+         // 核心优化：提前终止。如果当前交集已经为空，直接跳出，省去后续所有计算
+         if (final_bitmap.none()) {
+               cand_size = 0;
+               return final_bitmap;
+         }
+
+         const auto& vec_list = *valid_vec_lists[i];
+         
+         // 【兜底优化】恢复旧代码的精确复位机制，确保小集合场景下纳秒级清零
+         for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
+         final_bitmap &= temp_bitmap;
+         for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
+      }
+      
+      cand_size = final_bitmap.count();
+      return final_bitmap;
+   }*/
 
    /**
-    * 1.一句话概括函数核心作用：接收预先算好的查询掩码，直接执行暴力距离计算。
+    * 1.接收预先算好的查询掩码，直接执行暴力距离计算。
     * 2.思路说明：
     * - 直接遍历传入的 final_bitmap。
     * - 对位图为 1 的有效点计算真实距离，利用优先队列维护 Top-K。
@@ -1197,27 +1261,6 @@ namespace ANNS
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id) {
          if (final_bitmap.test(vec_id)) {
                float dist = _distance_handler->compute(query, _base_storage->get_vector(vec_id), dim);
-
-               // if (vec_id == _old_to_new_vec_ids[14976854]) {
-               //    // 定义一个静态锁，所有线程共享这个锁
-               //    static std::mutex debug_mutex; 
-               //    // 加锁：离开这个 if 块的作用域时会自动解锁
-               //    std::lock_guard<std::mutex> lock(debug_mutex); 
-
-               //    std::cout << "\n[FATAL DEBUG] C++ computed distance for 14976854 is: " << dist << std::endl;
-
-               //    const char* vec_data = _base_storage->get_vector(vec_id); 
-               //    std::cout << "[DATA CHECK] First 5 dims of 14976854 in C++: [ ";
-               //    for(int d = 0; d < 5; ++d) {
-               //       std::cout << vec_data[d] << " ";
-               //    }
-               //    std::cout << "]" << std::endl;
-
-               //    // 算一下它的模长（Norm），如果接近 0，实锤是零向量
-               //    float norm = 0;
-               //    for(int d = 0; d < dim; ++d) norm += vec_data[d] * vec_data[d];
-               //    std::cout << "[DATA CHECK] L2 Norm squared of 14976854 is: " << norm << std::endl;
-               // }
 
                num_distance_calcs++;
 
@@ -2500,20 +2543,33 @@ namespace ANNS
          std::cout << "- Trie Method Selector is warm." << std::endl;
       }
 
-      // 预热 Idea2 的 UNG/ACORN 选择器
-      if (_ung_acorn_selector != nullptr)
-      {
-         std::cout << "- Warming up UNG/ACORN Selector (Idea2)..." << std::endl;
-         // 创建一个符合模型输入尺寸的虚拟特征向量 ，特征数量为6
-         std::vector<float> dummy_features2(6, 0.0f);
+//       // 预热 Idea2 的 UNG/ACORN 选择器
+//       if (_ung_acorn_selector != nullptr)
+//       {
+//          std::cout << "- Warming up UNG/ACORN Selector (Idea2)..." << std::endl;
+//          // 创建一个符合模型输入尺寸的虚拟特征向量 ，特征数量为6
+//          std::vector<float> dummy_features2(6, 0.0f);
 
+// #pragma omp parallel for num_threads(num_threads)
+//          for (int i = 0; i < num_threads; ++i)
+//          {
+//             _ung_acorn_selector->predict(dummy_features2);
+//          }
+//          std::cout << "- UNG/ACORN Selector is warm." << std::endl;
+//       }
+
+         if (_smart_route_selector) {
+            std::cout << "- Warming up Smart Route Selector..." << std::endl;
+            std::vector<float> dummy5(5, 0.0f);
 #pragma omp parallel for num_threads(num_threads)
-         for (int i = 0; i < num_threads; ++i)
-         {
-            _ung_acorn_selector->predict(dummy_features2);
+            for (int i = 0; i < num_threads; ++i) _smart_route_selector->predict(dummy5);
          }
-         std::cout << "- UNG/ACORN Selector is warm." << std::endl;
-      }
+         if (_fast_route_l1_selector) {
+            std::cout << "- Warming up Fast Route L1 Selector..." << std::endl;
+            std::vector<float> dummy3(3, 0.0f);
+#pragma omp parallel for num_threads(num_threads)
+            for (int i = 0; i < num_threads; ++i) _fast_route_l1_selector->predict(dummy3);
+         }
    }
 
    // fxy_add
@@ -3337,6 +3393,120 @@ void UniNavGraph::calculate_query_features_only(
       return _trie_index._label_to_nodes[label].size();
    }
 
+
+   //fxy_add
+   int UniNavGraph::determine_routing_strategy(
+      int routing_mode, 
+      int baseline_alg,
+      const std::vector<LabelType>& query_labels,
+      ANNS::QueryStats& stats,
+      std::vector<IdxType>& entry_group_ids,
+      bool is_new_trie_method,
+      bool is_rec_more_start)
+   {
+      float f_qsize = static_cast<float>(stats.query_length);
+      float f_cand  = static_cast<float>(stats.candidate_set_size);
+      float f_ppass = stats.global_p_pass;
+
+      // --- 默认初始化指标 ---
+      stats.is_intel_els_used = false; 
+      stats.is_trie_recursive = false; 
+
+      // --- 模式 0: Baseline ---
+      if (routing_mode == 0) {
+         if (baseline_alg == 0 || baseline_alg == 1) { // 如果是 UNG 家族，算好 ELS
+               bool use_nT_true = (baseline_alg == 1);
+               stats.is_trie_recursive = use_nT_true; // 记录: Baseline使用的是递归还是非递归
+               
+               auto els_start = std::chrono::high_resolution_clock::now();
+               static std::atomic<int> counter{0};
+               // 注意这里传入 use_nT_true，直接覆盖全局的 is_new_trie_method
+               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
+               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+               stats.num_entry_points = entry_group_ids.size();
+         } 
+         return baseline_alg;
+      }
+
+      // --- 模式 1: SmartRoute / NaiveRoute ---
+      if (routing_mode == 1) {
+         bool use_nT_true = false; // SmartRoute默认使用nTfalse (非递归) 的快速获取方式
+         stats.is_trie_recursive = use_nT_true;
+
+         auto els_start = std::chrono::high_resolution_clock::now();
+         static std::atomic<int> counter{0};
+         get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
+         stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+         stats.num_entry_points = entry_group_ids.size();
+
+         std::unordered_set<IdxType> naive_desc;
+         for (auto gid : entry_group_ids) {
+               if (gid > 0 && gid <= _num_groups) {
+                  for (auto desc_id : _label_nav_graph->_lng_descendants[gid]) naive_desc.insert(desc_id);
+               }
+         }
+         stats.num_lng_descendants = naive_desc.size();
+
+         auto pred_start = std::chrono::high_resolution_clock::now();
+         int final_alg = 0; // 默认 UNG-nTfalse
+         if (_smart_route_selector) {
+               std::vector<float> features = {f_qsize, f_cand, f_ppass, static_cast<float>(stats.num_entry_points), static_cast<float>(stats.num_lng_descendants)};
+               float pred_val = _smart_route_selector->predict(features);
+               final_alg = static_cast<int>(std::round(pred_val));
+         }
+         stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
+         return final_alg;
+      }
+
+      // --- 模式 2: FastSmartRoute ---
+      if (routing_mode == 2) {
+         auto l1_start = std::chrono::high_resolution_clock::now();
+         int l1_decision = 0; 
+         
+         if (_fast_route_l1_selector) {
+               std::vector<float> l1_features = {f_qsize, f_cand, f_ppass};
+               float pred_val = _fast_route_l1_selector->predict(l1_features);
+               l1_decision = static_cast<int>(std::round(pred_val));
+         }
+         stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - l1_start).count();
+
+         // 如果归入 UNG 家族 (0 或 1)
+         if (l1_decision == 0 || l1_decision == 1) {
+               bool use_nT_true = false;
+               if (_trie_method_selector) {
+                  stats.is_intel_els_used = true; // 只有明确调用 IntelELS 模型，这里才为 true!
+                  
+                  auto intel_els_start = std::chrono::high_resolution_clock::now();
+                  const auto &trie_metrics = _trie_static_metrics;
+                  stats.trie_total_nodes = trie_metrics.total_nodes;
+                  stats.trie_label_cardinality = trie_metrics.label_cardinality;
+                  stats.trie_avg_path_length = trie_metrics.avg_path_length;
+                  stats.trie_avg_branching_factor = trie_metrics.avg_branching_factor;
+
+                  auto idea1_features = calculate_idea1_features(stats);
+                  use_nT_true = (_trie_method_selector->predict(idea1_features) > 0.5f);
+                  // use_nT_true = _trie_method_selector->predict(idea1_features);
+                  stats.intel_els_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - intel_els_start).count();
+               }
+               stats.is_trie_recursive = use_nT_true;
+
+               auto els_start = std::chrono::high_resolution_clock::now();
+               static std::atomic<int> counter{0};
+               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
+               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+               stats.num_entry_points = entry_group_ids.size();
+               
+               return use_nT_true ? 1 : 0; 
+         } 
+         else {
+               // 完美跳过 ELS！
+               return l1_decision; 
+         }
+      }
+      return 0; // Fallback
+   }
+   
+
 // fxy_add 
     void UniNavGraph::thread_function(std::queue<int>& Qid_595,std::shared_ptr<IStorage> &query_storage,
                                    std::shared_ptr<DistanceHandler> &distance_handler,
@@ -3345,13 +3515,11 @@ void UniNavGraph::calculate_query_features_only(
                                    IdxType K, std::pair<IdxType, float> *results,
                                    std::vector<float> &num_cmps,
                                    std::vector<QueryStats> &query_stats,
-                                   bool is_idea2_available,
                                    bool is_new_trie_method, bool is_rec_more_start,
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
-                                   int force_use_alg, int acorn_search_algo, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
-                                   bool is_naive_routing,
+                                   int routing_mode, int baseline_alg, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
                                    const std::vector<IdxType> &true_query_group_ids){
          omp_set_num_threads(1);
 
@@ -3372,231 +3540,41 @@ void UniNavGraph::calculate_query_features_only(
       
 
          // ======================= STAGE 1: DECISION MAKING =======================
+         auto decision_start_time = std::chrono::high_resolution_clock::now();
 
-         // --- 1.1 Initialize decision variables ---
-         bool final_use_nT_true = false;       // Final decision for Trie method
-         // bool final_use_acorn = false;         // Final decision for search framework
-         int final_algo_choice = 0;            // 0: UNG, 1: ACORN(BFS), 2: ACORN(NoBFS)
-         bool entry_groups_calculated = false; // Flag to prevent recalculation
-         std::vector<IdxType> entry_group_ids;
-
-         // --- 1.2 Calculate common features, needed for selectors ---
+         // --- 1. 提取基础特征 ---
          auto feature_start = std::chrono::high_resolution_clock::now();
-         
          stats.query_length = query_labels.size();
-         if (!query_labels.empty())
-         {
-            stats.candidate_set_size = get_candidate_count_for_label(query_labels.back());
+         stats.candidate_set_size = query_labels.empty() ? 0 : get_candidate_count_for_label(query_labels.back());
+
+         const std::bitset<16000000>* exact_mask_ptr = nullptr;
+         stats.bitmap_time_ms = 0.0; 
+
+         // 仅当使用路由器(模式1,2) 或 明确执行 pre-filter(模式0且算法5) 时，才计算极其耗时的 exact_mask
+         if (routing_mode == 1 || routing_mode == 2 || (routing_mode == 0 && baseline_alg == 5)) {
+            auto mask_start = std::chrono::high_resolution_clock::now(); // 单独计时
+            exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
+            stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count(); // 记录bitmap时间
+            
+            stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
+         } else {
+            stats.exact_cand_size = 0;
+            stats.global_p_pass = 0.0f;
          }
-         else
-         {
-            stats.candidate_set_size = 0; 
-         }
-         // 获取大小的同时，拿到算好的掩码
-         const std::bitset<16000000>& exact_mask = get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
-         stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
-         
-         stats.feature_extract_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count();
+         double total_feature_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count();
+         stats.feature_extract_time_ms = total_feature_time - stats.bitmap_time_ms;// 特征提取时间 = 总耗时 - Bitmap构建耗时
 
-         // --- PRE-TRIE 启发式规则 ---
-         std::optional<bool> pre_heuristic_decision = std::nullopt;
-         bool is_method3_mode = (force_use_alg == 0 && is_idea2_available && is_new_trie_method);
-         if (is_method3_mode && !is_naive_routing)
-         {
-            // 根据query length决定是否计算ELS
-            pre_heuristic_decision = check_pre_trie_heuristic(_dataset, stats.query_length, stats.candidate_set_size);
-         }
-         if (pre_heuristic_decision.has_value())
-         {
-            //final_use_acorn = pre_heuristic_decision.value(); // (设为 true)
-            final_algo_choice = pre_heuristic_decision.value() ? 1 : 0;// 如果启发式决定用 ACORN (true)，默认给 1 (ACORN-Gamma/BFS)，否则给 0 (UNG)
-            final_use_nT_true = true; 
-            stats.is_idea1_used = final_use_nT_true;
-            stats.is_idea2_used = static_cast<float>(final_algo_choice);
-         }
-         else if (force_use_alg == 0)
-         {
-            // --- Idea1 Selector Logic ---
-            if (_trie_method_selector != nullptr && force_use_alg == 0 && is_new_trie_method && !is_naive_routing)
-            {
-               auto idea1_flag_start_time = std::chrono::high_resolution_clock::now();
+         // 调用路由策略并获取 final_algo_choice 和 entry_group_ids
+         std::vector<IdxType> entry_group_ids;
+         int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
+         stats.algo_choice = final_algo_choice;
+         stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
 
-               // 1. 填充决策所需的 stats 信息
-               const auto &trie_metrics = _trie_static_metrics;
-               stats.trie_total_nodes = trie_metrics.total_nodes;
-               stats.trie_label_cardinality = trie_metrics.label_cardinality;
-               stats.trie_avg_path_length = trie_metrics.avg_path_length;
-               stats.trie_avg_branching_factor = trie_metrics.avg_branching_factor;
-
-               // 2. 调用独立函数计算特征向量
-               std::vector<float> idea1_features = calculate_idea1_features(stats);
-
-               // 3. 如果成功生成了特征 (即数据集匹配)，则用模型预测
-               if (!idea1_features.empty())
-               {
-                  auto idea1_selector_start_time = std::chrono::high_resolution_clock::now();
-                  final_use_nT_true = _trie_method_selector->predict(idea1_features);
-                  stats.idea1_selector_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - idea1_selector_start_time).count();
-               }
-               else
-               {
-                  // 若当前数据集无对应特征工程，则退回默认行为
-                  std::cout<<"[Warning] No Idea1 features for dataset " << _dataset << ". Reverting to default behavior." << std::endl;
-                  final_use_nT_true = is_new_trie_method;
-               }
-               stats.idea1_flag_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - idea1_flag_start_time).count();
-            }
-            else
-            {
-               // 傻瓜式：强制不用新方法 (nT=false, 即传统的 Bottom-up)
-               // final_use_nT_true = is_new_trie_method;
-               final_use_nT_true = is_naive_routing ? false : is_new_trie_method;
-            }
-            // --- Idea2 Selector Logic ---
-            if (is_idea2_available) //method2, method3
-            {
-               static std::atomic<int> temp_counter{0};
-               QueryStats temp_stats;
-               auto get_entry_group_start_time = std::chrono::high_resolution_clock::now();
-               bool use_nT_for_group_get;
-               if (force_use_alg == 2)
-                  use_nT_for_group_get = true; // 强制设置为 true
-               else
-                  use_nT_for_group_get = (force_use_alg == 0) ? final_use_nT_true : is_new_trie_method;
-               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, temp_counter, use_nT_for_group_get, is_rec_more_start, temp_stats,is_new_trie_method);
-               entry_groups_calculated = true;
-               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - get_entry_group_start_time).count();
-
-
-               auto idea2_flag_start_time = std::chrono::high_resolution_clock::now();
-
-
-               // 计算 Idea2 所需的原始特征并存入 stats
-               if (!entry_group_ids.empty())
-               {
-                  stats.num_entry_points = entry_group_ids.size();
-                  
-                  // 引入傻瓜式计算分支
-                  if (is_naive_routing) {
-                     // 傻瓜式特征提取：使用无优化的 unordered_set 遍历合并去重
-                     std::unordered_set<IdxType> naive_descendants;
-                     std::unordered_set<IdxType> naive_coverage;
-                     
-                     for (auto gid : entry_group_ids) {
-                        if (gid > 0 && gid <= _num_groups) {
-                              // 遍历合并后代 (F_pass)
-                              for (auto desc_id : _label_nav_graph->_lng_descendants[gid]) {
-                                 naive_descendants.insert(desc_id);
-                              }
-                              // 遍历合并覆盖向量 (p_pass)
-                              for (auto vec_id : _label_nav_graph->covered_sets[gid]) {
-                                 naive_coverage.insert(vec_id);
-                              }
-                        }
-                     }
-                     stats.num_lng_descendants = naive_descendants.size();
-                     stats.entry_group_total_coverage = static_cast<float>(naive_coverage.size()) / _num_points;
-                  } 
-                  else {
-                     // 原版优化逻辑：使用 Roaring Bitmap 高速位运算
-                     stats.num_lng_descendants = [&]
-                     {
-                        roaring::Roaring desc;
-                        for (auto gid : entry_group_ids)
-                           if (gid > 0 && gid <= _num_groups)
-                              desc |= _lng_descendants_rb[gid];
-                        return desc.cardinality();
-                     }();
-                     stats.entry_group_total_coverage = [&]
-                     {
-                        roaring::Roaring cov;
-                        for (auto gid : entry_group_ids)
-                           if (gid > 0 && gid <= _num_groups)
-                              cov |= _covered_sets_rb[gid];
-                        return static_cast<float>(cov.cardinality()) / _num_points;
-                     }();
-                  }
-               }
-               // 检查启发式规则 (仅在method3)
-               std::optional<bool> heuristic_decision = std::nullopt;
-               // if (is_method3_mode) // (force_use_alg=0 && is_idea2_available && is_new_trie_method)
-               // {
-               //     heuristic_decision = check_idea2_heuristic_override(_dataset, stats.num_entry_points); //
-               // }
-               if (heuristic_decision.has_value())
-               {
-                  //  final_use_acorn = heuristic_decision.value(); 
-                   stats.idea2_selector_pred_time_ms = 0.0; 
-               }
-               else
-               {
-                  // 调用独立的特征计算函数
-                  std::vector<float> idea2_features = calculate_idea2_features(stats);
-
-                  // 使用模型进行预测 (仅当特征成功生成且未被强制时)
-                  if (!idea2_features.empty() && _ung_acorn_selector != nullptr && force_use_alg == 0)
-                  {
-                     auto idea2_selector_start_time = std::chrono::high_resolution_clock::now();
-
-                     //final_use_acorn = _ung_acorn_selector->predict(idea2_features);
-                     float pred_val = _ung_acorn_selector->predict(idea2_features);
-                     final_algo_choice = static_cast<int>(std::round(pred_val));
-
-                     stats.idea2_selector_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - idea2_selector_start_time).count();
-                  }
-                  // 如果模型不存在、数据集不匹配或被强制，final_use_acorn 保持默认值 false，最终由 force_use_alg 的逻辑覆盖
-               }
-               stats.idea2_flag_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - idea2_flag_start_time).count();
-
-               
-            }
-         }
-
-         // This block now only sets the final decision if force_use_alg is active.
-         // The actual algorithm choice is made here, while the selector calculation may have happened above for data collection purposes.
-         if (force_use_alg > 0)
-         {
-            switch (force_use_alg)
-            {
-            case 1:
-               final_use_nT_true = false;
-               final_algo_choice = 0;
-               break;
-            case 2:
-               final_use_nT_true = true;
-               final_algo_choice = 0;
-               break;
-            case 3: // ACORN (分为 Standard 和 Imp)
-            case 4: // ACORN-1
-               // 将 acorn_search_algo (0/1/2) 映射为 final_algo_choice (1/2/3)
-               // 1: ACORN-gamma, 2: ACORN-improved, 3: NaviX on ACORN
-               final_algo_choice = acorn_search_algo + 1;
-               break;
-            case 5: // 强制使用 bitmap暴力的Exact Baseline
-               final_algo_choice = 5;
-               break;
-            case 6: // 强制使用 NaviX
-               final_algo_choice = 6;
-               break;
-            }
-         }
-         stats.is_idea1_used = final_use_nT_true;
-         // stats.is_idea2_used = final_use_acorn;
-         stats.is_idea2_used = static_cast<float>(final_algo_choice); 
 
          // ======================= STAGE 2: EXECUTION STAGE =======================
 
-         // if (!entry_groups_calculated && (force_use_alg != 3 && force_use_alg != 4) && !pre_heuristic_decision.has_value())
-         if (!entry_groups_calculated && final_algo_choice == 0)
-         {
-            auto get_entry_group_start_time = std::chrono::high_resolution_clock::now();
-            static std::atomic<int> counter{0};
-            get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, final_use_nT_true, is_rec_more_start, stats,false);
-            stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - get_entry_group_start_time).count();
-         }
-
          // Apply entry point expansion logic if needed for the UNG path
-         if (is_ung_more_entry && final_algo_choice == 0)
+         if (is_ung_more_entry && (final_algo_choice == 0 || final_algo_choice == 1))
          {
             IdxType true_group_id = 0;
             if (id < true_query_group_ids.size())
@@ -3608,15 +3586,14 @@ void UniNavGraph::calculate_query_features_only(
          }
          stats.num_entry_points = entry_group_ids.size();
 
-         if (final_algo_choice == 5)
+         if (final_algo_choice == 5) // pre-filter
          {
              auto search_time_start_ms = std::chrono::high_resolution_clock::now();
-             
              size_t dist_calcs = 0;
              std::vector<std::pair<IdxType, float>> exact_results(K);
-             search_baseline_exact(query, exact_mask, K, exact_results.data(), dist_calcs);
+            
+             search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs);
 
-             // 彻底跳过 cur_result，将真实算出的新 ID 转换为旧 ID 后，直接写入最终 results 数组
              for (size_t i = 0; i < K; ++i) {
                  if (exact_results[i].first != -1) {
                      results[id * K + i].first = _new_to_old_vec_ids[exact_results[i].first];
@@ -3626,19 +3603,15 @@ void UniNavGraph::calculate_query_features_only(
                      results[id * K + i].second = std::numeric_limits<float>::max();
                  }
              }
-
-             // 记录统计指标
              stats.num_distance_calcs = dist_calcs;
              stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
              stats.search_time_ms = stats.core_search_time_ms;
              num_cmps[id] = dist_calcs;
              stats.time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - total_search_start_time).count();
              search_cache_list.release_cache(search_cache);
-             
-             // 直接返回，跳过原函数底部的 STAGE 3，防止我们刚刚写入的数据被空队列覆盖！
              return; 
          }
-         else if (final_algo_choice == 6) 
+         else if (final_algo_choice == 7) // NaviX(在NaviX索引)
          {
              auto search_time_start_ms = std::chrono::high_resolution_clock::now();
              
@@ -3685,7 +3658,8 @@ void UniNavGraph::calculate_query_features_only(
                  navix_mask_vec = generate_single_filter_map(this->_vector_attr_graph, _num_points, mapped_query_attrs);
              }
 
-             stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
+             // 将 = 改为 +=
+            stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
 
              // =========================================================================
              // 2. 准备 NaviX 要求的查询容器
@@ -3730,17 +3704,14 @@ void UniNavGraph::calculate_query_features_only(
              stats.num_nodes_visited = navix_stats.n1;
              stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
-         else if (final_algo_choice > 0 && final_algo_choice != 5 && final_algo_choice != 6)
+         else if (final_algo_choice >= 2 && final_algo_choice <= 6 && final_algo_choice != 5) // ACORN 家族 (2,3,4,6)
          {
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
             std::shared_ptr<faiss::IndexACORNFlat> selected_acorn_index = nullptr; // <--- 使用一个临时指针
 
-            if (force_use_alg == 4)
-            {
+            if (final_algo_choice == 6) {
                selected_acorn_index = _acorn_1_index;
-            }
-            else
-            { // force_use_alg == 3 或自动选择
+            } else { 
                selected_acorn_index = _acorn_index;
             }
 
@@ -3748,25 +3719,14 @@ void UniNavGraph::calculate_query_features_only(
             if (!selected_acorn_index)
             {
                std::cerr << "ERROR: ACORN index not loaded for query " << id << ". Skipping." << std::endl;
-               for (auto k = 0; k < K; ++k)
-                  results[id * K + k].first = -1;
+               for (auto k = 0; k < K; ++k) results[id * K + k].first = -1;
                return;
             }
-
             int current_efs;
-
-            // 2. 判断当前 Lsearch 处于哪个区间
             if (Lsearch <= lsearch_threshold)
-            {
-               // --- 处于慢速增长区 ---
-               // 计算方式和原来一样，只是使用慢速步长
                current_efs = efs_start + ((Lsearch - lsearch_start) / lsearch_step) * efs_step_slow;
-            }
             else
             {
-               // --- 处于快速增长区 ---
-               // 为了保证 efs 增长的连续性，计算分为两部分：
-               
                // Part A: 先计算出在阈值点时的 efs 值
                int num_steps_in_slow_zone = (lsearch_threshold - lsearch_start) / lsearch_step;
                int efs_at_threshold = efs_start + num_steps_in_slow_zone * efs_step_slow;
@@ -3775,72 +3735,96 @@ void UniNavGraph::calculate_query_features_only(
                int num_steps_in_fast_zone = (Lsearch - lsearch_threshold) / lsearch_step;
                current_efs = efs_at_threshold + num_steps_in_fast_zone * efs_step_fast;
             }
-
-            // 确保 efs 不会小于起始值 (安全检查)
             current_efs = std::max(current_efs, efs_start);
 
             stats.acorn_efs_used = current_efs;
             selected_acorn_index->acorn.efSearch = current_efs;
 
+            // 确定当前使用哪种 ACORN 内部搜索策略 (0: ACORN, 1: Imp, 2: NaviX)
+            int current_baseline_alg = 0;
+            if (final_algo_choice == 2 || final_algo_choice == 6) {
+                current_baseline_alg = 0; // ACORN-gamma / ACORN-1 使用基础原版
+            } else if (final_algo_choice == 3) {
+                current_baseline_alg = 1; // ACORN-improved
+            } else if (final_algo_choice == 4) {
+                current_baseline_alg = 2; // NaviX-ACORN
+            }
+
             const float *query_vector_float = reinterpret_cast<const float *>(query);
             std::vector<faiss::idx_t> result_original_ids(K);
             std::vector<float> result_dists(K);
-
-            // 确定当前使用哪种 ACORN 内部搜索策略 (0: ACORN, 1: Imp, 2: NaviX)
-            int current_acorn_search_algo = 0;
-            if (force_use_alg == 0) {
-               // SmartRoute 自动模式：将模型的输出 (1, 2, 3) 还原给底层算法参数 (0, 1, 2)
-               current_acorn_search_algo = final_algo_choice - 1;
-               if (current_acorn_search_algo < 0) current_acorn_search_algo = 0; // 防御性保护
-            } else {
-               // 强制 Baseline 模式：直接透传脚本传进来的参数
-               current_acorn_search_algo = acorn_search_algo;
-            }
-
+            bool has_els_groups = !entry_group_ids.empty();
+            bool has_exact_mask = (exact_mask_ptr != nullptr);
             
-            if (pre_heuristic_decision.has_value() || force_use_alg == 3 || force_use_alg == 4)
-            {// 强制使用ACORN-gamma时，调用ACORN原始的、基于倒排索引的过滤方法。
+            // 只有在既没有 ELS，也没有在特征提取阶段算过 exact_mask 时，才使用慢速的倒排索引
+            bool use_acorn_native_filter = (!has_els_groups && !has_exact_mask);
 
-               // 将UNG的查询标签 (uint16_t) 转换为ACORN search函数期望的格式 (vector<vector<int>>)
+            if (use_acorn_native_filter)
+            {
+               stats.acorn_filter_type = 3; // 记录使用倒排索引
+               // 分支 1：Baseline 模式下的 ACORN 家族 (没有任何前置掩码可用)
                std::vector<std::vector<int>> query_attrs_for_acorn(1);
                query_attrs_for_acorn[0].assign(query_labels.begin(), query_labels.end());
 
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
                selected_acorn_index->search_old_bitmap(
-                   1, query_vector_float, K, result_dists.data(), result_original_ids.data(), query_attrs_for_acorn, nullptr, nullptr, nullptr, current_acorn_search_algo);
+                   1, query_vector_float, K, result_dists.data(), result_original_ids.data(), 
+                   query_attrs_for_acorn, nullptr, nullptr, nullptr, current_baseline_alg);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
             else
             {          
-               roaring::Roaring current_roaring_bitmap = compute_bitmap_from_groups(entry_group_ids);
-               auto bitmap_start_time = std::chrono::high_resolution_clock::now();
+               // 分支 2 & 3：复用前置计算好的掩码 (ELS Group 或 Exact Mask)
                std::vector<char> filter_map(_num_points, 0);
-               for (uint32_t original_id : current_roaring_bitmap)
+               auto bitmap_start_time = std::chrono::high_resolution_clock::now();
+
+               // 只要 exact_mask_ptr 不为空 (SmartRoute/FastSmartRoute天然满足)，就直接用，无视 ELS 是否存在
+               if (has_exact_mask) 
                {
-                  if (original_id < _num_points)
-                  {
-                     IdxType new_id = _old_to_new_vec_ids[original_id];
-                     filter_map[new_id] = 1;
-                  }
+                   stats.acorn_filter_type = 2; // 标记使用了 Exact Mask
+                   for (size_t pt_id = 0; pt_id < _num_points; ++pt_id) 
+                   {
+                       if (exact_mask_ptr->test(pt_id)) 
+                       {
+                           filter_map[pt_id] = 1; 
+                       }
+                   }
                }
-               stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
+               // 如果没有 exact_mask (比如普通的 Baseline UNG 算法走到这一步)，再兜底使用 ELS
+               else if (has_els_groups) 
+               {
+                   stats.acorn_filter_type = 1; // 标记使用了 ELS
+                   roaring::Roaring current_roaring_bitmap = compute_bitmap_from_groups(entry_group_ids);
+                   for (uint32_t original_id : current_roaring_bitmap)
+                   {
+                      if (original_id < _num_points)
+                      {
+                         IdxType new_id = _old_to_new_vec_ids[original_id];
+                         filter_map[new_id] = 1;
+                      }
+                   }
+               }
+               stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
+               
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
-               selected_acorn_index->search(1, query_vector_float, K, result_dists.data(), result_original_ids.data(), filter_map.data(), nullptr, nullptr, nullptr, current_acorn_search_algo);
+               selected_acorn_index->search(
+                   1, query_vector_float, K, result_dists.data(), result_original_ids.data(), 
+                   filter_map.data(), nullptr, nullptr, nullptr, current_baseline_alg);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
+
             cur_result.clear();
             for (size_t i = 0; i < K; ++i)
             {
                if (result_original_ids[i] != -1)
                {
-                  //cur_result.insert(_old_to_new_vec_ids[result_original_ids[i]], result_dists[i]);
                   cur_result.insert(result_original_ids[i], result_dists[i]);
                }
             }
             num_cmps[id] = 0;
             stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
-         else
+         else if (final_algo_choice == 0 || final_algo_choice == 1) // UNG 家族
          {
             // --- Execute UNG Search ---
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
@@ -3893,12 +3877,11 @@ void UniNavGraph::calculate_query_features_only(
                                    IdxType K, std::pair<IdxType, float> *results,
                                    std::vector<float> &num_cmps,
                                    std::vector<QueryStats> &query_stats,
-                                   bool is_idea2_available,
                                    bool is_new_trie_method, bool is_rec_more_start,
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
-                                   int force_use_alg,int acorn_search_algo, faiss_navix::IndexHNSWFlat* navix_index, bool is_naive_routing,const std::vector<IdxType> &true_query_group_ids)
+                                   int routing_mode,int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index, const std::vector<IdxType> &true_query_group_ids)
    {
       // --- Initializations ---
       auto num_queries = query_storage->get_num_points();
@@ -3924,14 +3907,14 @@ void UniNavGraph::calculate_query_features_only(
          
          tp_results.emplace_back(
                
-                pool.enqueue([this,&Qid_595,&query_storage,&distance_handler,&num_threads,&Lsearch,&num_entry_points,&scenario,&K, results,&num_cmps,&query_stats,&is_idea2_available,
+                pool.enqueue([this,&Qid_595,&query_storage,&distance_handler,&num_threads,&Lsearch,&num_entry_points,&scenario,&K, results,&num_cmps,&query_stats,
                                    &is_new_trie_method, &is_rec_more_start,&is_ung_more_entry,&lsearch_start,&lsearch_step,
                                    &efs_start, &efs_step_slow,&efs_step_fast,&lsearch_threshold,
-                                   &force_use_alg, &acorn_search_algo,&num_queries,  &true_query_group_ids, navix_index,&is_naive_routing] { // pass const type value j to thread; [] can be empty
-                    this->thread_function(Qid_595,query_storage,distance_handler,num_threads,Lsearch,num_entry_points,scenario,K, results,num_cmps,query_stats,is_idea2_available,
+                                   &routing_mode, &baseline_alg,&num_queries,  &true_query_group_ids, navix_index] { // pass const type value j to thread; [] can be empty
+                    this->thread_function(Qid_595,query_storage,distance_handler,num_threads,Lsearch,num_entry_points,scenario,K, results,num_cmps,query_stats,
                                    is_new_trie_method, is_rec_more_start,is_ung_more_entry,lsearch_start,lsearch_step,
                                    efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,
-                                   force_use_alg, acorn_search_algo, num_queries, navix_index,is_naive_routing,true_query_group_ids);
+                                   routing_mode, baseline_alg, num_queries, navix_index,true_query_group_ids);
                     return 1; // return to results; the return type must be the same with results
                 }));   
       }
@@ -4492,26 +4475,44 @@ void UniNavGraph::calculate_query_features_only(
          _trie_method_selector = nullptr;
       }
 
-      // load idea2 selector
-      std::string idea2_model_path = selector_modle_prefix + "/idea2/idea2_selector_model_final.onnx";
-      std::cout << "Loading Idea2 Selector model from " << idea2_model_path << " ..." << std::endl;
-      if (fs::exists(idea2_model_path))
-      {
-         std::cout << "- Loading Idea2 Selector model from: " << idea2_model_path << std::endl;
-         try
-         {
-            _ung_acorn_selector = std::make_unique<MethodSelector>(idea2_model_path);
-         }
-         catch (const std::runtime_error &e)
-         {
-            std::cerr << "  - [ERROR] Failed to initialize Idea2 Selector: " << e.what() << std::endl;
-            _ung_acorn_selector = nullptr;
-         }
+      // // load idea2 selector
+      // std::string idea2_model_path = selector_modle_prefix + "/idea2/idea2_selector_model_final.onnx";
+      // std::cout << "Loading Idea2 Selector model from " << idea2_model_path << " ..." << std::endl;
+      // if (fs::exists(idea2_model_path))
+      // {
+      //    std::cout << "- Loading Idea2 Selector model from: " << idea2_model_path << std::endl;
+      //    try
+      //    {
+      //       _ung_acorn_selector = std::make_unique<MethodSelector>(idea2_model_path);
+      //    }
+      //    catch (const std::runtime_error &e)
+      //    {
+      //       std::cerr << "  - [ERROR] Failed to initialize Idea2 Selector: " << e.what() << std::endl;
+      //       _ung_acorn_selector = nullptr;
+      //    }
+      // }
+      // else
+      // {
+      //    std::cout << "- [INFO] Idea2 Selector model not found at: " << idea2_model_path << ". Selector will be disabled." << std::endl;
+      //    _ung_acorn_selector = nullptr;
+      // }
+
+      // --- 加载 SmartRoute 模型 (5特征) ---
+      std::string sr_model_path = selector_modle_prefix + "/naive_smart_route/naive_smart_route.onnx";
+      if (fs::exists(sr_model_path)) {
+         _smart_route_selector = std::make_unique<MethodSelector>(sr_model_path);
+         std::cout << "- SmartRoute Model loaded." << std::endl;
+      } else {
+         _smart_route_selector = nullptr;
       }
-      else
-      {
-         std::cout << "- [INFO] Idea2 Selector model not found at: " << idea2_model_path << ". Selector will be disabled." << std::endl;
-         _ung_acorn_selector = nullptr;
+
+      // --- 加载 FastSmartRoute L1 模型 (3特征) ---
+      std::string fsr_l1_model_path = selector_modle_prefix + "/fast_smart_route/l1_router.onnx";
+      if (fs::exists(fsr_l1_model_path)) {
+         _fast_route_l1_selector = std::make_unique<MethodSelector>(fsr_l1_model_path);
+         std::cout << "- FastSmartRoute L1 Model loaded." << std::endl;
+      } else {
+         _fast_route_l1_selector = nullptr;
       }
 
       // === load ACORN index ===
@@ -4552,7 +4553,7 @@ void UniNavGraph::calculate_query_features_only(
                else
                {
                   std::cerr << "  - [WARNING] Inverted index file not found at: " << inverted_index_path
-                            << ". ACORN's original filtering (force_use_alg=3) will not work." << std::endl;
+                            << ". ACORN's original filtering (routing_mode=3) will not work." << std::endl;
                }
             }
             else

@@ -31,20 +31,13 @@ namespace ANNS
       double descendants_merge_time_ms;  // descendants合并耗时
       double coverage_merge_time_ms;     // coverage合并耗时
       double get_min_super_sets_time_ms; // 获取最小入口集合耗时
-      double idea1_flag_time_ms;         // idea1计算flag耗时
-      double idea2_flag_time_ms;         // idea2计算flag耗时
-      double idea1_selector_pred_time_ms; // idea1 selector预测耗时
-      double idea2_selector_pred_time_ms; // idea2 selector预测耗时
-      double bitmap_time_ms = 0.0;       // 计算bitmap耗时
+
       size_t num_distance_calcs;
       int acorn_efs_used;
 
       size_t num_nodes_visited = 0; // 用于存储search过程中的节点总数
       size_t query_length;            // 查询长度
       long long trie_nodes_traversed; // 存储两种方法的总遍历节点数
-
-      bool is_idea1_used = false;
-      int is_idea2_used = 0; // 0 (UNG), 1 (ACORN-gamma), 2 (ACORN-gamma-improved)
 
       // Trie 静态特征
       size_t trie_total_nodes;
@@ -71,7 +64,18 @@ namespace ANNS
 
       size_t exact_cand_size = 0;
       float global_p_pass = 0.0f;
-      double feature_extract_time_ms = 0.0;
+
+    float algo_choice;                   // 记录最终选择的 0-7 算法代号
+    bool is_intel_els_used;             // 仅当真正调用 _trie_method_selector 推理时为 true
+    bool is_trie_recursive;               // 记录实际计算 ELS 时，用的是 递归(nTtrue) 还是 非递归(nTfalse)
+
+    double intel_els_pred_time_ms;       // 记录预测 nTtrue/nTfalse 的耗时
+    double route_pred_time_ms;           // 记录 SmartRoute/FastSmartRoute 推理的耗时
+    double routing_total_time_ms;        // 记录整个路由决策阶段 (特征+预测+ELS计算) 的总耗时
+    double bitmap_time_ms;         
+    double feature_extract_time_ms;
+
+    int acorn_filter_type = 0; //记录 ACORN 使用的掩码类型 (0=N/A, 1=ELS, 2=ExactMask, 3=InvertedIndex)
 
       
    };
@@ -138,12 +142,11 @@ namespace ANNS
                          IdxType K, std::pair<IdxType, float> *results,
                          std::vector<float> &num_cmps,
                          std::vector<QueryStats> &query_stats,
-                         bool is_ori_ung,
-                         bool is_select_entry_groups, bool is_rec_more_start,
+                         bool is_new_trie_method, bool is_rec_more_start,
                          bool is_ung_more_entry,
                          int lsearch_start, int lsearch_step,
                          int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
-                         int force_use_alg, int acorn_search_algo, faiss_navix::IndexHNSWFlat* navix_index = nullptr, bool is_naive_routing = false,
+                         int routing_mode, int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index = nullptr,
                          const std::vector<IdxType> &true_query_group_ids = {}); // 包含每个查询其真实来源组ID的向量
 
       // I/O
@@ -283,13 +286,12 @@ namespace ANNS
                                    IdxType K, std::pair<IdxType, float> *results,
                                    std::vector<float> &num_cmps,
                                    std::vector<QueryStats> &query_stats,
-                                   bool is_idea2_available,
                                    bool is_new_trie_method, bool is_rec_more_start,
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
-                                   int force_use_alg,int acorn_search_algo, IdxType num_queries, 
-                                   faiss_navix::IndexHNSWFlat* navix_index, bool is_naive_routing,
+                                   int routing_mode,int baseline_alg, IdxType num_queries, 
+                                   faiss_navix::IndexHNSWFlat* navix_index,
                                    const std::vector<IdxType> &true_query_group_ids);
       size_t get_candidate_count_for_label(LabelType label) const;
       // data
@@ -418,6 +420,18 @@ namespace ANNS
       std::vector<float> calculate_idea2_features(const QueryStats &stats) const;
       std::optional<bool> check_idea2_heuristic_override(const std::string& dataset_name, size_t num_entry_groups) const;
       std::optional<bool> check_pre_trie_heuristic(const std::string& dataset_name, size_t query_length, size_t candidate_set_size) const;
+
+      // smartroute selector
+      std::unique_ptr<MethodSelector> _smart_route_selector;    // 单层 SmartRoute (5特征)
+      std::unique_ptr<MethodSelector> _fast_route_l1_selector;  // FastSmartRoute L1 (3特征)
+      int determine_routing_strategy(
+        int routing_mode, 
+        int baseline_alg,
+        const std::vector<LabelType>& query_labels,
+        ANNS::QueryStats& stats,
+        std::vector<IdxType>& entry_group_ids,
+        bool is_new_trie_method,
+        bool is_rec_more_start);
    };
 }
 

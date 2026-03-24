@@ -1016,11 +1016,31 @@
                            "acorn_efs_step_fast": 2000
                         }
                      },
-                     "UNG",
-                     "SmartRoute",
-                     "NaiveRoute",
-                     "NaviX",
-                     "pre-filter"
+                     {
+                        "name":"SmartRoute",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "pre-filter",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     "UNG"
                   ]
                },
                {
@@ -1075,11 +1095,31 @@
                            "acorn_efs_step_fast": 500
                         }
                      },
-                     "UNG",
-                     "SmartRoute",
-                     "NaiveRoute",
-                     "NaviX",
-                     "pre-filter"
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "SmartRoute",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "pre-filter",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     "UNG"
                   ]
                },
                {
@@ -1136,7 +1176,6 @@
                      },
                      "UNG",
                      "SmartRoute",
-                     "NaiveRoute",
                      "NaviX",
                      "pre-filter"
                   ]
@@ -1193,11 +1232,31 @@
                            "acorn_efs_step_fast": 200
                         }
                      },
-                     "UNG",
-                     "SmartRoute",
-                     "NaiveRoute",
-                     "NaviX",
-                     "pre-filter"
+                     {
+                        "name": "SmartRoute",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "pre-filter",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG"
                   ]
                },
                {
@@ -1254,7 +1313,6 @@
                      },
                      "UNG",
                      "SmartRoute",
-                     "NaiveRoute",
                      "NaviX",
                      "pre-filter"
                   ]
@@ -1313,7 +1371,6 @@
                      },
                      "UNG",
                      "SmartRoute",
-                     "NaiveRoute",
                      "NaviX",
                      "pre-filter"
                   ]
@@ -1372,7 +1429,6 @@
                      },
                      "UNG",
                      "SmartRoute",
-                     "NaiveRoute",
                      "NaviX",
                      "pre-filter"
                   ]
@@ -1431,7 +1487,6 @@
                      },
                      "UNG",
                      "SmartRoute",
-                     "NaiveRoute",
                      "NaviX",
                      "pre-filter"
                   ]

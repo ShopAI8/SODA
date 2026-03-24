@@ -6,10 +6,6 @@
 
 set -e # 如果任何命令失败，则立即退出
 
-# IS_BFS_FILTER="true"
-IS_NAIVE_ROUTING="false"
-ACORN_SEARCH_ALGO="0"
-
 # --- Step 1: 解析命令行参数 ---
 while [[ $# -gt 0 ]]; do
     if [[ $1 == --* ]]; then
@@ -19,13 +15,13 @@ while [[ $# -gt 0 ]]; do
             shift 2
             continue
         fi
-        if [[ $key == "ACORN_SEARCH_ALGO" ]]; then
-            ACORN_SEARCH_ALGO="$2"
+        if [[ $key == "ROUTING_MODE" ]]; then
+            ROUTING_MODE="$2"
             shift 2
             continue
         fi
-        if [[ $key == "IS_NAIVE_ROUTING" ]]; then
-            IS_NAIVE_ROUTING="$2"
+        if [[ $key == "BASELINE_ALG" ]]; then
+            BASELINE_ALG="$2"
             shift 2
             continue
         fi
@@ -81,10 +77,9 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
 "$BUILD_DIR"/apps/search_UNG_index \
     --data_type float  --dataset "$DATASET" --dist_fn L2 --num_threads "$NUM_THREADS" --K "$K" --num_repeats "$NUM_REPEATS" \
     --is_new_method true \
-    --force_use_alg "$FORCE_USE_ALG" \
-    --is_idea2_available "$IS_IDEA2_AVAILABLE" \
     --is_new_trie_method "$IS_NEW_TRIE_METHOD" --is_rec_more_start "$IS_REC_MORE_START" \
-    --acorn_search_algo "$ACORN_SEARCH_ALGO" \
+    --routing_mode "$ROUTING_MODE" \
+    --baseline_alg "$BASELINE_ALG" \
     --base_bin_file "$DATA_DIR/${DATASET}_base.bin" \
     --query_bin_file "$QUERY_DIR/${DATASET}_query.bin" \
     --query_label_file "$QUERY_DIR/${DATASET}_query_labels.txt" \
@@ -101,7 +96,6 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
     --lsearch_step "$LSEARCH_STEP" \
     --efs_start "$EFS_START" \
     --efs_step_slow "$EFS_STEP_SLOW" --efs_step_fast "$EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
-    --navix_index_path "$INDEX_PATH/navix_output/hnsw_base.index" \
-    --is_naive_routing "$IS_NAIVE_ROUTING" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
+    --navix_index_path "$INDEX_PATH/navix_output/hnsw_base.index" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
 
 echo "搜索完成！"

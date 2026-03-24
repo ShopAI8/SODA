@@ -107,17 +107,15 @@ int main(int argc, char **argv)
    std::vector<ANNS::IdxType> Lsearch_list;
    uint32_t num_threads;
    bool is_new_method = false;                                 // true: use new method
-   bool is_idea2_available = false;                            // true: use original ung
    bool is_new_trie_method = false, is_rec_more_start = false; // false:默认的UNG原始trie tree方法,true：递归；false:默认的root
    bool is_ung_more_entry = false;                             // false:默认的UNG原始entry point选择方法,true：更多entry points
    // bool is_bfs_filter = true;                                  //true：原始 ACORN；false：improved
-   int acorn_search_algo = 0; // 0: ACORN, 1: ACORN-improved, 2: NaviX on ACORN
+   int baseline_alg = 0; // 0: ACORN, 1: ACORN-improved, 2: NaviX on ACORN
    int num_repeats = 1;                                        // 默认重复1次
-   int force_use_alg = 0;                                      // 0: auto, 1: UNG (nT=false), 2: UNG-nTtrue, 3: ACORN
+   int routing_mode = 0;                                      // 0: auto, 1: UNG (nT=false), 2: UNG-nTtrue, 3: ACORN
    int lsearch_start, lsearch_step;
    int efs_start, efs_step_slow, efs_step_fast, lsearch_threshold;
    std::string dataset; 
-   bool is_naive_routing = false; //true：使用傻瓜式路由
 
    try
    {
@@ -165,18 +163,16 @@ int main(int argc, char **argv)
                          "Number of candidates to search in the graph");
       desc.add_options()("is_new_method", po::value<bool>(&is_new_method)->required(),
                          "is_new_method");
-      desc.add_options()("is_idea2_available", po::value<bool>(&is_idea2_available)->required(),
-                         "is_idea2_available");
       desc.add_options()("is_new_trie_method", po::value<bool>(&is_new_trie_method)->required(),
                          "is_new_trie_method");
       desc.add_options()("is_rec_more_start", po::value<bool>(&is_rec_more_start)->required(),
                          "is_rec_more_start");
       // desc.add_options()("is_bfs_filter", po::value<bool>(&is_bfs_filter)->default_value(true), "Whether to use BFS filter in ACORN");
-      desc.add_options()("acorn_search_algo", po::value<int>(&acorn_search_algo)->default_value(0), "Algorithm to run on ACORN Index: 0=Original, 1=Improved, 2=NaviX");
+      desc.add_options()("baseline_alg", po::value<int>(&baseline_alg)->default_value(0), "Algorithm to run on ACORN Index: 0=Original, 1=Improved, 2=NaviX");
       desc.add_options()("num_repeats", po::value<int>(&num_repeats)->default_value(1),
                          "Number of repeats for each Lsearch value");
-      desc.add_options()("force_use_alg", po::value<int>(&force_use_alg)->required(),
-                         "force_use_alg");
+      desc.add_options()("routing_mode", po::value<int>(&routing_mode)->required(),
+                         "routing_mode");
       desc.add_options()("lsearch_start", po::value<int>(&lsearch_start)->required(), "Lsearch start value");
       desc.add_options()("lsearch_step", po::value<int>(&lsearch_step)->required(), "Lsearch step value");
       desc.add_options()("efs_start", po::value<int>(&efs_start)->required(), "ACORN efs start value");
@@ -187,7 +183,6 @@ int main(int argc, char **argv)
       // NaviX
       desc.add_options()("navix_index_path", po::value<std::string>(&navix_index_path)->default_value(""), "Path to NaviX index");
 
-      desc.add_options()("is_naive_routing", po::value<bool>(&is_naive_routing)->default_value(false), "Use naive routing for ablation study");
 
 
       po::variables_map vm;
@@ -224,7 +219,7 @@ int main(int argc, char **argv)
 
    // Naxiv
    faiss_navix::IndexHNSWFlat* navix_index = nullptr;
-   if (force_use_alg == 6 || force_use_alg == 0) { // 强制使用 NaviX 或 自动模式时加载
+   if (routing_mode == 6 || routing_mode == 0) { // 强制使用 NaviX 或 自动模式时加载
       if (!navix_index_path.empty() && fs::exists(navix_index_path)) {
          std::cout << "[SmartRoute] Loading NaviX index from: " << navix_index_path << std::endl;
          faiss_navix::Index* raw_navix = faiss_navix::read_index(navix_index_path.c_str());
@@ -322,16 +317,16 @@ int main(int argc, char **argv)
 //              << std::endl;
 //    auto bitmap_total_time = attr_bitmap_total_time; // 默认使用倒排索引方法
 
-   // if (force_use_alg == 0){
+   // if (routing_mode == 0){
       // calculate query features and save to CSV
-      std::string features_csv_path = result_path_prefix + "query_features.csv";
-      index.calculate_query_features_only(
-         query_storage,
-         num_threads,       
-         features_csv_path, 
-         true,              // is_new_trie_method
-         true               // is_rec_more_start
-      );
+      // std::string features_csv_path = result_path_prefix + "query_features.csv";
+      // index.calculate_query_features_only(
+      //    query_storage,
+      //    num_threads,       
+      //    features_csv_path, 
+      //    true,              // is_new_trie_method
+      //    true               // is_rec_more_start
+      // );
    // }
       
 
@@ -381,7 +376,7 @@ int main(int argc, char **argv)
          else
          {
             index.search_hybrid(query_storage, distance_handler, num_threads, current_Lsearch,
-                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId], is_idea2_available, is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,force_use_alg, acorn_search_algo ,navix_index, is_naive_routing,true_query_group_ids);
+                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId],is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,routing_mode, baseline_alg ,navix_index, true_query_group_ids);
          }
          auto time_cost = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count();
          
@@ -520,14 +515,13 @@ int main(int argc, char **argv)
 
    // save query details
    std::ofstream detail_out(result_path_prefix + "query_details_repeat" + std::to_string(num_repeats) + ".csv");
-   detail_out << "repeat,Lsearch,efs,QueryID,Time_ms,search_time_ms,core_search_time_ms,Recall,"         // 核心结果
-              << "is_idea1_used,is_idea2_used,"                                                          // 使用的方法
-              << "DistCalcs,NumNodeVisited,"                                                             // 性能指标
-              << "MinSupersetT_ms,idea1SelT_ms,idea2SelT_ms,idea1_flag_ms,idea2_flag_ms,BitmapT_new_ms,FeatureT_ms," // 耗时分解
-              // --- Idea1 & Trie 特征 ---
+   detail_out << "repeat,Lsearch,efs,QueryID,Time_ms,search_time_ms,core_search_time_ms,Recall,"         
+              << "Algo_Choice,IsIntelElsUsed,IsTrieRec,"                                                         
+              << "DistCalcs,NumNodeVisited,"                                                             
+              << "MinSupersetT_ms,IntelELS_PredT_ms,Route_PredT_ms,Routing_TotalT_ms,BitmapT_new_ms,FeatureT_ms," 
+              << "AcornFilterType,"
               << "QuerySize,CandSize,ExactCandSize,GlobalPpass,"
-              // --- Idea2 模型核心特征 ---
-              << "NumEntries"
+              << "NumEntries,NumDescendants"
               << "\n";
    for (int repeat = 0; repeat < num_repeats; repeat++)
    {
@@ -544,24 +538,25 @@ int main(int argc, char **argv)
                        << stats.search_time_ms << ","
                        << stats.core_search_time_ms << ","
                        << stats.recall << ","
-                       << stats.is_idea1_used << ","
-                       << stats.is_idea2_used << ","
+                       << stats.algo_choice << ","
+                       << stats.is_intel_els_used << "," // <-- IntelELS 模型是否真正被调用
+                       << stats.is_trie_recursive << "," // <-- 究竟使用了 nTtrue(1) 还是 nTfalse(0)
                        << stats.num_distance_calcs << ","
                        << stats.num_nodes_visited << ","
                        << stats.get_min_super_sets_time_ms << ","
-                       << stats.idea1_selector_pred_time_ms << ","
-                       << stats.idea2_selector_pred_time_ms << ","
-                       << stats.idea1_flag_time_ms << ","
-                       << stats.idea2_flag_time_ms << ","
+                       << stats.intel_els_pred_time_ms << ","
+                       << stats.route_pred_time_ms << ","
+                       << stats.routing_total_time_ms << ","
                        << stats.bitmap_time_ms << ","
                        << stats.feature_extract_time_ms << ","
+                       << stats.acorn_filter_type << ","
                        // Idea1 & Trie 特征
                        << stats.query_length << ","
                        << stats.candidate_set_size << ","
                        << stats.exact_cand_size << ","  
                        << stats.global_p_pass << ","
-                       // Idea2 模型核心特征
-                       << stats.num_entry_points << "\n";
+                       << stats.num_entry_points << ","
+                       << stats.num_lng_descendants <<"\n";
          }
       }
    }

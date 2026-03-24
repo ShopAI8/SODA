@@ -18,7 +18,7 @@ DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","Various
 # 算法名称到文件夹名称的映射
 ALGO_FOLDERS = {
     'UNG-nTfalse': 'UNG-nTfalse',
-    'UNG-nTtrue': 'UNG-nTtrue',
+    # 'UNG-nTtrue': 'UNG-nTtrue',
     'ACORN-gamma': 'ACORN-gamma',
     'ACORN-improved': 'ACORN-gamma-improved',
     'NaviX': 'NaviX-ACORN',    
@@ -61,16 +61,26 @@ def load_data(dataset_name):
         
     df_long = pd.concat(df_list, ignore_index=True)
     
-    # 统一时间度量标准 (UNG 将计入 ELS 寻找时间)
+    # 统一时间度量标准 (包含对 UNG 和 pre-filter 的时间补偿)
     print("[*] 正在统一时间度量标准...")
+    
+    # 预处理：确保涉及计算的列存在且无空值
     if 'MinSupersetT_ms' not in df_long.columns:
         df_long['MinSupersetT_ms'] = 0.0
     else:
         df_long['MinSupersetT_ms'] = df_long['MinSupersetT_ms'].fillna(0.0)
+
+    if 'FeatureT_ms' not in df_long.columns:
+        df_long['FeatureT_ms'] = 0.0
+    else:
+        df_long['FeatureT_ms'] = df_long['FeatureT_ms'].fillna(0.0)
         
     def calculate_true_time(row):
+        """根据算法类型计算包含前置开销的真实搜索耗时"""
         if 'UNG' in row['Algorithm']:
             return row['search_time_ms'] + row['MinSupersetT_ms']
+        if 'pre-filter' in row['Algorithm']:
+            return row['search_time_ms'] + row['FeatureT_ms']
         return row['search_time_ms']
         
     df_long['true_search_time_ms'] = df_long.apply(calculate_true_time, axis=1)
@@ -137,7 +147,6 @@ def preprocess_and_align(df_long, dataset_name):
     # === 加载并合并额外的 query_features.csv ===
     df_extra_features = load_features(dataset_name)
     if not df_extra_features.empty:
-        # 剔除可能重复的列 (如 QuerySize, CandSize)，以防合并产生 _x, _y 后缀
         overlap_cols = [col for col in df_extra_features.columns if col in df_final.columns and col != 'QueryID']
         df_extra_clean = df_extra_features.drop(columns=overlap_cols)
         df_final = pd.merge(df_final, df_extra_clean, on='QueryID', how='left')
@@ -160,7 +169,6 @@ def perform_eda(df_final, output_dir):
             rate = (df_final[f'Recall_{algo}'] >= MIN_RECALL).mean() * 100
             success_rates[algo] = rate
             
-    # 导出绘图数据 1
     df_p1 = pd.DataFrame(list(success_rates.items()), columns=['Algorithm', f'Success_Rate_Pct_Recall_{MIN_RECALL}'])
     df_p1.to_csv(os.path.join(output_dir, "plot1_data_recall_success_rate.csv"), index=False)
             
@@ -191,7 +199,6 @@ def perform_eda(df_final, output_dir):
             else:
                 median_times[algo] = 0
                 
-    # 导出绘图数据 2
     df_p2 = pd.DataFrame(list(median_times.items()), columns=['Algorithm', 'Median_True_Search_Time_ms'])
     df_p2.to_csv(os.path.join(output_dir, "plot2_data_median_search_time.csv"), index=False)
                 
@@ -230,7 +237,6 @@ def perform_eda(df_final, output_dir):
     # -----------------------------------------
     algo_counts = valid_df['Best_Algo'].value_counts()
     
-    # 导出绘图数据 3
     df_p3 = algo_counts.reset_index()
     df_p3.columns = ['Algorithm', 'Dominance_Count']
     df_p3['Dominance_Pct'] = (df_p3['Dominance_Count'] / df_p3['Dominance_Count'].sum()) * 100
@@ -255,7 +261,6 @@ def perform_eda(df_final, output_dir):
         bin_algo_counts = valid_df.groupby(['Ppass_Bin', 'Best_Algo'], observed=False).size().unstack(fill_value=0)
         bin_algo_ratio = bin_algo_counts.div(bin_algo_counts.sum(axis=1), axis=0)
         
-        # 导出绘图数据 4
         df_p4 = bin_algo_ratio.copy()
         df_p4.to_csv(os.path.join(output_dir, "plot4_data_dominance_by_ppass.csv"))
         
@@ -273,7 +278,6 @@ def perform_eda(df_final, output_dir):
     # 【图 5】：特征提取耗时 (Feature Extraction Cost)
     # -----------------------------------------
     if 'FeatureT_ms' in valid_df.columns:
-        # 导出绘图数据 5
         df_p5 = valid_df['FeatureT_ms'].describe().reset_index()
         df_p5.columns = ['Statistic', 'FeatureT_ms']
         df_p5.to_csv(os.path.join(output_dir, "plot5_data_feature_time_cost.csv"), index=False)
@@ -289,7 +293,6 @@ def perform_eda(df_final, output_dir):
     # -----------------------------------------
     # 【图 6】：散点图 (GlobalPpass vs Search Time)
     # -----------------------------------------
-    # 导出绘图数据 6 (只导出散点图所需的坐标列)
     cols_p6 = ['QueryID', 'GlobalPpass'] + [c for c in valid_df.columns if 'true_search_time_ms' in c]
     df_p6 = valid_df[cols_p6]
     df_p6.to_csv(os.path.join(output_dir, "plot6_data_scatter.csv"), index=False)
@@ -323,16 +326,13 @@ if __name__ == "__main__":
         if not df_long.empty:
             df_final = preprocess_and_align(df_long, dataset)
             
-            # 为当前数据集创建专属输出目录
             dataset_output_dir = os.path.join(GLOBAL_OUTPUT_DIR, dataset)
             os.makedirs(dataset_output_dir, exist_ok=True)
             
-            # 导出最重要的宽表：包含了对齐的所有结果及合并后的 query_features.csv 指标
             csv_output_path = os.path.join(dataset_output_dir, f"{dataset}_aligned_results.csv")
             df_final.to_csv(csv_output_path, index=False)
             print(f"[*] 【最全宽表】已导出至: {csv_output_path}")
             
-            # 执行画图并导出6张图的源数据
             perform_eda(df_final, dataset_output_dir)
         else:
             print(f"[!] 未加载到 {dataset} 的数据，跳过分析。")

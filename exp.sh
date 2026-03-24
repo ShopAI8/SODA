@@ -2,6 +2,8 @@
 
 set -e # 如果任何命令失败，则立即退出
 
+IS_NEW_TRIE_METHOD=false
+
 # --- 定位脚本和配置文件 ---
 if [ -z "$1" ]; then
     echo "错误: 请提供一个 JSON 配置文件作为第一个参数。"
@@ -86,30 +88,41 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
 
             # 根据算法名称设置详细参数
             case "$ALGORITHM_NAME" in
-                "SmartRoute" | "method3")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "NaiveRoute")        
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=true;;
-                "method1")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "method2")
-                    FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "UNG-nTfalse")
-                    FORCE_USE_ALG=1; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "UNG-nTtrue")
-                    FORCE_USE_ALG=2; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "ACORN-gamma")
-                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "ACORN-1")
-                    FORCE_USE_ALG=4; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "ACORN-gamma-improved") # FORCE_USE_ALG 依然是 3 (走 ACORN 逻辑)，但 ACORN_SEARCH_ALGO 设为 1 (Improved/全图探索)
-                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=1; IS_NAIVE_ROUTING=false;;
-                "NaviX-ACORN") # 在 ACORN 索引上执行 NaviX 自适应路由
-                    FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=2; IS_NAIVE_ROUTING=false;;
-                "pre-filter")
-                    FORCE_USE_ALG=5; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
-                "NaviX")  # FORCE_USE_ALG=6 走完全独立的 NaviX 老索引对照组
-                    FORCE_USE_ALG=6; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "SmartRoute" | "method3")
+                #     FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "NaiveRoute")        
+                #     FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=true;;
+                # "method1")
+                #     FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=true; IS_REC_MORE_START=true; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "method2")
+                #     FORCE_USE_ALG=0; IS_IDEA2_AVAILABLE=true; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "UNG-nTfalse")
+                #     FORCE_USE_ALG=1; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "UNG-nTtrue")
+                #     FORCE_USE_ALG=2; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "ACORN-gamma")
+                #     FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "ACORN-1")
+                #     FORCE_USE_ALG=4; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "ACORN-gamma-improved") # FORCE_USE_ALG 依然是 3 (走 ACORN 逻辑)，但 ACORN_SEARCH_ALGO 设为 1 (Improved/全图探索)
+                #     FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=1; IS_NAIVE_ROUTING=false;;
+                # "NaviX-ACORN") # 在 ACORN 索引上执行 NaviX 自适应路由
+                #     FORCE_USE_ALG=3; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=2; IS_NAIVE_ROUTING=false;;
+                # "pre-filter")
+                #     FORCE_USE_ALG=5; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # "NaviX")  # FORCE_USE_ALG=6 走完全独立的 NaviX 老索引对照组
+                #     FORCE_USE_ALG=6; IS_IDEA2_AVAILABLE=false; IS_NEW_TRIE_METHOD=false; IS_REC_MORE_START=false; ACORN_SEARCH_ALGO=0; IS_NAIVE_ROUTING=false;;
+                # *)
+                "UNG-nTfalse")    ROUTING_MODE=0; BASELINE_ALG=0 ; IS_REC_MORE_START=false;;
+                "UNG-nTtrue")     ROUTING_MODE=0; BASELINE_ALG=1 ; IS_REC_MORE_START=false;;
+                "ACORN-gamma")    ROUTING_MODE=0; BASELINE_ALG=2 ; IS_REC_MORE_START=false;;
+                "ACORN-gamma-improved") ROUTING_MODE=0; BASELINE_ALG=3 ; IS_REC_MORE_START=false;;
+                "NaviX-ACORN")    ROUTING_MODE=0; BASELINE_ALG=4 ; IS_REC_MORE_START=false;;
+                "pre-filter")     ROUTING_MODE=0; BASELINE_ALG=5 ; IS_REC_MORE_START=false;;
+                "ACORN-1")        ROUTING_MODE=0; BASELINE_ALG=6 ; IS_REC_MORE_START=false;;
+                "NaviX")          ROUTING_MODE=0; BASELINE_ALG=7 ; IS_REC_MORE_START=false;;
+                "SmartRoute")     ROUTING_MODE=1; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;; 
+                "FastSmartRoute") ROUTING_MODE=2; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;; 
                 *)
                     echo "错误: 未知的算法名称 '$ALGORITHM_NAME'。请在 exp.sh 的 case 语句中定义它。"
                     exit 1;;
@@ -159,11 +172,10 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
                --Lsearch_start "$LSEARCH_START" --Lsearch_end "$LSEARCH_END" --Lsearch_step "$LSEARCH_STEP" \
                --num_threads "$NUM_THREADS" --K "$K" --num_repeats "$NUM_REPEATS" \
                --is_new_trie_method "$IS_NEW_TRIE_METHOD" --is_rec_more_start "$IS_REC_MORE_START" \
-               --is_idea2_available "$IS_IDEA2_AVAILABLE" --force_use_alg "$FORCE_USE_ALG" \
-               --acorn_search_algo "$ACORN_SEARCH_ALGO" \
+               --routing_mode "$ROUTING_MODE" \
+               --baseline_alg "$BASELINE_ALG" \
                --efs_start "$ACORN_EFS_START" \
-               --efs_step_slow "$ACORN_EFS_STEP_SLOW" --efs_step_fast "$ACORN_EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
-               --is_naive_routing "$IS_NAIVE_ROUTING"
+               --efs_step_slow "$ACORN_EFS_STEP_SLOW" --efs_step_fast "$ACORN_EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" 
                     
             echo "--- Finished: Dataset=[$DATASET], Query=[$QUERY_DIR_NAME], Algorithm=[$ALGORITHM_NAME] ---"
         done
