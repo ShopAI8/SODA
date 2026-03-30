@@ -30,10 +30,9 @@ except ImportError:
 DATASET_LIST = ["Amazon", "BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
 BASE_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
 
-ALGO_LIST = ['ACORN-gamma', 'ACORN-improved', 'NaviX', 'UNG-nTfalse', 'UNG-nTtrue', 'pre-filter']
-ACORN_FAMILY = ['ACORN-gamma', 'ACORN-improved', 'NaviX']
+ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'UNG-nTtrue', 'pre-filter']
+ACORN_FAMILY = ['ACORN-gamma', 'NaviX']
 
-# 模型竞技场候选者扩容
 MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
 
 # 模糊样本过滤阈值
@@ -43,7 +42,7 @@ MARGIN_THRESHOLD = 0.20
 USE_SMOTE_L1 = False
 USE_SMOTE_L2 = False
 
-# 组装策略控制 (Cascade Strategy)
+# 组装策略控制
 CASCADE_STRATEGY = {
     "default": "auto"
 }
@@ -120,8 +119,6 @@ def label_best_algorithm_by_time(df, time_prefix='L1_Time_ms', min_recall=0.90, 
 
 def generate_cascade_features(df):
     X_L1 = pd.DataFrame(index=df.index)
-    X_L1['QuerySize'] = df['QuerySize']
-    X_L1['CandSize'] = df['CandSize']
     X_L1['GlobalPpass'] = df['GlobalPpass']
     
     X_L2 = X_L1.copy() 
@@ -174,7 +171,6 @@ def train_and_evaluate_model(X_train, y_train, X_test, y_test, target_map, model
     
     t_pred_start = time.perf_counter()
     y_pred_np = classifier.predict(X_test_np)
-    # 统一耗时口径，直接计算单次推理耗时 (微秒)
     pred_latency_us = ((time.perf_counter() - t_pred_start) * 1e6) / len(X_test_np)
     
     y_pred_abs = np.array([real_classes[int(idx)] for idx in y_pred_np])
@@ -273,7 +269,8 @@ def save_onnx_model(classifier, model_type, num_features, output_dir, filename, 
     except Exception as e:
         print(f"❌ 导出 ONNX 模型时发生错误: {e}")
 
-def calculate_cascade_system_accuracy(X_L1_test, X_L2_test, y_global_best_test, 
+# 【修改点 1】: 函数参数增加 X_ELS_test 
+def calculate_cascade_system_accuracy(X_L1_test, X_L2_test, X_ELS_test, y_global_best_test, 
                                       l1_clf, l1_real_classes, L1_MAP,
                                       els_clf,
                                       l2_clf, l2_real_classes, L2_MAP,
@@ -295,7 +292,8 @@ def calculate_cascade_system_accuracy(X_L1_test, X_L2_test, y_global_best_test,
         else: 
             els_decision = 'UNG-nTfalse' 
             if els_clf is not None:
-                els_features = X_L1_test.iloc[[i]].values 
+                # 【修改点 2】: 使用包含 3 个特征的 X_ELS_test 来做 ELS 预测
+                els_features = X_ELS_test.iloc[[i]].values 
                 els_pred = els_clf.predict(els_features)[0]
                 els_decision = 'UNG-nTtrue' if els_pred == 1 else 'UNG-nTfalse'
                 
@@ -352,6 +350,21 @@ def process_single_dataset(dataset_name):
     
     X_L1, X_L2 = generate_cascade_features(df)
     
+    # 【修改点 3】: 单独提取并清洗 ELS 专属的 3 个特征
+    X_ELS = pd.DataFrame(index=df.index)
+    for feat in ['QuerySize', 'CandSize', 'TrieTotalNodes']:
+        if feat in df.columns:
+            X_ELS[feat] = df[feat]
+        else:
+            X_ELS[feat] = 0
+            
+    if 'TrieTotalNodes' in X_ELS.columns:
+        valid_val = X_ELS['TrieTotalNodes'].dropna().iloc[0] if not X_ELS['TrieTotalNodes'].dropna().empty else 0
+        X_ELS['TrieTotalNodes'].fillna(valid_val, inplace=True)
+        
+    X_ELS.replace([np.inf, -np.inf], np.nan, inplace=True)
+    X_ELS.fillna(0, inplace=True)
+    
     valid_mask = (df['Global_Best'] != 'Unknown') & (df['L2_Best'] != 'Unknown')
     valid_indices = df[valid_mask].index
     
@@ -359,6 +372,9 @@ def process_single_dataset(dataset_name):
     
     X_L1_train, X_L1_test = X_L1.loc[train_idx], X_L1.loc[test_idx]
     X_L2_train, X_L2_test = X_L2.loc[train_idx], X_L2.loc[test_idx]
+    
+    # 获取拆分后的 ELS 测试集数据
+    X_ELS_test = X_ELS.loc[test_idx]
     
     y_L1_train, y_L1_test = df.loc[train_idx, 'L1_Target'], df.loc[test_idx, 'L1_Target']
     y_L2_train, y_L2_test = df.loc[train_idx, 'L2_Target'], df.loc[test_idx, 'L2_Target']
@@ -373,7 +389,7 @@ def process_single_dataset(dataset_name):
         print("[ELS 集成] ⚠️ 未找到 ELS 模型，级联评估时 UNG 将默认走 nTfalse。")
 
     L1_TARGET_MAP = {'NEED_ELS': 0, 'ACORN_Family': 1, 'pre-filter': 2}
-    L2_TARGET_MAP = {'UNG_Family': 0, 'ACORN-gamma': 1, 'ACORN-improved': 2, 'NaviX': 3, 'pre-filter': 4}
+    L2_TARGET_MAP = {'UNG_Family': 0, 'ACORN-gamma': 1, 'NaviX': 2, 'pre-filter': 3}
 
     l1_cache, l1_metrics = run_arena_for_layer(X_L1_train, y_L1_train, X_L1_test, y_L1_test, L1_TARGET_MAP, "Layer 1 (网关层)", use_smote=USE_SMOTE_L1)
     l2_cache, l2_metrics = run_arena_for_layer(X_L2_train, y_L2_train, X_L2_test, y_L2_test, L2_TARGET_MAP, "Layer 2 (裁判层)", use_smote=USE_SMOTE_L2)
@@ -402,12 +418,13 @@ def process_single_dataset(dataset_name):
     else:
         majority_acorn_algo = 'ACORN-gamma'
         
-    cpp_algo_map = {'ACORN-gamma': 2, 'ACORN-improved': 3, 'NaviX': 4}
+    cpp_algo_map = {'ACORN-gamma': 2, 'NaviX': 4}
     with open(os.path.join(output_dir, "l1_majority_acorn_id.txt"), "w") as f:
         f.write(str(cpp_algo_map.get(majority_acorn_algo, 2)))
 
+    # 将独立的 X_ELS_test 传入系统评分函数
     system_acc = calculate_cascade_system_accuracy(
-        X_L1_test, X_L2_test, y_Global_Best_test, 
+        X_L1_test, X_L2_test, X_ELS_test, y_Global_Best_test, 
         l1_res['classifier'], l1_res['real_classes'], L1_TARGET_MAP,
         els_clf,
         l2_res['classifier'], l2_res['real_classes'], L2_TARGET_MAP,
@@ -427,7 +444,7 @@ def process_single_dataset(dataset_name):
         f.write(f"┃ SMOTE   : L1({USE_SMOTE_L1}), L2({USE_SMOTE_L2}){ ' ' * 38}┃\n")
         f.write("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n")
         
-        f.write("【零 | 双层路由竞技场横向大比武 (Layer Arena Comparison)】\n")
+        f.write("【零 | 双层路由 (Layer Arena Comparison)】\n")
         f.write("-" * 80 + "\n")
         f.write(generate_comparison_table(l1_metrics, "Layer 1 - 极速拦截层", X_L1_train.shape[1]) + "\n")
         f.write(generate_comparison_table(l2_metrics, "Layer 2 - 图结构裁判层", X_L2_train.shape[1]) + "\n")
@@ -440,7 +457,7 @@ def process_single_dataset(dataset_name):
         f.write(f"  🚀 模拟流水线分发最终准确率 (System End-to-End Accuracy): {system_acc:.4%}\n")
         f.write("  (注: 包含 Margin 阈值过滤后的测试集，请求依次流经 L1 -> ELS(若触发) -> L2)\n\n")
 
-        f.write("【贰 | 胜出模型深度透视 (Selected Models Deep Dive)】\n")
+        f.write("【贰 | 胜出模型透视 (Selected Models Deep Dive)】\n")
         f.write("-" * 80 + "\n")
         
         f.write(f"[L1 胜出者: {best_l1_model}]\n")
@@ -448,7 +465,7 @@ def process_single_dataset(dataset_name):
         f.write("  " + l1_res['cls_report'].replace('\n', '\n  ') + "\n")
         f.write("  ▶ 混淆矩阵 (Confusion Matrix):\n")
         f.write("  " + l1_res['cm_df'].to_string().replace('\n', '\n  ') + "\n\n")
-        f.write("  ▶ 特征重要性 (Feature Importance):\n")
+        f.write("  ▶ 特重要性 (Feature Importance):\n")
         f.write("  " + l1_res['importance_str'].replace('\n', '\n  ') + "\n\n")
 
         f.write(f"[L2 胜出者: {best_l2_model}]\n")
@@ -459,7 +476,7 @@ def process_single_dataset(dataset_name):
         f.write("  ▶ 特征重要性 (Feature Importance):\n")
         f.write("  " + l2_res['importance_str'].replace('\n', '\n  ') + "\n\n")
         
-    print(f"\n✅ 评估完成！详尽级联战报已同步至: {report_path}")
+    print(f"\n✅ 评估完成！详尽log已同步至: {report_path}")
     
     # 收集当前数据集的所有指标，并附加 Layer 标签供全局 CSV 使用
     dataset_metrics = []
@@ -473,7 +490,7 @@ def process_single_dataset(dataset_name):
         m_copy.update({"Dataset": dataset_name, "Layer": "L2"})
         dataset_metrics.append(m_copy)
         
-    # 追加端到端表现
+    # 端到端表现
     dataset_metrics.append({
         "Dataset": dataset_name,
         "Layer": "System_End_to_End",

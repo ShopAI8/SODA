@@ -25,6 +25,8 @@ except ImportError:
 DATASET_LIST = ["Amazon", "BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
 BASE_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
 
+# 记得修改output_dir！！！！！！
+
 ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'pre-filter']
 MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
 

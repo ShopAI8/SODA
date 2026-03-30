@@ -13,7 +13,7 @@ import seaborn as sns
 BASE_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
 
 # "Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"
-DATASETS = ["Laion"]
+DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"]
 
 # 算法名称到文件夹名称的映射
 ALGO_FOLDERS = {

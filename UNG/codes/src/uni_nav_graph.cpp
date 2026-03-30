@@ -2824,12 +2824,14 @@ void UniNavGraph::calculate_query_features_only(
          bool use_nT_true = false; // SmartRoute默认使用nTfalse (非递归) 的快速获取方式
          stats.is_trie_recursive = use_nT_true;
 
+         // ELS
          auto els_start = std::chrono::high_resolution_clock::now();
          static std::atomic<int> counter{0};
          get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
          stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
          stats.num_entry_points = entry_group_ids.size();
 
+         // Fpass
          std::unordered_set<IdxType> naive_desc;
          for (auto gid : entry_group_ids) {
                if (gid > 0 && gid <= _num_groups) {
@@ -2837,6 +2839,7 @@ void UniNavGraph::calculate_query_features_only(
                }
          }
          stats.num_lng_descendants = naive_desc.size();
+
 
          auto pred_start = std::chrono::high_resolution_clock::now();
          int final_alg = 0; // 默认 UNG-nTfalse
@@ -2976,7 +2979,7 @@ void UniNavGraph::calculate_query_features_only(
          const std::bitset<16000000>* exact_mask_ptr = nullptr;
          stats.bitmap_time_ms = 0.0; 
 
-         // 仅当使用路由器(模式1,2) 或 明确执行 pre-filter(模式0且算法5) 时，才计算极其耗时的 exact_mask
+         // GlobalPass:仅当使用路由器(模式1,2) 或 明确执行 pre-filter(模式0且算法5) 时，才计算极其耗时的 exact_mask
          if (routing_mode == 1 || routing_mode == 2 || (routing_mode == 0 && baseline_alg == 5)) {
             auto mask_start = std::chrono::high_resolution_clock::now(); // 单独计时
             exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
@@ -3037,7 +3040,7 @@ void UniNavGraph::calculate_query_features_only(
              search_cache_list.release_cache(search_cache);
              return; 
          }
-         else if (final_algo_choice == 7) // NaviX(在NaviX索引)
+         else if (final_algo_choice == 7) // NaviX(先不看，在NaviX索引)
          {
              auto search_time_start_ms = std::chrono::high_resolution_clock::now();
              
@@ -3148,6 +3151,8 @@ void UniNavGraph::calculate_query_features_only(
                for (auto k = 0; k < K; ++k) results[id * K + k].first = -1;
                return;
             }
+
+            // efs变化过程（可以不看）
             int current_efs;
             if (Lsearch <= lsearch_threshold)
                current_efs = efs_start + ((Lsearch - lsearch_start) / lsearch_step) * efs_step_slow;
@@ -3162,9 +3167,10 @@ void UniNavGraph::calculate_query_features_only(
                current_efs = efs_at_threshold + num_steps_in_fast_zone * efs_step_fast;
             }
             current_efs = std::max(current_efs, efs_start);
-
             stats.acorn_efs_used = current_efs;
             selected_acorn_index->acorn.efSearch = current_efs;
+
+            
 
             // 确定当前使用哪种 ACORN 内部搜索策略 (0: ACORN, 1: Imp, 2: NaviX)
             int current_baseline_alg = 0;
