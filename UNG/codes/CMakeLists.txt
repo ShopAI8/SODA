@@ -13,14 +13,14 @@ set(BUILD_TESTING OFF CACHE BOOL "Disable Faiss tests")
 add_subdirectory(../../ACORN ${CMAKE_BINARY_DIR}/acorn_build)
 
 # Boost
-find_package(Boost COMPONENTS REQUIRED program_options filesystem)
-message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
-if (Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIR})
-    link_libraries(${Boost_LIBRARIES})
-else()
-    message(FATAL_ERROR "no Boost supprot")
+find_package(Boost REQUIRED COMPONENTS program_options filesystem)
+
+if(NOT Boost_FOUND)
+    message(FATAL_ERROR "no Boost support")
 endif()
+
+message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
 
 # OpenMP
 find_package(OpenMP)

@@ -5,6 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+//ljk_add
+#include <array>
+
 #include <faiss_navix/impl/HNSW.h>
 
 #include <cstddef>
