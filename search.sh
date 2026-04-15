@@ -92,7 +92,7 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
     --scenario containment \
     --num_entry_points "$NUM_ENTRY_POINTS" \
     --Lsearch $LSEARCH_VALUES \
-    --algo_choice_csv "/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Reviews/query_select_imp_A_B_C-sub-base-repeat_100_2/algo_choice_repeat.csv" \
+    --algo_choice_csv " " \
     --lsearch_start "$LSEARCH_START" \
     --lsearch_step "$LSEARCH_STEP" \
     --efs_start "$EFS_START" \

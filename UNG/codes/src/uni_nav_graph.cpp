@@ -259,20 +259,20 @@ namespace ANNS
                                               std::atomic<int> &print_counter, bool is_new_trie_method, bool is_rec_more_start, QueryStats &stats,
                                               bool skip_group_id_check)
    {
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       // --- 计时器变量定义 ---
       double time_trie_lookup = 0.0;
       double time_sorting = 0.0;
       double time_filtering_loop = 0.0;
       auto function_start_time = std::chrono::high_resolution_clock::now();
-#endif
+// #endif
 
       min_super_set_ids.clear();
 
       // --- 1. 测量Trie查找候选者的时间 ---
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_trie = std::chrono::high_resolution_clock::now();
-#endif
+// #endif
 
       // // 对应伪代码 L1-L8: 增加快速路径，首先尝试精确匹配
       // auto exact_match_node = _trie_index.find_exact_match(query_label_set);
@@ -314,10 +314,10 @@ namespace ANNS
             stats.shortcut_hit_ratio = 0.0f;
       }
 
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto end_trie = std::chrono::high_resolution_clock::now();
       time_trie_lookup = std::chrono::duration<double, std::milli>(end_trie - start_trie).count();
-#endif
+// #endif
 
       // 特殊情况处理
       if (candidates.empty())
@@ -329,25 +329,25 @@ namespace ANNS
       }
 
       // --- 2. 测量排序时间 ---
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_sort = std::chrono::high_resolution_clock::now();
-#endif
+// #endif
       std::sort(candidates.begin(), candidates.end(),
                 [](const std::shared_ptr<TrieNode> &a, const std::shared_ptr<TrieNode> &b)
                 {
                    return a->label_set_size < b->label_set_size;
                 });
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto end_sort = std::chrono::high_resolution_clock::now();
       time_sorting = std::chrono::duration<double, std::milli>(end_sort - start_sort).count();
-#endif
+// #endif
 
       auto min_size = _group_id_to_label_set[candidates[0]->group_id].size();
 
       // --- 3. 测量过滤循环的时间 ---
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_filter = std::chrono::high_resolution_clock::now();
-#endif
+// #endif
       for (auto candidate : candidates)
       {
          const auto &cur_group_id = candidate->group_id;
@@ -372,12 +372,18 @@ namespace ANNS
             min_super_set_ids.emplace_back(cur_group_id);
          }
       }
-#if ENABLE_ENTRY_DEBUG_OUTPUT
+// #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto end_filter = std::chrono::high_resolution_clock::now();
       time_filtering_loop = std::chrono::duration<double, std::milli>(end_filter - start_filter).count();
 
       auto function_total_time = std::chrono::duration<double, std::milli>(end_filter - function_start_time).count();
-#endif
+
+      // ljk_add 将时间记录到 stats 中
+      stats.els_trie_time = time_trie_lookup;
+      stats.els_sort_time = time_sorting;
+      stats.els_filter_time = time_filtering_loop;
+      stats.els_total_time = function_total_time;
+// #endif
    }
 
    // 为了方便排序，定义一个结构体来存储候选组及其评分
@@ -3452,11 +3458,11 @@ void UniNavGraph::calculate_query_features_only(
          // 调用路由策略并获取 final_algo_choice 和 entry_group_ids
          std::vector<IdxType> entry_group_ids;
 
-         // int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         int final_algo_choice = -1;
-         if (query_algo_choices[id] == 0){
-            determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         }
+         int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
+         // int final_algo_choice = -1;
+         // if (query_algo_choices[id] == 0){
+         //    determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
+         // }
          
          // CSV 配置存在时，按 QueryID 强制覆盖算法选择；未配置的 Query(-1) 仍走原预测。
          if (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1) {

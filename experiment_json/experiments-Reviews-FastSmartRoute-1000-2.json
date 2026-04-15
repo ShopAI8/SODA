@@ -27,14 +27,14 @@
          },
          "tasks": [
             {
-               "query_dir_name": "query_select_imp_A_B_C-sub-base-repeat_100_2",
+               "query_dir_name": "query_select_imp_A_B_C-sub-base-repeat_100",
                "acorn_search_params": {
                   "acorn_efs_start": 100,
                   "acorn_efs_step_slow": 100,
                   "acorn_efs_step_fast":100
                },
                "algorithms": [
-                  "FastSmartRoute"
+                  "UNG-nTfalse"
                ]
             }
          ]

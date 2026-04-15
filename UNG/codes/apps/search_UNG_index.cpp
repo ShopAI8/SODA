@@ -355,7 +355,12 @@ int main(int argc, char **argv)
       int efs;
       double time_ms;
       float avg_recall;
-      double avg_ndc;
+
+      // ✅ 新增ELS相关的耗时记录字段
+      double els_trie_avg;
+      double els_sort_avg;
+      double els_filter_avg;
+      double els_total_avg;
    };
    std::vector<SearchTimeLog> detailed_times;                      // 存储所有详细耗时记录
    std::map<ANNS::IdxType, std::vector<double>> time_per_lsearch;  // 使用 map 来按 Lsearch 值分组存储每次 repeat 的耗时，方便后续计算平均值
@@ -399,18 +404,36 @@ int main(int argc, char **argv)
          double total_recall_for_batch = 0.0;
          int total_efs_for_batch = 0;
          double total_ndc_for_batch = 0.0;
+
+         // ====== 新增：ELS时间统计 ======
+         double sum_trie = 0.0;
+         double sum_sort = 0.0;
+         double sum_filter = 0.0;
+         double sum_total = 0.0;
          for (int i = 0; i < num_queries; ++i){
             total_recall_for_batch += query_stats[repeat][LsearchId][i].recall;
             total_efs_for_batch += query_stats[repeat][LsearchId][i].acorn_efs_used;
             total_ndc_for_batch += query_stats[repeat][LsearchId][i].num_distance_calcs;
+
+            // 累加ELS的各个阶段时间
+            const auto &s = query_stats[repeat][LsearchId][i];
+            sum_trie += s.els_trie_time;
+            sum_sort += s.els_sort_time;
+            sum_filter += s.els_filter_time;
+            sum_total += s.els_total_time;
          }
          float avg_recall_for_batch = (num_queries > 0) ? (static_cast<float>(total_recall_for_batch) / num_queries) : 0.0f;
          int efs_for_batch = (num_queries > 0) ? (total_efs_for_batch / num_queries) : 0;
          double avg_ndc_for_batch = (num_queries > 0) ? (total_ndc_for_batch / num_queries) : 0.0;
+         //新增：计算ELS各阶段的平均时间
+         double avg_trie = (num_queries > 0) ? sum_trie / num_queries : 0.0;
+         double avg_sort = (num_queries > 0) ? sum_sort / num_queries : 0.0;
+         double avg_filter = (num_queries > 0) ? sum_filter / num_queries : 0.0;
+         double avg_total = (num_queries > 0) ? sum_total / num_queries : 0.0;
 
          // 4. 将批处理时间 和 该批次的平均Recall 存入相应的数据结构中
          // a. 存入 detailed_times 用于生成 search_time_details.csv
-         detailed_times.push_back({repeat, current_Lsearch, efs_for_batch,time_cost, avg_recall_for_batch});
+         detailed_times.push_back({repeat, current_Lsearch, efs_for_batch,time_cost, avg_recall_for_batch,avg_trie,avg_sort,avg_filter,avg_total});
 
          // b. 按 Lsearch 值分组存入 map，用于后续计算总平均值，生成 search_time_summary.csv
          time_per_lsearch[current_Lsearch].push_back(time_cost);
@@ -476,10 +499,10 @@ int main(int argc, char **argv)
    std::ofstream details_out(details_file_path);
    if (details_out.is_open())
    {
-      details_out << "Repeat,Lsearch,efs,Time_ms,Avg_Recall\n"; // <-- 修改表头
+      details_out << "Repeat,Lsearch,efs,Time_ms,Avg_Recall,Avg_Trie,Avg_Sort,Avg_Filter,Avg_Total\n"; // <-- 修改表头
       for (const auto &log : detailed_times)
       {
-         details_out << log.repeat << "," << log.l_search <<","<< log.efs << "," << log.time_ms << "," << log.avg_recall << "\n";
+         details_out << log.repeat << "," << log.l_search <<","<< log.efs << "," << log.time_ms << "," << log.avg_recall << "," << log.els_trie_avg << "," << log.els_sort_avg << "," << log.els_filter_avg << "," << log.els_total_avg << "\n";
       }
       details_out.close();
       std::cout << "\n详细的搜索耗时已保存到: " << details_file_path << std::endl;
@@ -531,7 +554,9 @@ int main(int argc, char **argv)
    detail_out << "repeat,Lsearch,efs,QueryID,Time_ms,search_time_ms,core_search_time_ms,Recall,"         
               << "Algo_Choice,IsIntelElsUsed,IsTrieRec,"                                                         
               << "DistCalcs,NumNodeVisited,"                                                             
-              << "MinSupersetT_ms,IntelELS_PredT_ms,Route_PredT_ms,FpassT_ms,Routing_TotalT_ms,BitmapT_new_ms,FeatureT_ms," 
+              << "MinSupersetT_ms,"
+              << "ELS_TrieT_ms,ELS_SortT_ms,ELS_FilterT_ms,ELS_TotalT_ms,"
+              << "IntelELS_PredT_ms,Route_PredT_ms,FpassT_ms,Routing_TotalT_ms,BitmapT_new_ms,FeatureT_ms," 
             //   << "MinSupersetT_ms,IntelELS_PredT_ms,Route_PredT_ms,Routing_TotalT_ms,BitmapT_new_ms,FeatureT_ms," 
               << "AcornFilterType,"
               << "QuerySize,CandSize,ExactCandSize,GlobalPpass,"
@@ -558,6 +583,10 @@ int main(int argc, char **argv)
                        << stats.num_distance_calcs << ","
                        << stats.num_nodes_visited << ","
                        << stats.get_min_super_sets_time_ms << ","
+                       << stats.els_trie_time << ","
+                        << stats.els_sort_time << ","
+                        << stats.els_filter_time << ","
+                        << stats.els_total_time << ","
                        << stats.intel_els_pred_time_ms << ","
                        << stats.route_pred_time_ms << ","
                        << stats.fpass_time_ms << ","

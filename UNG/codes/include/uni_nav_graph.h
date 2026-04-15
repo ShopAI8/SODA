@@ -80,6 +80,12 @@ namespace ANNS
 
     int acorn_filter_type = 0; //记录 ACORN 使用的掩码类型 (0=N/A, 1=ELS, 2=ExactMask, 3=InvertedIndex)
 
+    // ===== ELS具体时间统计 =====
+    double els_trie_time = 0;
+    double els_sort_time = 0;
+    double els_filter_time = 0;
+    double els_total_time = 0;
+
       
    };
    struct NewEdgeCandidate
