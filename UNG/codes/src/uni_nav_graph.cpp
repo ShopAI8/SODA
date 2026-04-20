@@ -326,7 +326,7 @@ namespace ANNS
          min_super_set_ids.emplace_back(candidates[0]->group_id);
          return;
       }
-      bool skip_filter = true;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      bool skip_filter = stats.is_ung_loose;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
       if (skip_filter)
       {
          for (const auto& candidate : candidates)
@@ -1144,71 +1144,34 @@ namespace ANNS
       return all_bitmaps;
    }
 
-   // fxy_add
+   //非优化bitmap计算版本，保留以供性能对比
    const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
-    const std::vector<LabelType>& query_labels,
-    size_t& cand_size) const
+      const std::vector<LabelType>& query_labels,
+      size_t& cand_size) const
    {
-      // // 复用内存
-      // static thread_local std::bitset<16000000> final_bitmap;
-      // static thread_local std::bitset<16000000> temp_bitmap;
-
-      // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
-      static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
-      static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
-      if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
-      if (!temp_bitmap_ptr) temp_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
-      auto& final_bitmap = *final_bitmap_ptr;
-      auto& temp_bitmap = *temp_bitmap_ptr;
+      // 复用内存
+      static thread_local std::bitset<16000000> final_bitmap;
+      static thread_local std::bitset<16000000> temp_bitmap;
       
-      // 特殊情况：空查询，退化为全集
+      final_bitmap.set(); 
+      
       if (query_labels.empty()) {
-         final_bitmap.set(); 
          cand_size = _num_points;
          return final_bitmap;
       }
 
-      // 1. 收集所有属性对应的向量列表，并提前拦截无效查询
-      std::vector<const std::vector<IdxType>*> valid_vec_lists;
-      // 提前分配空间，避免 vector 扩容开销
-      valid_vec_lists.reserve(query_labels.size()); 
-      
       for (LabelType attr_label : query_labels) {
          auto it = _attr_to_id.find(attr_label);
          if (it == _attr_to_id.end()) {
-               final_bitmap.reset(); // 遇到未知标签，交集必然为空
+               final_bitmap.reset(); // 遇到未知标签，交集全清零
                cand_size = 0;
                return final_bitmap;
          }
+         
          AtrType attr_id = it->second;
          IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
-         valid_vec_lists.push_back(&_vector_attr_graph[attr_node_id]);
-      }
-
-      // 2. 核心优化：按照候选集大小从小到大排序 (指针拷贝，耗时可忽略不计)
-      std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
-         [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
-               return a->size() < b->size();
-         });
-
-      // 3. 核心优化：用最小的集合来初始化 final_bitmap (彻底消灭了原来的 final_bitmap.set() 慢操作)
-      final_bitmap.reset(); 
-      const auto& first_list = *valid_vec_lists[0];
-      for (IdxType vec_id : first_list) {
-         final_bitmap.set(vec_id);
-      }
-
-      // 4. 依次与其余属性的集合求交集
-      for (size_t i = 1; i < valid_vec_lists.size(); ++i) {
-         // 核心优化：提前终止。如果当前交集已经为空，直接跳出，省去后续所有计算
-         if (final_bitmap.none()) {
-               cand_size = 0;
-               return final_bitmap;
-         }
-
-         const auto& vec_list = *valid_vec_lists[i];
+         const auto& vec_list = _vector_attr_graph[attr_node_id];
          
-         // 【兜底优化】恢复旧代码的精确复位机制，确保小集合场景下纳秒级清零
          for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
          final_bitmap &= temp_bitmap;
          for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
@@ -1217,6 +1180,79 @@ namespace ANNS
       cand_size = final_bitmap.count();
       return final_bitmap;
    }
+   // fxy_add
+   // const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
+   //  const std::vector<LabelType>& query_labels,
+   //  size_t& cand_size) const
+   // {
+   //    // // 复用内存
+   //    // static thread_local std::bitset<16000000> final_bitmap;
+   //    // static thread_local std::bitset<16000000> temp_bitmap;
+
+   //    // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
+   //    static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
+   //    static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
+   //    if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
+   //    if (!temp_bitmap_ptr) temp_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
+   //    auto& final_bitmap = *final_bitmap_ptr;
+   //    auto& temp_bitmap = *temp_bitmap_ptr;
+      
+   //    // 特殊情况：空查询，退化为全集
+   //    if (query_labels.empty()) {
+   //       final_bitmap.set(); 
+   //       cand_size = _num_points;
+   //       return final_bitmap;
+   //    }
+
+   //    // 1. 收集所有属性对应的向量列表，并提前拦截无效查询
+   //    std::vector<const std::vector<IdxType>*> valid_vec_lists;
+   //    // 提前分配空间，避免 vector 扩容开销
+   //    valid_vec_lists.reserve(query_labels.size()); 
+      
+   //    for (LabelType attr_label : query_labels) {
+   //       auto it = _attr_to_id.find(attr_label);
+   //       if (it == _attr_to_id.end()) {
+   //             final_bitmap.reset(); // 遇到未知标签，交集必然为空
+   //             cand_size = 0;
+   //             return final_bitmap;
+   //       }
+   //       AtrType attr_id = it->second;
+   //       IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
+   //       valid_vec_lists.push_back(&_vector_attr_graph[attr_node_id]);
+   //    }
+
+   //    // 2. 核心优化：按照候选集大小从小到大排序 (指针拷贝，耗时可忽略不计)
+   //    std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
+   //       [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
+   //             return a->size() < b->size();
+   //       });
+
+   //    // 3. 核心优化：用最小的集合来初始化 final_bitmap (彻底消灭了原来的 final_bitmap.set() 慢操作)
+   //    final_bitmap.reset(); 
+   //    const auto& first_list = *valid_vec_lists[0];
+   //    for (IdxType vec_id : first_list) {
+   //       final_bitmap.set(vec_id);
+   //    }
+
+   //    // 4. 依次与其余属性的集合求交集
+   //    for (size_t i = 1; i < valid_vec_lists.size(); ++i) {
+   //       // 核心优化：提前终止。如果当前交集已经为空，直接跳出，省去后续所有计算
+   //       if (final_bitmap.none()) {
+   //             cand_size = 0;
+   //             return final_bitmap;
+   //       }
+
+   //       const auto& vec_list = *valid_vec_lists[i];
+         
+   //       // 【兜底优化】恢复旧代码的精确复位机制，确保小集合场景下纳秒级清零
+   //       for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
+   //       final_bitmap &= temp_bitmap;
+   //       for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
+   //    }
+      
+   //    cand_size = final_bitmap.count();
+   //    return final_bitmap;
+   // }
 
    // fxy_add
    void UniNavGraph::search_baseline_exact(
@@ -3161,10 +3197,10 @@ void UniNavGraph::calculate_query_features_only(
 
       // --- 模式 0: Baseline ---
       if (routing_mode == 0) {
-         if (baseline_alg == 0 || baseline_alg == 1) { // 如果是 UNG 家族，算好 ELS
+         if (baseline_alg == 0 || baseline_alg == 1 || baseline_alg == 8) { // 如果是 UNG 家族，算好 ELS
                bool use_nT_true = (baseline_alg == 1);
                stats.is_trie_recursive = use_nT_true; // 记录: Baseline使用的是递归还是非递归
-               
+               stats.is_ung_loose = (baseline_alg == 8); // 记录: 是否使用了 UNG-loose
                auto els_start = std::chrono::high_resolution_clock::now();
                static std::atomic<int> counter{0};
                // 注意这里传入 use_nT_true，直接覆盖全局的 is_new_trie_method
@@ -3262,7 +3298,7 @@ void UniNavGraph::calculate_query_features_only(
       }
 
       // --- 模式 2 & 3: FastSmartRoute & FastSmartRoute+ (使用 CRoaring 算 Fpass) ---
-      if (routing_mode == 2 || routing_mode == 3) {
+      if (routing_mode == 2 || routing_mode == 3 || routing_mode == 5) {
 
          // Fpass：使用CRoaring倒排索引 部分
          auto start_fpass = std::chrono::high_resolution_clock::now();
@@ -3328,6 +3364,10 @@ void UniNavGraph::calculate_query_features_only(
          }
 
          stats.is_trie_recursive = use_nT_true;
+         if (routing_mode == 5 )
+         {
+            stats.is_ung_loose = true; // loose 版本的 UNG，记录一下
+         }
          auto els_start = std::chrono::high_resolution_clock::now();
          static std::atomic<int> counter{0};
          get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);

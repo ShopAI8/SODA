@@ -704,7 +704,7 @@ def handle_speedup_ratio_tasks(config, font_sizes):
 
 def main():
    """主函数，负责执行整个流程。"""
-   config_file = "/home/sunyahui/ljk/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps_ljk.json"
+   config_file = "/home/sunyahui/ljk/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps_ung.json"
    try:
       with open(config_file, 'r', encoding='utf-8') as f:
          config = json.load(f)

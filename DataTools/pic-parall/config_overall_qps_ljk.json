@@ -954,7 +954,7 @@
          {
             "enabled": true,
             "task_name": "sub_base_Multi_Length_Comparison",
-            "output_filename": "all_length_sm.png",
+            "output_filename": "all_length.png",
             "main_title": "sub_base Performance Comparison Across Query Lengths (K=10)",
             "plot_settings": {
                "layout_rect_top": 0.93,
@@ -1043,8 +1043,18 @@
                            "acorn_efs_step_slow": 100,
                            "acorn_efs_step_fast": 100
                         }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 1000,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
                      }
-                     
                   ]
                },
                {
@@ -1122,6 +1132,17 @@
                      {
                         "name": "pre-filtering",
                         "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 500,
+                           "lsearch_step": 10,
                            "acorn_efs_start": 100,
                            "acorn_efs_step_slow": 100,
                            "acorn_efs_step_fast": 100
@@ -1208,6 +1229,17 @@
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000,
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
                      }
                   ]
                },
@@ -1286,6 +1318,17 @@
                      {
                         "name": "pre-filtering",
                         "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 200,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
@@ -1372,6 +1415,17 @@
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000,
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
                      }
                   ]
                },
@@ -1450,6 +1504,17 @@
                      {
                         "name": "pre-filtering",
                         "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
@@ -1536,6 +1601,17 @@
                            "acorn_efs_step_slow": 500,
                            "acorn_efs_step_fast": 500
                         }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000,
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
                      }
                   ]
                },
@@ -1614,6 +1690,17 @@
                      {
                         "name": "pre-filtering",
                         "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
+                        }
+                     },
+                     {
+                        "name":"FastSmartRoute",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 60000,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 10,
                            "acorn_efs_step_slow": 10,
                            "acorn_efs_step_fast": 10

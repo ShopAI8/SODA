@@ -954,12 +954,12 @@
          {
             "enabled": true,
             "task_name": "sub_base_Multi_Length_Comparison",
-            "output_filename": "length.png",
+            "output_filename": "ung_length_log.png",
             "main_title": "sub_base Performance Comparison Across Query Lengths (K=10)",
             "plot_settings": {
                "layout_rect_top": 0.93,
                "legend_anchor_y": 0.99,
-               "use_log_scale_y": false,
+               "use_log_scale_y": true,
                "h_pad": 1.0,
                "w_pad": 0.0
             },

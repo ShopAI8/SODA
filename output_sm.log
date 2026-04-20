@@ -2,14 +2,607 @@
 开始执行实验...
 
 ==========================================================
-Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[SmartRoute]
+Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[FastSmartRoute++]
 Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
 ==========================================================
 Preparing build index...
 [INFO] Build mode set to: serial
-[INFO] NaviX library found.
-[INFO] UNG executable found.
-[INFO] ACORN executable found.
+[INFO] NaviX library not found. Compiling...
+-- The CXX compiler identification is GNU 12.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found OpenMP: TRUE (found version "4.5")
+-- Looking for sgemm_
+-- Looking for sgemm_ - not found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Looking for sgemm_
+-- Looking for sgemm_ - found
+-- Found BLAS: /usr/lib/x86_64-linux-gnu/libmkl_intel_lp64.so;/usr/lib/x86_64-linux-gnu/libmkl_intel_thread.so;/usr/lib/x86_64-linux-gnu/libmkl_core.so;/usr/lib/x86_64-linux-gnu/libiomp5.so;-lm;-ldl
+-- Looking for cheev_
+-- Looking for cheev_ - found
+-- Found LAPACK: /usr/lib/x86_64-linux-gnu/libmkl_intel_lp64.so;/usr/lib/x86_64-linux-gnu/libmkl_intel_thread.so;/usr/lib/x86_64-linux-gnu/libmkl_core.so;/usr/lib/x86_64-linux-gnu/libiomp5.so;-lm;-ldl;-lm;-ldl
+-- Configuring done (1.9s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/sunyahui/ljk/FilterVector/build_para_Laion/navix
+make: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[1]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+[  0%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/Clustering.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/AutoTune.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IVFlib.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/Index2Layer.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/AutoTune.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/Index.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinary.cpp.o
+[  2%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/Clustering.cpp.o
+[  5%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IVFlib.cpp.o
+[  5%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinaryFlat.cpp.o
+[  7%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/Index2Layer.cpp.o
+[  7%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexAdditiveQuantizer.cpp.o
+[ 10%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinaryHash.cpp.o
+[ 10%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/Index.cpp.o
+[ 10%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinaryHNSW.cpp.o
+[ 10%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinary.cpp.o
+[ 10%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinaryFromFloat.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinaryIVF.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinaryFlat.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexBinaryFromFloat.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexAdditiveQuantizer.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinaryHNSW.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexFlatCodes.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinaryHash.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexFlat.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexBinaryIVF.cpp.o
+[ 13%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexHNSW.cpp.o
+[ 15%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexFlatCodes.cpp.o
+[ 15%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexFlat.cpp.o
+[ 15%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexHNSW.cpp.o
+[ 15%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIDMap.cpp.o
+[ 18%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVF.cpp.o
+[ 18%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIDMap.cpp.o
+[ 18%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFPQ.cpp.o
+[ 18%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVF.cpp.o
+[ 18%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFFlat.cpp.o
+[ 21%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizer.cpp.o
+[ 21%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFFastScan.cpp.o
+[ 21%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizerFastScan.cpp.o
+[ 23%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFAdditiveQuantizer.cpp.o
+[ 23%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFPQFastScan.cpp.o
+[ 23%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFFlat.cpp.o
+[ 23%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFPQR.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexLSH.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFPQ.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexNNDescent.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFSpectralHash.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexLattice.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFAdditiveQuantizerFastScan.cpp.o
+[ 26%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexPQ.cpp.o
+[ 28%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexFastScan.cpp.o
+[ 28%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFPQR.cpp.o
+[ 28%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFFastScan.cpp.o
+[ 28%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexLSH.cpp.o
+[ 31%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexNNDescent.cpp.o
+[ 31%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFPQFastScan.cpp.o
+[ 31%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexNSG.cpp.o
+[ 31%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFSpectralHash.cpp.o
+[ 31%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexAdditiveQuantizerFastScan.cpp.o
+[ 34%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexLattice.cpp.o
+[ 34%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexIVFIndependentQuantizer.cpp.o
+[ 34%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexPQFastScan.cpp.o
+[ 34%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexNSG.cpp.o
+[ 34%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexPreTransform.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexRefine.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexReplicas.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexPQ.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexRowwiseMinMax.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexFastScan.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexScalarQuantizer.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexShards.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexAdditiveQuantizerFastScan.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexPreTransform.cpp.o
+[ 36%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexPQFastScan.cpp.o
+[ 39%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexIVFIndependentQuantizer.cpp.o
+[ 42%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexShardsIVF.cpp.o
+[ 42%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexReplicas.cpp.o
+[ 42%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexRefine.cpp.o
+[ 42%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/IndexNeuralNetCodec.cpp.o
+[ 42%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/MatrixStats.cpp.o
+[ 44%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexRowwiseMinMax.cpp.o
+[ 44%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexShards.cpp.o
+[ 44%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexScalarQuantizer.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/VectorTransform.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/clone_index.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/MetaIndexes.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexShardsIVF.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/IndexNeuralNetCodec.cpp.o
+[ 47%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/index_factory.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/MatrixStats.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/AuxIndexStructures.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/CodePacker.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/MetaIndexes.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/IDSelector.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/clone_index.cpp.o
+[ 50%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/VectorTransform.cpp.o
+[ 52%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/AuxIndexStructures.cpp.o
+[ 52%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/index_factory.cpp.o
+[ 52%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/HNSW.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/FaissException.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/CodePacker.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/IDSelector.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/NSG.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/FaissException.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/PolysemousTraining.cpp.o
+[ 55%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/HNSW.cpp.o
+[ 57%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/NSG.cpp.o
+[ 57%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/PolysemousTraining.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/ProductQuantizer.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/AdditiveQuantizer.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/ResidualQuantizer.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/ResidualQuantizer.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/AdditiveQuantizer.cpp.o
+[ 60%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/ProductQuantizer.cpp.o
+[ 63%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/LocalSearchQuantizer.cpp.o
+[ 63%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/ProductAdditiveQuantizer.cpp.o
+[ 63%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/LocalSearchQuantizer.cpp.o
+[ 63%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/ProductAdditiveQuantizer.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/index_read.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/index_read.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/ScalarQuantizer.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/ScalarQuantizer.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/io.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/index_write.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/kmeans1d.cpp.o
+[ 65%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/lattice_Zn.cpp.o
+[ 68%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/mapped_io.cpp.o
+[ 68%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/index_write.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/io.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/pq4_fast_scan.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/kmeans1d.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/lattice_Zn.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/mapped_io.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/pq4_fast_scan.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/pq4_fast_scan_search_qbs.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_1.cpp.o
+[ 71%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_qbs.cpp.o
+[ 73%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/pq4_fast_scan_search_1.cpp.o
+[ 73%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/residual_quantizer_encode_steps.cpp.o
+[ 73%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/residual_quantizer_encode_steps.cpp.o
+[ 73%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/zerocopy_io.cpp.o
+[ 73%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/impl/NNDescent.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/invlists/BlockInvertedLists.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/NNDescent.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/impl/zerocopy_io.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/invlists/BlockInvertedLists.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/invlists/DirectMap.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/invlists/DirectMap.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/invlists/InvertedLists.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/invlists/InvertedLists.cpp.o
+[ 78%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/invlists/InvertedListsIOHook.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/Heap.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/invlists/InvertedListsIOHook.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/Heap.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/NeuralNet.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/WorkerThread.cpp.o
+[ 81%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/distances.cpp.o
+[ 84%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/distances_simd.cpp.o
+[ 84%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/extra_distances.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/NeuralNet.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/WorkerThread.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/distances.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/distances_simd.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/hamming.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/extra_distances.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/partitioning.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/quantize_lut.cpp.o
+[ 86%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/quantize_lut.cpp.o
+[ 89%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/partitioning.cpp.o
+[ 89%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/random.cpp.o
+[ 89%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/sorting.cpp.o
+[ 92%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/sorting.cpp.o
+[ 92%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/hamming.cpp.o
+[ 92%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/distances_fused/avx512.cpp.o
+[ 92%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/utils.cpp.o
+[ 92%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/random.cpp.o
+[ 94%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/utils.cpp.o
+[ 94%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/distances_fused/avx512.cpp.o
+[ 94%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/distances_fused/distances_fused.cpp.o
+[ 94%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/distances_fused/distances_fused.cpp.o
+[ 97%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/utils/distances_fused/simdlib_based.cpp.o
+[ 97%] Building CXX object faiss_navix/CMakeFiles/faiss.dir/invlists/OnDiskInvertedLists.cpp.o
+[ 97%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/utils/distances_fused/simdlib_based.cpp.o
+[ 97%] Building CXX object faiss_navix/CMakeFiles/faiss_avx2.dir/invlists/OnDiskInvertedLists.cpp.o
+[ 97%] Linking CXX static library libfaiss.a
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+[ 97%] Built target faiss
+[100%] Linking CXX static library libfaiss_avx2.a
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+[100%] Built target faiss_avx2
+make[1]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+make: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/navix”
+[INFO] UNG executable not found. Compiling...
+-- The C compiler identification is GNU 12.4.0
+-- The CXX compiler identification is GNU 12.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_C: -fopenmp (found version "4.5")
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found OpenMP: TRUE (found version "4.5")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Looking for sgemm_
+-- Looking for sgemm_ - found
+-- Found MKL: /usr/lib/x86_64-linux-gnu/libmkl_intel_lp64.so;/usr/lib/x86_64-linux-gnu/libmkl_gnu_thread.so;/usr/lib/x86_64-linux-gnu/libmkl_core.so;/usr/lib/gcc/x86_64-linux-gnu/12/libgomp.so;-lm;-ldl
+-- Found OpenMP_C: -fopenmp (found version "4.5")
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Using the single-header code from /home/sunyahui/ljk/FilterVector/build_para_Laion/ung/_deps/nlohmann_json-src/single_include/
+-- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.3")
+-- Found OpenMP_C: -fopenmp (found version "4.5")
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: program_options filesystem
+-- Boost_INCLUDE_DIRS: /usr/include
+-- Boost_LIBRARIES: Boost::program_options;Boost::filesystem
+-- UNG_FORCE_GLIBCXX_ABI0=OFF: using default libstdc++ ABI (usually 1).
+-- CRoaring library found at: /home/sunyahui/ljk/FilterVector/FilterVectorCode/UNG/codes/third_party/CRoaring/build/src/libroaring.a
+-- Found ONNX Runtime at: /home/sunyahui/ljk/FilterVector/FilterVectorCode/UNG/codes/third_party/onnxruntime-linux-x64-1.16.3
+-- NaviX library 成功找到，路径为: /home/sunyahui/ljk/FilterVector/build_para_Laion/navix/faiss_navix/libfaiss_avx2.a
+-- Configuring done (3.1s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/sunyahui/ljk/FilterVector/build_para_Laion/ung
+make: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[1]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[  3%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IVFlib.cpp.o
+[  3%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/Index.cpp.o
+[  3%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/Clustering.cpp.o
+[  3%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/AutoTune.cpp.o
+[  3%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/Index2Layer.cpp.o
+[  5%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexAdditiveQuantizer.cpp.o
+[  5%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinary.cpp.o
+[  7%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinaryHNSW.cpp.o
+[  7%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinaryHash.cpp.o
+[  9%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinaryFlat.cpp.o
+[  9%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinaryFromFloat.cpp.o
+[ 11%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexFlat.cpp.o
+[ 11%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexBinaryIVF.cpp.o
+[ 13%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexHNSW.cpp.o
+[ 13%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexFlatCodes.cpp.o
+[ 13%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIDMap.cpp.o
+[ 13%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexACORN.cpp.o
+[ 15%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizer.cpp.o
+[ 17%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVF.cpp.o
+[ 17%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFFlat.cpp.o
+[ 17%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFPQ.cpp.o
+[ 17%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizerFastScan.cpp.o
+[ 17%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFPQFastScan.cpp.o
+[ 19%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFFastScan.cpp.o
+[ 19%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFSpectralHash.cpp.o
+[ 23%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexLSH.cpp.o
+[ 23%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexIVFPQR.cpp.o
+[ 23%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexNNDescent.cpp.o
+[ 23%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexLattice.cpp.o
+[ 23%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexPQ.cpp.o
+[ 27%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexFastScan.cpp.o
+[ 27%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexNSG.cpp.o
+[ 29%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexAdditiveQuantizerFastScan.cpp.o
+[ 29%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexPQFastScan.cpp.o
+[ 29%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexPreTransform.cpp.o
+[ 31%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexReplicas.cpp.o
+[ 31%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexRefine.cpp.o
+[ 31%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexRowwiseMinMax.cpp.o
+[ 33%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexScalarQuantizer.cpp.o
+[ 33%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/IndexShards.cpp.o
+[ 35%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/MetaIndexes.cpp.o
+[ 35%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/VectorTransform.cpp.o
+[ 35%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/MatrixStats.cpp.o
+[ 35%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/index_factory.cpp.o
+[ 37%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/clone_index.cpp.o
+[ 39%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/AuxIndexStructures.cpp.o
+[ 39%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/FaissException.cpp.o
+[ 41%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/IDSelector.cpp.o
+[ 41%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/HNSW.cpp.o
+[ 41%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/ACORN.cpp.o
+[ 43%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/NSG.cpp.o
+[ 43%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/PolysemousTraining.cpp.o
+[ 45%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/ProductQuantizer.cpp.o
+[ 45%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/ResidualQuantizer.cpp.o
+[ 45%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/AdditiveQuantizer.cpp.o
+[ 45%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/ProductAdditiveQuantizer.cpp.o
+[ 47%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/LocalSearchQuantizer.cpp.o
+[ 49%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/ScalarQuantizer.cpp.o
+[ 50%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/index_read.cpp.o
+[ 50%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/index_write.cpp.o
+[ 50%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/io.cpp.o
+[ 50%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/kmeans1d.cpp.o
+[ 52%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/lattice_Zn.cpp.o
+[ 52%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan.cpp.o
+[ 52%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_qbs.cpp.o
+[ 54%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/NNDescent.cpp.o
+[ 54%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_1.cpp.o
+[ 56%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/invlists/BlockInvertedLists.cpp.o
+[ 56%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/invlists/DirectMap.cpp.o
+[ 58%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/invlists/InvertedLists.cpp.o
+[ 58%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/invlists/InvertedListsIOHook.cpp.o
+[ 58%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/Heap.cpp.o
+[ 60%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/WorkerThread.cpp.o
+[ 60%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/distances.cpp.o
+[ 62%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/distances_simd.cpp.o
+[ 64%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/extra_distances.cpp.o
+[ 64%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/hamming.cpp.o
+[ 64%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/partitioning.cpp.o
+[ 66%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/random.cpp.o
+[ 66%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/quantize_lut.cpp.o
+[ 68%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/utils.cpp.o
+[ 68%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/sorting.cpp.o
+[ 68%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/distances_fused/avx512.cpp.o
+[ 68%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/distances_fused/distances_fused.cpp.o
+[ 68%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/invlists/OnDiskInvertedLists.cpp.o
+[ 70%] Building CXX object acorn_build/faiss/CMakeFiles/faiss.dir/utils/distances_fused/simdlib_based.cpp.o
+[ 72%] Linking CXX static library libfaiss.a
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 72%] Built target faiss
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 72%] Building CXX object src/CMakeFiles/ANNS.dir/trie.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/ANNS.dir/utils.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/ANNS.dir/distance.cpp.o
+[ 74%] Building CXX object src/CMakeFiles/ANNS.dir/storage.cpp.o
+[ 76%] Building CXX object src/CMakeFiles/ANNS.dir/search_queue.cpp.o
+[ 76%] Building CXX object src/CMakeFiles/ANNS.dir/filtered_scan.cpp.o
+[ 76%] Building CXX object src/CMakeFiles/ANNS.dir/MethodSelector.cpp.o
+[ 78%] Building CXX object src/CMakeFiles/ANNS.dir/uni_nav_graph.cpp.o
+[ 78%] Linking CXX static library libANNS.a
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 78%] Built target ANNS
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 80%] Building CXX object vamana/CMakeFiles/Vamana.dir/vamana.cpp.o
+[ 80%] Building CXX object tools/CMakeFiles/generate_base_labels.dir/generate_base_labels.cpp.o
+[ 80%] Building CXX object tools/CMakeFiles/fvecs_to_bin.dir/fvecs_to_bin.cpp.o
+[ 82%] Building CXX object tools/CMakeFiles/generate_query_labels.dir/generate_query_labels.cpp.o
+[ 82%] Building CXX object tools/CMakeFiles/generate_mixed_queries.dir/generate_mixed_queries.cpp.o
+[ 82%] Building CXX object tools/CMakeFiles/compute_groundtruth.dir/compute_groundtruth.cpp.o
+[ 84%] Linking CXX executable fvecs_to_bin
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 84%] Built target fvecs_to_bin
+[ 84%] Linking CXX static library libVamana.a
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 84%] Built target Vamana
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 84%] Building CXX object test/CMakeFiles/test_build_vamana.dir/test_build_vamana.cpp.o
+[ 84%] Building CXX object apps/CMakeFiles/build_UNG_index.dir/build_UNG_index.cpp.o
+[ 84%] Building CXX object test/CMakeFiles/test_search_vamana.dir/test_search_vamana.cpp.o
+[ 86%] Building CXX object apps/CMakeFiles/search_UNG_index.dir/search_UNG_index.cpp.o
+[ 88%] Building CXX object apps/CMakeFiles/filtered_scan.dir/filtered_scan.cpp.o
+[ 90%] Building CXX object apps/CMakeFiles/analyze_data.dir/analyze_data.cpp.o
+[ 90%] Building CXX object apps/CMakeFiles/build_navix_index.dir/build_navix_index.cpp.o
+[ 92%] Linking CXX executable generate_base_labels
+[ 92%] Linking CXX executable compute_groundtruth
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 92%] Built target generate_base_labels
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 92%] Built target compute_groundtruth
+[ 92%] Linking CXX executable generate_query_labels
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 92%] Built target generate_query_labels
+[ 94%] Linking CXX executable build_navix_index
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 94%] Linking CXX executable generate_mixed_queries
+[ 94%] Built target build_navix_index
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 94%] Built target generate_mixed_queries
+[ 96%] Linking CXX executable test_search_vamana
+[ 98%] Linking CXX executable test_build_vamana
+[ 98%] Linking CXX executable filtered_scan
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 98%] Built target test_search_vamana
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 98%] Built target filtered_scan
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 98%] Built target test_build_vamana
+[ 98%] Linking CXX executable analyze_data
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[ 98%] Built target analyze_data
+[100%] Linking CXX executable build_UNG_index
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[100%] Built target build_UNG_index
+[100%] Linking CXX executable search_UNG_index
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[100%] Built target search_UNG_index
+make[1]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+make: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/ung”
+[INFO] ACORN executable not found. Compiling...
+-- The CXX compiler identification is GNU 12.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found OpenMP: TRUE (found version "4.5")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Looking for sgemm_
+-- Looking for sgemm_ - found
+-- Found MKL: /usr/lib/x86_64-linux-gnu/libmkl_intel_lp64.so;/usr/lib/x86_64-linux-gnu/libmkl_sequential.so;/usr/lib/x86_64-linux-gnu/libmkl_core.so;-lm;-ldl
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- The C compiler identification is GNU 12.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Found Python: /home/sunyahui/miniconda3/bin/python3.13 (found version "3.13.11") found components: Interpreter
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Using the single-header code from /home/sunyahui/ljk/FilterVector/build_para_Laion/acorn/_deps/nlohmann_json-src/single_include/
+-- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.3")
+-- Configuring done (5.7s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/sunyahui/ljk/FilterVector/build_para_Laion/acorn
+make: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[1]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[2]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[3]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[3]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[3]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+[  0%] Building CXX object faiss/CMakeFiles/faiss.dir/IVFlib.cpp.o
+[  0%] Building CXX object faiss/CMakeFiles/faiss.dir/AutoTune.cpp.o
+[  2%] Building CXX object faiss/CMakeFiles/faiss.dir/Clustering.cpp.o
+[  2%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinary.cpp.o
+[  5%] Building CXX object faiss/CMakeFiles/faiss.dir/Index.cpp.o
+[  5%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinaryFlat.cpp.o
+[  5%] Building CXX object faiss/CMakeFiles/faiss.dir/Index2Layer.cpp.o
+[  7%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexAdditiveQuantizer.cpp.o
+[ 10%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinaryHash.cpp.o
+[ 12%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinaryFromFloat.cpp.o
+[ 12%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinaryHNSW.cpp.o
+[ 12%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexFlatCodes.cpp.o
+[ 12%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexBinaryIVF.cpp.o
+[ 15%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexFlat.cpp.o
+[ 17%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexHNSW.cpp.o
+[ 17%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexACORN.cpp.o
+[ 17%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIDMap.cpp.o
+[ 20%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVF.cpp.o
+[ 20%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizer.cpp.o
+[ 20%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFPQ.cpp.o
+[ 23%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFFastScan.cpp.o
+[ 25%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFAdditiveQuantizerFastScan.cpp.o
+[ 25%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFFlat.cpp.o
+[ 25%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFPQR.cpp.o
+[ 25%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFSpectralHash.cpp.o
+[ 28%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexLSH.cpp.o
+[ 30%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexIVFPQFastScan.cpp.o
+[ 30%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexNNDescent.cpp.o
+[ 30%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexNSG.cpp.o
+[ 33%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexLattice.cpp.o
+[ 35%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexFastScan.cpp.o
+[ 35%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexPQ.cpp.o
+[ 35%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexAdditiveQuantizerFastScan.cpp.o
+[ 38%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexPQFastScan.cpp.o
+[ 38%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexPreTransform.cpp.o
+[ 41%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexRefine.cpp.o
+[ 43%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexRowwiseMinMax.cpp.o
+[ 43%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexReplicas.cpp.o
+[ 46%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexShards.cpp.o
+[ 46%] Building CXX object faiss/CMakeFiles/faiss.dir/MatrixStats.cpp.o
+[ 46%] Building CXX object faiss/CMakeFiles/faiss.dir/IndexScalarQuantizer.cpp.o
+[ 46%] Building CXX object faiss/CMakeFiles/faiss.dir/MetaIndexes.cpp.o
+[ 46%] Building CXX object faiss/CMakeFiles/faiss.dir/clone_index.cpp.o
+[ 48%] Building CXX object faiss/CMakeFiles/faiss.dir/VectorTransform.cpp.o
+[ 48%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/AuxIndexStructures.cpp.o
+[ 51%] Building CXX object faiss/CMakeFiles/faiss.dir/index_factory.cpp.o
+[ 53%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/IDSelector.cpp.o
+[ 53%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/FaissException.cpp.o
+[ 56%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/HNSW.cpp.o
+[ 56%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/ACORN.cpp.o
+[ 56%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/NSG.cpp.o
+[ 58%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/PolysemousTraining.cpp.o
+[ 58%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/ProductQuantizer.cpp.o
+[ 58%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/ResidualQuantizer.cpp.o
+[ 61%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/AdditiveQuantizer.cpp.o
+[ 64%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/LocalSearchQuantizer.cpp.o
+[ 66%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/ProductAdditiveQuantizer.cpp.o
+[ 66%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/ScalarQuantizer.cpp.o
+[ 66%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/index_write.cpp.o
+[ 66%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/index_read.cpp.o
+[ 69%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/io.cpp.o
+[ 69%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/kmeans1d.cpp.o
+[ 71%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/lattice_Zn.cpp.o
+[ 71%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan.cpp.o
+[ 74%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_1.cpp.o
+[ 74%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/pq4_fast_scan_search_qbs.cpp.o
+[ 74%] Building CXX object faiss/CMakeFiles/faiss.dir/impl/NNDescent.cpp.o
+[ 76%] Building CXX object faiss/CMakeFiles/faiss.dir/invlists/BlockInvertedLists.cpp.o
+[ 79%] Building CXX object faiss/CMakeFiles/faiss.dir/invlists/InvertedLists.cpp.o
+[ 79%] Building CXX object faiss/CMakeFiles/faiss.dir/invlists/DirectMap.cpp.o
+[ 82%] Building CXX object faiss/CMakeFiles/faiss.dir/invlists/InvertedListsIOHook.cpp.o
+[ 82%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/distances.cpp.o
+[ 82%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/WorkerThread.cpp.o
+[ 84%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/Heap.cpp.o
+[ 84%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/distances_simd.cpp.o
+[ 84%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/extra_distances.cpp.o
+[ 87%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/hamming.cpp.o
+[ 89%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/quantize_lut.cpp.o
+[ 89%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/partitioning.cpp.o
+[ 89%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/random.cpp.o
+[ 92%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/sorting.cpp.o
+[ 94%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/distances_fused/avx512.cpp.o
+[ 94%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/utils.cpp.o
+[ 94%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/distances_fused/distances_fused.cpp.o
+[ 94%] Building CXX object faiss/CMakeFiles/faiss.dir/utils/distances_fused/simdlib_based.cpp.o
+[ 97%] Building CXX object faiss/CMakeFiles/faiss.dir/invlists/OnDiskInvertedLists.cpp.o
+[ 97%] Linking CXX shared library libfaiss.so
+make[3]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+[ 97%] Built target faiss
+make[3]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[3]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[3]: 进入目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+[ 97%] Building CXX object demos/CMakeFiles/test_acorn.dir/test_acorn.cpp.o
+[100%] Linking CXX executable test_acorn
+make[3]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+[100%] Built target test_acorn
+make[2]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make[1]: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
+make: 离开目录“/home/sunyahui/ljk/FilterVector/build_para_Laion/acorn”
 [INFO] Checking and converting data format (if necessary)...
 Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.bin' already exists. Skipping conversion.
 [INFO] Index base directory set to: Index
@@ -18,7 +611,7 @@ Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.b
 [UNG] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/index_files/.ung_built'). Skipping UNG build.
 [ACORN] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/acorn_output/.acorn_built'). Skipping ACORN build.
 --- Build Summary ---
-[SUCCESS] All build tasks complete. Total time: 1 seconds.
+[SUCCESS] All build tasks complete. Total time: 0 seconds.
 Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
 Preparing Ground Truth (K=10)...
 Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
@@ -27,42 +620,12 @@ Begin search (K=10)...
 Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789
 使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
 使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_K10
-结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
+结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/FastSmartRoute++/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
 所有搜索和统计任务已全部结束！
---- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[SmartRoute] ---
+--- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[FastSmartRoute++] ---
 
 ==========================================================
-Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large], Algorithm=[SmartRoute]
-Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
-==========================================================
-Preparing build index...
-[INFO] Build mode set to: serial
-[INFO] NaviX library found.
-[INFO] UNG executable found.
-[INFO] ACORN executable found.
-[INFO] Checking and converting data format (if necessary)...
-Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.bin' already exists. Skipping conversion.
-[INFO] Index base directory set to: Index
-[INFO] Preparing index directory (if not exists): /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
---- [Executing in SERIAL mode] ---
-[UNG] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/index_files/.ung_built'). Skipping UNG build.
-[ACORN] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/acorn_output/.acorn_built'). Skipping ACORN build.
---- Build Summary ---
-[SUCCESS] All build tasks complete. Total time: 1 seconds.
-Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
-Preparing Ground Truth (K=10)...
-Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
-Begin search (K=10)...
-将在以下Lsearch值上进行测试: 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000 24000 25000 26000 27000 28000 29000 30000 31000 32000 33000 34000 35000 36000 37000 38000 39000 40000 41000 42000 43000 44000 45000 46000 47000 48000 49000 50000 51000 52000 53000 54000 55000 56000 57000 58000 59000 60000 
-Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large
-使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
-使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10
-结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
-所有搜索和统计任务已全部结束！
---- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large], Algorithm=[SmartRoute] ---
-
-==========================================================
-Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small], Algorithm=[SmartRoute]
+Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large], Algorithm=[FastSmartRoute++]
 Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
 ==========================================================
 Preparing build index...
@@ -81,14 +644,10 @@ Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.b
 [SUCCESS] All build tasks complete. Total time: 0 seconds.
 Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
 Preparing Ground Truth (K=10)...
-Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
+Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
 Begin search (K=10)...
 将在以下Lsearch值上进行测试: 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000 24000 25000 26000 27000 28000 29000 30000 31000 32000 33000 34000 35000 36000 37000 38000 39000 40000 41000 42000 43000 44000 45000 46000 47000 48000 49000 50000 51000 52000 53000 54000 55000 56000 57000 58000 59000 60000 
-Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small
+Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large
 使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
-使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10
-结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
-所有搜索和统计任务已全部结束！
---- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small], Algorithm=[SmartRoute] ---
-
-所有实验已完成！
+使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10
+结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/FastSmartRoute++/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]

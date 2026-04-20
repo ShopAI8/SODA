@@ -28,8 +28,8 @@ BASE_DIR = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
 # 记得修改output_dir！！！！！！
 
 ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'pre-filter']
-# MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
-MODELS_TO_TRY = ["XGBoost"]
+MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
+# MODELS_TO_TRY = ["XGBoost"]
 
 NAIVE_STRATEGY = {
     "default": "auto"

@@ -34,7 +34,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute"
+                  "FastSmartRoute++"
                ]
             },
             {
@@ -45,7 +45,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute"
+                  "FastSmartRoute++"
                ]
             },
             {
@@ -56,7 +56,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute"
+                  "FastSmartRoute++"
                ]
             }
          ]

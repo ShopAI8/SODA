@@ -87,7 +87,8 @@ namespace ANNS
     double els_filter_time = 0;
     double els_total_time = 0;
 
-      
+    //是否为UNG-loose
+    bool is_ung_loose = false;  
    };
    struct NewEdgeCandidate
    {

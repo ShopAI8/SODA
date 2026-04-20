@@ -34,10 +34,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "FastSmartRoute++"
                ]
             },
             {
@@ -48,10 +45,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "FastSmartRoute++"
                ]
             },
             {
@@ -62,10 +56,7 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "SmartRoute",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "FastSmartRoute++"
                ]
             }
          ]

@@ -4,14 +4,14 @@ import os
 import shutil
 
 # ================= 配置区域 =================
-BASE_ROOT = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
+BASE_ROOT = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
 
 # 需要处理的数据集名称列表
 # "Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"
 DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"]
 
 # 需要处理的算法列表 
-ALGORITHMS = ["FastSmartRoute","FastSmartRoute+"]#"UNG-nTfalse",  "method3", "ACORN-gamma-improved","ACORN-gamma","ACORN-1","SmartRoute","NaviX-ACORN","pre-filter"
+ALGORITHMS = ["UNG-nTfalse_loose_false"]#"UNG-nTfalse_loose","UNG-nTfalse",  "method3", "ACORN-gamma-improved","ACORN-gamma","ACORN-1","SmartRoute","NaviX-ACORN","pre-filter"
 
 # 文件名常量
 FILE_NAME = "search_time_summary.csv"

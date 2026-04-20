@@ -84,8 +84,8 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
         "FastSmartRoute": "tab:red",
         "SmartRoute-revised":"tab:cyan",
         # "ImprovedUNG": "tab:cyan",
-        "UNG-loose":"tab:blue",
-        "UNG-filtered":"tab:blue",
+        "UNG-loose":"tab:brown",
+        "UNG-filtered":"tab:olive",
     }
 
     legend_label_map = plot_settings.get('legend_label_map', {})

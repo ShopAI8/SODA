@@ -34,10 +34,11 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "UNG-nTfalse",
                   "ACORN-gamma",
                   "ACORN-gamma-improved",
-                  "ACORN-1"
+                  "ACORN-1",
+                  "NaviX-ACORN",
+                  "pre-filter"
                ]
             },
             {
@@ -48,10 +49,11 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "UNG-nTfalse",
                   "ACORN-gamma",
                   "ACORN-gamma-improved",
-                  "ACORN-1"
+                  "ACORN-1",
+                  "NaviX-ACORN",
+                  "pre-filter"
                ]
             },
             {
@@ -62,10 +64,11 @@
                   "acorn_efs_step_fast":200
                },
                "algorithms": [
-                  "UNG-nTfalse",
                   "ACORN-gamma",
                   "ACORN-gamma-improved",
-                  "ACORN-1"
+                  "ACORN-1",
+                  "NaviX-ACORN",
+                  "pre-filter"
                ]
             }
          ]
