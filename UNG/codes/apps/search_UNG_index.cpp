@@ -261,6 +261,7 @@ int main(int argc, char **argv)
    auto gt = new std::pair<ANNS::IdxType, float>[num_queries * K];
    ANNS::load_gt_file(gt_file, gt, num_queries, K);
    auto results = new std::pair<ANNS::IdxType, float>[num_queries * K];
+   std::vector<int> query_algo_choices = index.load_query_algo_choices_from_csv(algo_choice_csv_path, num_queries);
 
 //    // 为所有查询预先计算并存储入口组ID
 //    std::cout << "\n--- Step 1: Pre-computing Entry Group IDs (Measuring Entry Cost) ---" << std::endl;
@@ -340,9 +341,9 @@ int main(int argc, char **argv)
    // index.evaluate_fpass_methods(query_storage, fpass_csv_path);
 
    // Warm-up selector
-   // std::cout << "\n--- Starting Warm-up Phase ---" << std::endl;
-   // index.warmup_selectors(num_threads);
-   // std::cout << "--- Warm-up Finished ---"<< std::endl;
+   std::cout << "\n--- Starting Warm-up Phase ---" << std::endl;
+   index.warmup_selectors(num_threads);
+   std::cout << "--- Warm-up Finished ---"<< std::endl;
 
    // init query stats
    std::vector<std::vector<std::vector<ANNS::QueryStats>>> query_stats(num_repeats, std::vector<std::vector<ANNS::QueryStats>>(Lsearch_list.size(), std::vector<ANNS::QueryStats>(num_queries))); //(repeat,Lsearch,queryID)
@@ -356,7 +357,7 @@ int main(int argc, char **argv)
       double time_ms;
       float avg_recall;
 
-      // ✅ 新增ELS相关的耗时记录字段
+      // ELS相关的耗时记录字段
       double els_trie_avg;
       double els_sort_avg;
       double els_filter_avg;
@@ -390,8 +391,8 @@ int main(int argc, char **argv)
          }
          else
          {
-            index.search_hybrid(query_storage, distance_handler, num_threads, current_Lsearch,
-                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId],is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,routing_mode, baseline_alg ,navix_index, true_query_group_ids, algo_choice_csv_path);
+             index.search_hybrid(query_storage, distance_handler, num_threads, current_Lsearch,
+                                num_entry_points, scenario, K, results, num_cmps, query_stats[repeat][LsearchId],is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step, efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,routing_mode, baseline_alg ,navix_index, true_query_group_ids,query_algo_choices);
          }
          auto time_cost = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count();
          

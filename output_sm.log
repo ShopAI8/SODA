@@ -1,0 +1,94 @@
+成功找到配置文件: /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-smartroute_ljk/experiments-Laion-baseline-1000-1.json
+开始执行实验...
+
+==========================================================
+Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[SmartRoute]
+Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
+==========================================================
+Preparing build index...
+[INFO] Build mode set to: serial
+[INFO] NaviX library found.
+[INFO] UNG executable found.
+[INFO] ACORN executable found.
+[INFO] Checking and converting data format (if necessary)...
+Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.bin' already exists. Skipping conversion.
+[INFO] Index base directory set to: Index
+[INFO] Preparing index directory (if not exists): /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+--- [Executing in SERIAL mode] ---
+[UNG] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/index_files/.ung_built'). Skipping UNG build.
+[ACORN] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/acorn_output/.acorn_built'). Skipping ACORN build.
+--- Build Summary ---
+[SUCCESS] All build tasks complete. Total time: 1 seconds.
+Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+Preparing Ground Truth (K=10)...
+Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
+Begin search (K=10)...
+将在以下Lsearch值上进行测试: 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000 24000 25000 26000 27000 28000 29000 30000 31000 32000 33000 34000 35000 36000 37000 38000 39000 40000 41000 42000 43000 44000 45000 46000 47000 48000 49000 50000 51000 52000 53000 54000 55000 56000 57000 58000 59000 60000 
+Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789
+使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_K10
+结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
+所有搜索和统计任务已全部结束！
+--- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789], Algorithm=[SmartRoute] ---
+
+==========================================================
+Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large], Algorithm=[SmartRoute]
+Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
+==========================================================
+Preparing build index...
+[INFO] Build mode set to: serial
+[INFO] NaviX library found.
+[INFO] UNG executable found.
+[INFO] ACORN executable found.
+[INFO] Checking and converting data format (if necessary)...
+Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.bin' already exists. Skipping conversion.
+[INFO] Index base directory set to: Index
+[INFO] Preparing index directory (if not exists): /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+--- [Executing in SERIAL mode] ---
+[UNG] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/index_files/.ung_built'). Skipping UNG build.
+[ACORN] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/acorn_output/.acorn_built'). Skipping ACORN build.
+--- Build Summary ---
+[SUCCESS] All build tasks complete. Total time: 1 seconds.
+Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+Preparing Ground Truth (K=10)...
+Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
+Begin search (K=10)...
+将在以下Lsearch值上进行测试: 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000 24000 25000 26000 27000 28000 29000 30000 31000 32000 33000 34000 35000 36000 37000 38000 39000 40000 41000 42000 43000 44000 45000 46000 47000 48000 49000 50000 51000 52000 53000 54000 55000 56000 57000 58000 59000 60000 
+Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large
+使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10
+结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_large_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
+所有搜索和统计任务已全部结束！
+--- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_large], Algorithm=[SmartRoute] ---
+
+==========================================================
+Processing: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small], Algorithm=[SmartRoute]
+Using ACORN search params: efs_start=10, efs_step_slow=10, efs_step_fast=10
+==========================================================
+Preparing build index...
+[INFO] Build mode set to: serial
+[INFO] NaviX library found.
+[INFO] UNG executable found.
+[INFO] ACORN executable found.
+[INFO] Checking and converting data format (if necessary)...
+Target file '/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/Laion_base.bin' already exists. Skipping conversion.
+[INFO] Index base directory set to: Index
+[INFO] Preparing index directory (if not exists): /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+--- [Executing in SERIAL mode] ---
+[UNG] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/index_files/.ung_built'). Skipping UNG build.
+[ACORN] Marker file found ('/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80/acorn_output/.acorn_built'). Skipping ACORN build.
+--- Build Summary ---
+[SUCCESS] All build tasks complete. Total time: 0 seconds.
+Indexes are saved in: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+Preparing Ground Truth (K=10)...
+Ground Truth '/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10/Laion_gt_labels_containment.bin' 已存在，跳过生成。
+Begin search (K=10)...
+将在以下Lsearch值上进行测试: 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000 14000 15000 16000 17000 18000 19000 20000 21000 22000 23000 24000 25000 26000 27000 28000 29000 30000 31000 32000 33000 34000 35000 36000 37000 38000 39000 40000 41000 42000 43000 44000 45000 46000 47000 48000 49000 50000 51000 52000 53000 54000 55000 56000 57000 58000 59000 60000 
+Using query directory from: /mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Laion/query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small
+使用索引: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Index/M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80
+使用GT: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/GroundTruth/GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10
+结果将保存到: /mnt/disk1/syh/ljk/FilterVector/FilterVectorResults//Laion/Results/SmartRoute/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_C_D-weighted-sub-base-123456789_len_small_K10]_Search[Ls1000-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]
+所有搜索和统计任务已全部结束！
+--- Finished: Dataset=[Laion], Query=[query_select_imp_C_D-weighted-sub-base-123456789/C_D-weighted-sub-base-123456789_len_small], Algorithm=[SmartRoute] ---
+
+所有实验已完成！

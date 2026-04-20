@@ -12,7 +12,7 @@
             "num_cross_edges": 6,
             "num_entry_points": 16,
             "Lsearch_start": 10,
-            "Lsearch_end": 100,
+            "Lsearch_end": 500,
             "Lsearch_step": 10,
             "num_threads": 100,
             "K": 10,
@@ -34,7 +34,29 @@
                   "acorn_efs_step_fast":100
                },
                "algorithms": [
-                  "UNG-nTfalse"
+                  "SmartRoute"
+               ]
+            },
+            {
+               "query_dir_name": "query_select_imp_A_B_C-sub-base-123456789/A_B_C-sub-base-123456789_len_large",
+               "acorn_search_params": {
+                  "acorn_efs_start": 100,
+                  "acorn_efs_step_slow": 100,
+                  "acorn_efs_step_fast":100
+               },
+               "algorithms": [
+                  "SmartRoute"
+               ]
+            },
+            {
+               "query_dir_name": "query_select_imp_A_B_C-sub-base-123456789/A_B_C-sub-base-123456789_len_small",
+               "acorn_search_params": {
+                  "acorn_efs_start": 100,
+                  "acorn_efs_step_slow": 100,
+                  "acorn_efs_step_fast":100
+               },
+               "algorithms": [
+                  "SmartRoute"
                ]
             }
          ]

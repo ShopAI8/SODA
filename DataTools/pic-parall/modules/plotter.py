@@ -82,7 +82,10 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
         "NaviX": "tab:green",          
         "SmartRoute": "tab:pink",
         "FastSmartRoute": "tab:red",
+        "SmartRoute-revised":"tab:cyan",
         # "ImprovedUNG": "tab:cyan",
+        "UNG-loose":"tab:blue",
+        "UNG-filtered":"tab:blue",
     }
 
     legend_label_map = plot_settings.get('legend_label_map', {})
@@ -96,12 +99,12 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
 
     # 2. 定义图例顺序 (Legend Order)
     # 这决定了图例中标签的排列顺序
-    default_legend_order = ["UNG","ACORN-1", "ACORN-γ", "ACORN-γ-improved", "NaviX", "pre-filtering",  "SmartRoute", "FastSmartRoute"]
+    default_legend_order = ["UNG","ACORN-1", "ACORN-γ", "ACORN-γ-improved", "NaviX", "pre-filtering",  "SmartRoute", "SmartRoute-revised","FastSmartRoute"]
     alg_order = plot_settings.get('custom_alg_order', default_legend_order)
 
     # 3. 定义绘图层级顺序 (Drawing Order / Z-Order)
     # 列表越靠前的算法，越先被绘制 (即位于图层最底部/Under)
-    default_drawing_order = ["UNG", "ACORN-γ", "ACORN-1","ACORN-γ-improved", "NaviX","pre-filtering", "SmartRoute", "FastSmartRoute"]
+    default_drawing_order = ["UNG", "ACORN-γ", "ACORN-1","ACORN-γ-improved", "NaviX","pre-filtering", "SmartRoute", "SmartRoute-revised","FastSmartRoute"]
     drawing_order = plot_settings.get('custom_z_order', default_drawing_order)
 
     def get_marker_for_alg(name):
@@ -138,7 +141,7 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
         
         active_axes.append(ax)
 
-        # ================= [修改：使用 drawing_order 排序绘图] =================
+        # ================= [使用 drawing_order 排序绘图] =================
         def get_draw_priority(name):
             # 如果在绘图顺序列表中，返回其索引（越小越先画）
             if name in drawing_order:
@@ -163,7 +166,7 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
                 
                 # 直接绘制折线
                 current_markersize = 20 if alg_name == "pre-filtering" else 12
-                is_clip_on = False if alg_name == "pre-filtering" else True
+                is_clip_on = False if alg_name in ["pre-filtering", "FastSmartRoute","SmartRoute-revised"] else True
                 
                 # 直接绘制折线
                 ax.plot(df_sorted['Average_Recall'], df_sorted['QPS'], 

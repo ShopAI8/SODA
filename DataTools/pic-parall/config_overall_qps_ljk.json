@@ -954,12 +954,12 @@
          {
             "enabled": true,
             "task_name": "sub_base_Multi_Length_Comparison",
-            "output_filename": "length.png",
+            "output_filename": "all_length_sm.png",
             "main_title": "sub_base Performance Comparison Across Query Lengths (K=10)",
             "plot_settings": {
                "layout_rect_top": 0.93,
                "legend_anchor_y": 0.99,
-               "use_log_scale_y": true,
+               "use_log_scale_y": false,
                "h_pad": 1.0,
                "w_pad": 0.0
             },
@@ -970,9 +970,9 @@
                      "K": 10,
                      "threads": 100,
                      "lsearch_start": 10,
-                     "lsearch_end": 40000,
+                     "lsearch_end": 20000,
                      "lsearch_step": 1000,
-                     "acorn_efs_start": 20,
+                     "acorn_efs_start": 100,
                      "acorn_efs_step_slow": 100,
                      "acorn_efs_step_fast": 100,
                      "lsearch_threshold": 5000
@@ -992,35 +992,36 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
                            "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 1000,
-                           "acorn_efs_step_fast": 1000
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
                         }
                      },
                      {
                         "name": "ACORN-γ",
                         "params": {
                            "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 1000,
-                           "acorn_efs_step_fast": 1000
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
                         }
                      },
                      {
                         "name": "ACORN-γ-improved",
                         "params": {
                            "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 2000,
-                           "acorn_efs_step_fast": 2000
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
                         }
                      },
                      {
                         "name":"SmartRoute",
                         "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
+                           "lsearch_start": 10,
+                           "lsearch_end": 20000,
                            "lsearch_step": 1000,
                            "acorn_efs_start": 100,
                            "acorn_efs_step_slow": 100,
@@ -1042,19 +1043,8 @@
                            "acorn_efs_step_slow": 100,
                            "acorn_efs_step_fast": 100
                         }
-                     },
-                     {
-                        "name":"FastSmartRoute",
-                        "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
-                           "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 100,
-                           "acorn_efs_step_fast": 100
-                        }
-                     },
-                     "UNG"
+                     }
+                     
                   ]
                },
                {
@@ -1062,10 +1052,10 @@
                   "common_parameters": {
                      "K": 10,
                      "threads": 100,
-                     "lsearch_start": 20,
-                     "lsearch_end": 40000,
-                     "lsearch_step": 1000,
-                     "acorn_efs_start": 50,
+                     "lsearch_start": 10,
+                     "lsearch_end": 500,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
                      "acorn_efs_step_slow": 100,
                      "acorn_efs_step_fast": 100,
                      "lsearch_threshold": 5000
@@ -1085,32 +1075,9 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
-                        "params": {
-                           "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 500,
-                           "acorn_efs_step_fast": 500
-                        }
-                     },
-                     {
-                        "name": "ACORN-γ",
-                        "params": {
-                           "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 500,
-                           "acorn_efs_step_fast": 500
-                        }
-                     },
-                     {
-                        "name": "ACORN-γ-improved",
-                        "params": {
-                           "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 500,
-                           "acorn_efs_step_fast": 500
-                        }
-                     },
-                     {
-                        "name": "NaviX",
                         "params": {
                            "acorn_efs_start": 100,
                            "acorn_efs_step_slow": 100,
@@ -1118,11 +1085,35 @@
                         }
                      },
                      {
-                        "name": "SmartRoute",
+                        "name": "ACORN-γ",
                         "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name":"SmartRoute",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 500,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "NaviX",
+                        "params": {
                            "acorn_efs_start": 100,
                            "acorn_efs_step_slow": 100,
                            "acorn_efs_step_fast": 100
@@ -1135,19 +1126,7 @@
                            "acorn_efs_step_slow": 100,
                            "acorn_efs_step_fast": 100
                         }
-                     },
-                     {
-                        "name":"FastSmartRoute",
-                        "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
-                           "acorn_efs_start": 100,
-                           "acorn_efs_step_slow": 100,
-                           "acorn_efs_step_fast": 100
-                        }
-                     },
-                     "UNG"
+                     }
                   ]
                },
                {
@@ -1178,6 +1157,7 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
@@ -1203,76 +1183,7 @@
                         }
                      },
                      {
-                        "name":"FastSmartRoute",
-                        "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
-                           "acorn_efs_start": 200,
-                           "acorn_efs_step_slow": 200,
-                           "acorn_efs_step_fast": 200
-                        }
-                     },
-                     "UNG",
-                     "SmartRoute",
-                     "NaviX",
-                     "pre-filtering"
-                  ]
-               },
-               {
-                  "dataset_name": "VariousImg",
-                  "common_parameters": {
-                     "K": 10,
-                     "threads": 100,
-                     "lsearch_start": 20,
-                     "lsearch_end": 40000,
-                     "lsearch_step": 1000,
-                     "acorn_efs_start": 50,
-                     "acorn_efs_step_slow": 200,
-                     "acorn_efs_step_fast": 200,
-                     "lsearch_threshold": 5000
-                  },
-                  "queries_to_compare": [
-                     {
-                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789",
-                        "subplot_title": "VariousImg\nmixed"
-                     },
-                     {
-                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789/A_B_C-weighted-sub-base-123456789_len_large",
-                        "subplot_title": "VariousImg\nlarge $|L_q|$"
-                     },
-                     {
-                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789/A_B_C-weighted-sub-base-123456789_len_small",
-                        "subplot_title": "VariousImg\nsmall $|L_q|$"
-                     }
-                  ],
-                  "algorithms_to_compare": [
-                     {
-                        "name": "ACORN-1",
-                        "params": {
-                           "acorn_efs_start": 200,
-                           "acorn_efs_step_slow": 200,
-                           "acorn_efs_step_fast": 200
-                        }
-                     },
-                     {
-                        "name": "ACORN-γ",
-                        "params": {
-                           "acorn_efs_start": 200,
-                           "acorn_efs_step_slow": 200,
-                           "acorn_efs_step_fast": 200
-                        }
-                     },
-                     {
-                        "name": "ACORN-γ-improved",
-                        "params": {
-                           "acorn_efs_start": 10,
-                           "acorn_efs_step_slow": 200,
-                           "acorn_efs_step_fast": 200
-                        }
-                     },
-                     {
-                        "name": "SmartRoute",
+                        "name":"SmartRoute",
                         "params": {
                            "lsearch_start": 1000,
                            "lsearch_end": 40000,
@@ -1297,19 +1208,89 @@
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
+                     }
+                  ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 200,
+                     "lsearch_end": 20000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789",
+                        "subplot_title": "VariousImg\nmixed"
                      },
                      {
-                        "name":"FastSmartRoute",
+                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789/A_B_C-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "VariousImg\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789/A_B_C-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "VariousImg\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     "UNG-loose",
+                     {
+                        "name": "ACORN-1",
                         "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
                      },
-                     "UNG"
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"SmartRoute",
+                        "params": {
+                           "lsearch_start": 200,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 1000,
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "pre-filtering",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     }
                   ]
                },
                {
@@ -1340,45 +1321,58 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
                            "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":1000,
-                           "acorn_efs_step_fast": 1000
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
                         }
                      },
                      {
                         "name": "ACORN-γ",
                         "params": {
                            "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":1000,
-                           "acorn_efs_step_fast": 1000
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
                         }
                      },
                      {
                         "name": "ACORN-γ-improved",
                         "params": {
                            "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":200,
+                           "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
                      },
                      {
-                        "name":"FastSmartRoute",
+                        "name":"SmartRoute",
                         "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
                      },
-                     "UNG",
-                     "SmartRoute",
-                     "NaviX",
-                     "pre-filtering"
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "pre-filtering",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     }
                   ]
                },
                {
@@ -1388,7 +1382,7 @@
                      "threads": 100,
                      "lsearch_start": 10,
                      "lsearch_end": 20000,
-                     "lsearch_step": 500,
+                     "lsearch_step": 1000,
                      "acorn_efs_start": 200,
                      "acorn_efs_step_slow": 200,
                      "acorn_efs_step_fast": 200,
@@ -1409,36 +1403,26 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
                            "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":400,
-                           "acorn_efs_step_fast": 400
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
                         }
                      },
                      {
                         "name": "ACORN-γ",
                         "params": {
                            "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":400,
-                           "acorn_efs_step_fast": 400
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
                         }
                      },
                      {
                         "name": "ACORN-γ-improved",
                         "params": {
-                           "acorn_efs_start": 200,
-                           "acorn_efs_step_slow":400,
-                           "acorn_efs_step_fast": 400
-                        }
-                     },
-                     {
-                        "name":"FastSmartRoute",
-                        "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 250,
-                           "lsearch_step": 10,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
@@ -1447,17 +1431,30 @@
                      {
                         "name":"SmartRoute",
                         "params": {
-                           "lsearch_start": 500,
+                           "lsearch_start": 10,
                            "lsearch_end": 20000,
-                           "lsearch_step": 500,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 200,
                            "acorn_efs_step_slow": 200,
                            "acorn_efs_step_fast": 200
                         }
                      },
-                     "UNG",
-                     "NaviX",
-                     "pre-filtering"
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "pre-filtering",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     }
                   ]
                },
                {
@@ -1488,6 +1485,7 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
@@ -1513,20 +1511,32 @@
                         }
                      },
                      {
-                        "name":"FastSmartRoute",
+                        "name":"SmartRoute",
                         "params": {
-                           "lsearch_start": 500,
-                           "lsearch_end": 20000,
-                           "lsearch_step": 500,
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000,
                            "acorn_efs_start": 500,
                            "acorn_efs_step_slow": 500,
                            "acorn_efs_step_fast": 500
                         }
                      },
-                     "UNG",
-                     "SmartRoute",
-                     "NaviX",
-                     "pre-filtering"
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "pre-filtering",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     }
                   ]
                },
                {
@@ -1534,7 +1544,7 @@
                   "common_parameters": {
                      "K": 10,
                      "threads": 100,
-                     "lsearch_start": 50,
+                     "lsearch_start": 1000,
                      "lsearch_end": 60000,
                      "lsearch_step": 1000,
                      "acorn_efs_start": 10,
@@ -1557,36 +1567,26 @@
                      }
                   ],
                   "algorithms_to_compare": [
+                     "UNG-loose",
                      {
                         "name": "ACORN-1",
                         "params": {
                            "acorn_efs_start": 10,
-                           "acorn_efs_step_slow": 100,
-                           "acorn_efs_step_fast": 100
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
                         }
                      },
                      {
                         "name": "ACORN-γ",
                         "params": {
                            "acorn_efs_start": 10,
-                           "acorn_efs_step_slow": 100,
-                           "acorn_efs_step_fast": 100
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
                         }
                      },
                      {
                         "name": "ACORN-γ-improved",
                         "params": {
-                           "acorn_efs_start": 10,
-                           "acorn_efs_step_slow": 100,
-                           "acorn_efs_step_fast": 100
-                        }
-                     },
-                     {
-                        "name":"FastSmartRoute",
-                        "params": {
-                           "lsearch_start": 10,
-                           "lsearch_end": 500,
-                           "lsearch_step": 10,
                            "acorn_efs_start": 10,
                            "acorn_efs_step_slow": 10,
                            "acorn_efs_step_fast": 10
@@ -1596,16 +1596,29 @@
                         "name":"SmartRoute",
                         "params": {
                            "lsearch_start": 1000,
-                           "lsearch_end": 40000,
+                           "lsearch_end": 60000,
                            "lsearch_step": 1000,
                            "acorn_efs_start": 10,
                            "acorn_efs_step_slow": 10,
                            "acorn_efs_step_fast": 10
                         }
                      },
-                     "UNG",
-                     "NaviX",
-                     "pre-filtering"
+                     {
+                        "name": "NaviX",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
+                        }
+                     },
+                     {
+                        "name": "pre-filtering",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
+                        }
+                     }
                   ]
                }
             ]

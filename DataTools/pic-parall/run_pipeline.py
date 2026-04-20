@@ -60,7 +60,10 @@ def fetch_data_for_subplot(config, dataset_name, base_params, algorithms, cache,
       "pre-filtering": "pre-filter",  
       "NaviX": "NaviX-ACORN",    
       "SmartRoute": "SmartRoute",
-      "FastSmartRoute": "FastSmartRoute"                 
+      "FastSmartRoute": "FastSmartRoute",
+      "SmartRoute-revised": "SmartRoute-revised",
+      "UNG-loose": "UNG-nTfalse_loose",
+      "UNG-filter": "UNG-nTfalse_loose_false",                 
    }
    
    if num_queries == 0:
@@ -701,7 +704,7 @@ def handle_speedup_ratio_tasks(config, font_sizes):
 
 def main():
    """主函数，负责执行整个流程。"""
-   config_file = "/home/fengxiaoyao/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps.json"
+   config_file = "/home/sunyahui/ljk/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps_ljk.json"
    try:
       with open(config_file, 'r', encoding='utf-8') as f:
          config = json.load(f)

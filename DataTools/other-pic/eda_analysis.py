@@ -17,7 +17,7 @@ DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","Various
 
 # 算法名称到文件夹名称的映射
 ALGO_FOLDERS = {
-    'UNG-nTfalse': 'UNG-nTfalse',
+    'UNG-nTfalse': 'UNG-nTfalse_loose',
     'UNG-nTtrue': 'UNG-nTtrue',
     'ACORN-gamma': 'ACORN-gamma',
     'ACORN-improved': 'ACORN-gamma-improved',

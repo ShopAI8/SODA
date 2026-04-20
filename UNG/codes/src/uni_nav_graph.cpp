@@ -15,7 +15,6 @@
 #include <unordered_set>
 #include <cassert>
 #include <chrono>
-#include <sstream>
 #include <fstream>
 #include <iostream>
 #include <boost/program_options.hpp>
@@ -327,16 +326,29 @@ namespace ANNS
          min_super_set_ids.emplace_back(candidates[0]->group_id);
          return;
       }
-
+      bool skip_filter = true;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      if (skip_filter)
+      {
+         for (const auto& candidate : candidates)
+         {
+            min_super_set_ids.emplace_back(candidate->group_id);
+         }
+      }
+      
+      
       // --- 2. 测量排序时间 ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_sort = std::chrono::high_resolution_clock::now();
 // #endif
-      std::sort(candidates.begin(), candidates.end(),
+      if (!skip_filter)
+      {
+         std::sort(candidates.begin(), candidates.end(),
                 [](const std::shared_ptr<TrieNode> &a, const std::shared_ptr<TrieNode> &b)
                 {
                    return a->label_set_size < b->label_set_size;
                 });
+      }
+      
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto end_sort = std::chrono::high_resolution_clock::now();
       time_sorting = std::chrono::duration<double, std::milli>(end_sort - start_sort).count();
@@ -348,30 +360,38 @@ namespace ANNS
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_filter = std::chrono::high_resolution_clock::now();
 // #endif
-      for (auto candidate : candidates)
+      if (!skip_filter)
       {
-         const auto &cur_group_id = candidate->group_id;
-         const auto &cur_label_set = _group_id_to_label_set[cur_group_id];
-         bool is_min = true;
-
-         if (cur_label_set.size() > min_size)
+         std::vector<IdxType> filtered_ids;
+         for (auto candidate : candidates)
          {
-            for (auto min_group_id : min_super_set_ids)
+            const auto &cur_group_id = candidate->group_id;
+            const auto &cur_label_set = _group_id_to_label_set[cur_group_id];
+            bool is_min = true;
+
+            if (cur_label_set.size() > min_size)
             {
-               const auto &min_label_set = _group_id_to_label_set[min_group_id];
-               if (std::includes(cur_label_set.begin(), cur_label_set.end(), min_label_set.begin(), min_label_set.end()))
+               for (auto min_group_id : filtered_ids)
                {
-                  is_min = false;
-                  break;
+                  const auto &min_label_set = _group_id_to_label_set[min_group_id];
+                  if (std::includes(cur_label_set.begin(), cur_label_set.end(), min_label_set.begin(), min_label_set.end()))
+                  {
+                     is_min = false;
+                     break;
+                  }
                }
             }
-         }
 
-         if (is_min)
-         {
-            min_super_set_ids.emplace_back(cur_group_id);
+            if (is_min)
+            {
+               // min_super_set_ids.emplace_back(cur_group_id);
+               filtered_ids.emplace_back(cur_group_id);
+            }
          }
+         // 🔥 覆盖原始结果
+         min_super_set_ids = std::move(filtered_ids);
       }
+      
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto end_filter = std::chrono::high_resolution_clock::now();
       time_filtering_loop = std::chrono::duration<double, std::milli>(end_filter - start_filter).count();
@@ -1126,13 +1146,13 @@ namespace ANNS
 
    // fxy_add
    const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
-      const std::vector<LabelType>& query_labels,
-      size_t& cand_size) const
+    const std::vector<LabelType>& query_labels,
+    size_t& cand_size) const
    {
       // // 复用内存
       // static thread_local std::bitset<16000000> final_bitmap;
       // static thread_local std::bitset<16000000> temp_bitmap;
-      
+
       // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
       static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
       static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
@@ -2593,7 +2613,7 @@ namespace ANNS
          _smart_route_selector->predict(dummy3);
          std::cout << "- Smart Route Selector is warm." << std::endl;
       }
-
+      
       // --- 预热单层 Fast Route Selector (4个特征) ---
       if (_fast_route_single_selector) {
          std::cout << "- Warming up Fast Route Single Selector..." << std::endl;
@@ -2601,6 +2621,14 @@ namespace ANNS
          // 去除多线程
          _fast_route_single_selector->predict(dummy4);
          std::cout << "- Fast Route Single Selector is warm." << std::endl;
+      }
+
+      // --- 预热 Smartroute-revised 路由 (2个特征) ---
+      if (_fast_route_revised_selector) {
+         std::cout << "- Warming up Smartroute-revised Selector..." << std::endl;
+         std::vector<float> dummy2(2, 0.0f);
+         _fast_route_revised_selector->predict(dummy2);
+         std::cout << "- Smartroute-revised Selector is warm." << std::endl;
       }
    }
 
@@ -2809,7 +2837,6 @@ void UniNavGraph::calculate_query_features_only(
 
       if (dataset_name == "Russian" && query_length <=2)
       {
-          //std::cout<<"2"<<std::endl;
           return true; 
       }
       
@@ -3070,6 +3097,50 @@ void UniNavGraph::calculate_query_features_only(
 // ======================end: 计算Fpass======================
 
    //fxy_add
+   std::vector<int> UniNavGraph::load_query_algo_choices_from_csv(
+      const std::string &csv_path,
+      size_t expected_num_queries) const
+   {
+      std::vector<int> query_algo_choices(expected_num_queries, -1);
+      if (csv_path.empty()) return query_algo_choices;
+
+      std::ifstream infile(csv_path);
+      if (!infile.is_open()) {
+         std::cerr << "[Warning] Failed to open algo choice csv: " << csv_path << ". Fallback to original routing." << std::endl;
+         return query_algo_choices;
+      }
+
+      std::string line;
+      bool header_checked = false;
+      size_t loaded_rows = 0;
+      while (std::getline(infile, line)) {
+         if (line.empty() || line == "\r") continue;
+         if (!line.empty() && line.back() == '\r') line.pop_back();
+
+         if (!header_checked) {
+            header_checked = true;
+            if (line == "Index,Algo_Choice") continue;
+         }
+
+         std::stringstream ss(line);
+         std::string query_id_str, algo_choice_str;
+         if (std::getline(ss, query_id_str, ',') && std::getline(ss, algo_choice_str)) {
+            try {
+               long long qid_ll = std::stoll(query_id_str);
+               long long algo_ll = std::stoll(algo_choice_str);
+               if (qid_ll >= 0 && static_cast<size_t>(qid_ll) < expected_num_queries) {
+                  query_algo_choices[static_cast<size_t>(qid_ll)] = static_cast<int>(algo_ll);
+                  loaded_rows++;
+               }
+            } catch (...) {}
+         }
+      }
+      std::cout << "[Info] Loaded query algo choices from CSV: " << csv_path << " | loaded=" << loaded_rows << std::endl;
+      return query_algo_choices;
+   }
+
+
+   //fxy_add
    int UniNavGraph::determine_routing_strategy(
       int routing_mode, 
       int baseline_alg,
@@ -3169,7 +3240,7 @@ void UniNavGraph::calculate_query_features_only(
                      for (IdxType gid : vec_list) temp_group_bitmap.reset(gid);
                  }
                  count2 = final_group_bitmap.count();
-               }
+             }
          }
          stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
          stats.num_lng_descendants = count2;
@@ -3243,17 +3314,17 @@ void UniNavGraph::calculate_query_features_only(
              router_decision = static_cast<int>(std::round(pred_val));
          }
          stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
-         
+
          if (router_decision == 2) return 5; 
          if (router_decision == 1) return _single_majority_acorn_id; 
 
          bool use_nT_true = false;
          if (routing_mode == 3 && _trie_method_selector) {
-            stats.is_intel_els_used = true; 
-            auto intel_els_start = std::chrono::high_resolution_clock::now();
-            std::vector<float> els_features = {f_qsize, f_cand, static_cast<float>(stats.trie_total_nodes)};
-            use_nT_true = (_trie_method_selector->predict(els_features) > 0.5f);
-            stats.intel_els_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - intel_els_start).count();
+             stats.is_intel_els_used = true; 
+             auto intel_els_start = std::chrono::high_resolution_clock::now();
+             std::vector<float> els_features = {f_qsize, f_cand, static_cast<float>(stats.trie_total_nodes)};
+             use_nT_true = (_trie_method_selector->predict(els_features) > 0.5f);
+             stats.intel_els_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - intel_els_start).count();
          }
 
          stats.is_trie_recursive = use_nT_true;
@@ -3265,77 +3336,90 @@ void UniNavGraph::calculate_query_features_only(
          
          return use_nT_true ? 1 : 0; 
       }
+      
+      // --- 模式 4: Smartroute-revised (2特征, 延迟计算 ELS) ---
+      if (routing_mode == 4) {
+         stats.is_trie_recursive = false;
+
+         // 1. Fpass: 像 SmartRoute 一样使用 Bitset 计算 Descendants
+         auto start_fpass = std::chrono::high_resolution_clock::now();
+         static thread_local std::unique_ptr<std::bitset<12000000>> final_group_bitmap_ptr;
+         static thread_local std::unique_ptr<std::bitset<12000000>> temp_group_bitmap_ptr;
+         if (!final_group_bitmap_ptr) final_group_bitmap_ptr = std::make_unique<std::bitset<12000000>>();
+         if (!temp_group_bitmap_ptr) temp_group_bitmap_ptr = std::make_unique<std::bitset<12000000>>();
+         auto& final_group_bitmap = *final_group_bitmap_ptr;
+         auto& temp_group_bitmap = *temp_group_bitmap_ptr;
+
+         size_t count2 = 0;
+         if (query_labels.empty()) {
+             count2 = _num_groups;
+         } else {
+             std::vector<const std::vector<IdxType>*> valid_lists;
+             valid_lists.reserve(query_labels.size());
+             bool is_valid = true;
+
+             if (_group_attr_adj_list.empty()) {
+                 std::cerr << "\n[FATAL ERROR] _group_attr_adj_list is empty!" << std::endl;
+                 exit(-1);
+             }
+
+             for (LabelType attr_label : query_labels) {
+                 auto it = _attr_to_id.find(attr_label);
+                 if (it == _attr_to_id.end()) { is_valid = false; break; }
+                 AtrType mapped_id = it->second;
+                 if (mapped_id < _group_attr_adj_list.size()) {
+                     valid_lists.push_back(&_group_attr_adj_list[mapped_id]);
+                 } else {
+                     is_valid = false; break;
+                 }
+             }
+
+             if (is_valid) {
+                 std::sort(valid_lists.begin(), valid_lists.end(),
+                     [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) { return a->size() < b->size(); });
+                 final_group_bitmap.reset();
+                 const auto& first_list = *valid_lists[0];
+                 for (IdxType gid : first_list) final_group_bitmap.set(gid);
+                 for (size_t i = 1; i < valid_lists.size(); ++i) {
+                     if (final_group_bitmap.none()) break; 
+                     const auto& vec_list = *valid_lists[i];
+                     for (IdxType gid : vec_list) temp_group_bitmap.set(gid);
+                     final_group_bitmap &= temp_group_bitmap;
+                     for (IdxType gid : vec_list) temp_group_bitmap.reset(gid);
+                 }
+                 count2 = final_group_bitmap.count();
+             }
+         }
+         stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
+         stats.num_lng_descendants = count2;
+
+         // 2. 开始预测 (仅输入 f_ppass 和 num_descendants)
+         auto pred_start = std::chrono::high_resolution_clock::now();
+         int router_decision = 0; 
+         if (_fast_route_revised_selector) {
+             std::vector<float> features = {f_ppass, static_cast<float>(count2)};
+             float pred_val = _fast_route_revised_selector->predict(features);
+             router_decision = static_cast<int>(std::round(pred_val));
+         }
+         stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
+
+         // 3. Early Return: 非 UNG 类直接短路返回，不计算 ELS
+         if (router_decision == 2) return 5; // 走向 pre-filter
+         if (router_decision == 1) return _revised_majority_acorn_id; // 走向 ACORN 多数派
+
+         // 4. 如果预测为 0 (UNG_family)，再计算 ELS。默认使用 nTfalse
+         auto els_start = std::chrono::high_resolution_clock::now();
+         static std::atomic<int> counter{0};
+         get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, false, is_rec_more_start, stats, false);
+         stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+         stats.num_entry_points = entry_group_ids.size();
+         
+         return 0; 
+      }
+      
+      
+      
       return 0; // Fallback
-   }
-
-   std::vector<int> UniNavGraph::load_query_algo_choices_from_csv(
-      const std::string &csv_path,
-      size_t expected_num_queries) const
-   {
-      std::vector<int> query_algo_choices(expected_num_queries, -1);
-      if (csv_path.empty())
-      {
-         return query_algo_choices;
-      }
-
-      std::ifstream infile(csv_path);
-      if (!infile.is_open())
-      {
-         std::cerr << "[Warning] Failed to open algo choice csv: " << csv_path
-                   << ". Fallback to original routing." << std::endl;
-         return query_algo_choices;
-      }
-
-      std::string line;
-      bool header_checked = false;
-      size_t loaded_rows = 0;
-      size_t skipped_rows = 0;
-      while (std::getline(infile, line))
-      {
-         if (line.empty())
-            continue;
-         if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-
-         if (!header_checked)
-         {
-            header_checked = true;
-            if (line == "Index,Algo_Choice")
-            {
-               continue;
-            }
-         }
-
-         std::stringstream ss(line);
-         std::string query_id_str;
-         std::string algo_choice_str;
-         if (!std::getline(ss, query_id_str, ',') || !std::getline(ss, algo_choice_str))
-         {
-            skipped_rows++;
-            continue;
-         }
-
-         try
-         {
-            const long long qid_ll = std::stoll(query_id_str);
-            const long long algo_ll = std::stoll(algo_choice_str);
-            if (qid_ll < 0 || static_cast<size_t>(qid_ll) >= expected_num_queries || algo_ll < 0 || algo_ll > 7)
-            {
-               skipped_rows++;
-               continue;
-            }
-            query_algo_choices[static_cast<size_t>(qid_ll)] = static_cast<int>(algo_ll);
-            loaded_rows++;
-         }
-         catch (const std::exception &)
-         {
-            skipped_rows++;
-         }
-      }
-
-      std::cout << "[Info] Loaded query algo choices from CSV: " << csv_path
-                << " | loaded=" << loaded_rows << " | skipped=" << skipped_rows << std::endl;
-      return query_algo_choices;
    }
    
 
@@ -3352,8 +3436,7 @@ void UniNavGraph::calculate_query_features_only(
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
                                    int routing_mode, int baseline_alg, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
-                                   const std::vector<IdxType> &true_query_group_ids,
-                                   const std::vector<int> &query_algo_choices){
+                                   const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices){
          omp_set_num_threads(1);
 
          lock_m.lock();
@@ -3391,8 +3474,8 @@ void UniNavGraph::calculate_query_features_only(
 
          stats.bitmap_time_ms = 0.0; 
 
-         if (routing_mode == 1 || (routing_mode == 0 && baseline_alg == 5)) {
-            // Mode 1 或 原版 pre-filter：使用 Bitset
+         if (routing_mode == 1 || routing_mode == 4 || (routing_mode == 0 && baseline_alg == 5)) {
+            // Mode 1 或 Mode 4 或原版 pre-filter：使用 Bitset
             auto mask_start = std::chrono::high_resolution_clock::now(); 
             exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
             stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count(); 
@@ -3456,40 +3539,110 @@ void UniNavGraph::calculate_query_features_only(
          stats.feature_extract_time_ms = total_feature_time - stats.bitmap_time_ms;// 特征提取时间 = 总耗时 - Bitmap构建耗时
 
          // 调用路由策略并获取 final_algo_choice 和 entry_group_ids
-         std::vector<IdxType> entry_group_ids;
-
-         int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         // int final_algo_choice = -1;
-         // if (query_algo_choices[id] == 0){
-         //    determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         // }
+         // std::vector<IdxType> entry_group_ids;
+         // int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
+         // stats.algo_choice = final_algo_choice;
+         // stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
          
-         // CSV 配置存在时，按 QueryID 强制覆盖算法选择；未配置的 Query(-1) 仍走原预测。
-         if (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1) {
+         // =========================================================================
+         // 算法分配与强制接管 (Override)
+         // =========================================================================
+         std::vector<IdxType> entry_group_ids;
+         int final_algo_choice = -1;
+
+         // 1. 检查是否需要强制分配算法
+         bool has_override = (routing_mode != 0) && (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1);
+
+         if (!has_override) {
+            // 分支 A：没有预设 CSV 或者是 -1，走正常的实时模型预测逻辑
+            final_algo_choice = determine_routing_strategy(
+                routing_mode, baseline_alg, query_labels, stats, 
+                entry_group_ids, is_new_trie_method, is_rec_more_start
+            );
+         } else {
+            // 分支 B：有强制的 CSV 预设，接管算法选择
             final_algo_choice = query_algo_choices[id];
 
-            // 若 CSV 强制走 UNG 家族，需确保入口集合已按对应 trie 方式计算完成。
+            // 2. 数据兜底：由于跳过了上面的 determine_routing_strategy，必须在这里补全后续执行所需的前置特征数据。
+
+            // 兜底 A: 如果强制走了 UNG 家族（0 或 1），但入口点组 entry_group_ids 没算
             if ((final_algo_choice == 0 || final_algo_choice == 1) && entry_group_ids.empty()) {
                bool use_nT_true = (final_algo_choice == 1);
                stats.is_trie_recursive = use_nT_true;
+               
                auto els_start = std::chrono::high_resolution_clock::now();
                static std::atomic<int> counter{0};
-               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
-               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+               
+               // 调用 ELS 算法求交集
+               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, 
+                                        use_nT_true, is_rec_more_start, stats, false);
+               
+               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(
+                   std::chrono::high_resolution_clock::now() - els_start).count();
                stats.num_entry_points = entry_group_ids.size();
             }
 
-            // 若 CSV 强制走 pre-filter，需确保 exact bitset 已可用。
+            // 兜底 B: 如果强制走了 Pre-filter (5)，必须确保有精确的过滤掩码,CRoaring形式
             if (final_algo_choice == 5 && !has_exact_mask) {
                auto mask_start = std::chrono::high_resolution_clock::now();
-               exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
-               stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count();
+               
+               // 使用CRoaring 倒排索引计算Ppass
+               if (query_labels.empty()) {
+                  roar_res.addRange(0, _num_points);
+                  final_roaring_ptr = &roar_res;
+                  stats.exact_cand_size = _num_points;
+               } else {
+                  bool is_valid = true;
+                  std::vector<const roaring::Roaring*> valid_rb;
+                  
+                  if (_vec_attr_roaring_inv.empty()) {
+                      std::cerr << "\n[FATAL ERROR] _vec_attr_roaring_inv is empty!" << std::endl;
+                      exit(-1); 
+                  }
+                  for (auto label : query_labels) {
+                        if (_attr_to_id.count(label)) {
+                           valid_rb.push_back(&_vec_attr_roaring_inv[_attr_to_id.at(label)]);
+                        } else {
+                           is_valid = false; 
+                           break;
+                        }
+                  }
+                  
+                  if (is_valid) {
+                        std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
+                           return a->cardinality() < b->cardinality();
+                        });
+                        
+                        if (valid_rb.size() == 1) {
+                           // 单一属性，零拷贝直接获取指针
+                           final_roaring_ptr = valid_rb[0];
+                           stats.exact_cand_size = final_roaring_ptr->cardinality();
+                        } else {
+                           // 多个属性，进行交集计算
+                           roar_res = *valid_rb[0] & *valid_rb[1]; 
+                           for (size_t i = 2; i < valid_rb.size(); ++i) {
+                              if (roar_res.isEmpty()) break;
+                              roar_res &= *valid_rb[i];
+                           }
+                           final_roaring_ptr = &roar_res;
+                           stats.exact_cand_size = roar_res.cardinality();
+                        }
+                  } else {
+                     stats.exact_cand_size = 0;
+                  }
+               }
+               
+               stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(
+                   std::chrono::high_resolution_clock::now() - mask_start).count();
+               
                has_exact_mask = true;
                stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
             }
          }
+
          stats.algo_choice = final_algo_choice;
          stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
+         // =========================================================================
 
 
          // ======================= STAGE 2: EXECUTION STAGE =======================
@@ -3513,12 +3666,22 @@ void UniNavGraph::calculate_query_features_only(
              size_t dist_calcs = 0;
              std::vector<std::pair<IdxType, float>> exact_results(K);
 
-             if (routing_mode == 2 || routing_mode == 3) {
-               //   search_baseline_exact_roaring(query, exact_roaring_mask.value(), K, exact_results.data(), dist_calcs);
+            //  if (routing_mode == 2 || routing_mode == 3) {
+            //    //   search_baseline_exact_roaring(query, exact_roaring_mask.value(), K, exact_results.data(), dist_calcs);
+            //      search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
+            //  } else {
+            //      bool use_optimized = false; // Mode 1 依然走普通 bitset 
+            //      search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
+            //  }
+
+            // 优先检查是否生成了 CRoaring 掩码（兜底B 和 模式2/3 都会生成）
+             if (final_roaring_ptr != nullptr) {
                  search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
-             } else {
-                 bool use_optimized = false; // Mode 1 依然走普通 bitset 
-             search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
+             } 
+             // 否则回退到普通 Bitset 掩码（例如 Mode 1 生成的）
+             else if (exact_mask_ptr != nullptr) {
+                 bool use_optimized = false; 
+                 search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
              }
 
              stats.num_distance_calcs = dist_calcs;
@@ -3759,8 +3922,8 @@ void UniNavGraph::calculate_query_features_only(
                    } else if (final_roaring_ptr != nullptr) {
                        // 解析 CRoaring
                        for (uint32_t pt_id : *final_roaring_ptr) {
-                           filter_map[pt_id] = 1; 
-                       }
+                          filter_map[pt_id] = 1;
+                     }
                    }
                }
                // 如果没有 exact_mask (比如普通的 Baseline UNG 算法走到这一步)，再兜底使用 ELS
@@ -3856,7 +4019,7 @@ void UniNavGraph::calculate_query_features_only(
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
                                    int routing_mode,int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index, const std::vector<IdxType> &true_query_group_ids,
-                                   const std::string &algo_choice_csv_path)
+                                   const std::vector<int>& query_algo_choices)
    {
       // --- Initializations ---
       auto num_queries = query_storage->get_num_points();
@@ -3864,7 +4027,6 @@ void UniNavGraph::calculate_query_features_only(
       _distance_handler = distance_handler;
       _scenario = scenario;
       query_stats.resize(num_queries);
-      const std::vector<int> query_algo_choices = load_query_algo_choices_from_csv(algo_choice_csv_path, num_queries);
 
       if (K > Lsearch)
       {
@@ -3880,13 +4042,12 @@ void UniNavGraph::calculate_query_features_only(
       std::vector<std::future<int>> tp_results;
       for (auto id = 0; id < num_queries; ++id)
       {
-         
          tp_results.emplace_back(
                
                 pool.enqueue([this,&Qid_595,&query_storage,&distance_handler,&num_threads,&Lsearch,&num_entry_points,&scenario,&K, results,&num_cmps,&query_stats,
                                    &is_new_trie_method, &is_rec_more_start,&is_ung_more_entry,&lsearch_start,&lsearch_step,
                                    &efs_start, &efs_step_slow,&efs_step_fast,&lsearch_threshold,
-                                   &routing_mode, &baseline_alg,&num_queries,  &true_query_group_ids, &query_algo_choices, navix_index] { // pass const type value j to thread; [] can be empty
+                                   &routing_mode, &baseline_alg,&num_queries,  &true_query_group_ids, &query_algo_choices,navix_index] { // pass const type value j to thread; [] can be empty
                     this->thread_function(Qid_595,query_storage,distance_handler,num_threads,Lsearch,num_entry_points,scenario,K, results,num_cmps,query_stats,
                                    is_new_trie_method, is_rec_more_start,is_ung_more_entry,lsearch_start,lsearch_step,
                                    efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,
@@ -4489,6 +4650,25 @@ void UniNavGraph::calculate_query_features_only(
          }
       } else {
          _fast_route_single_selector = nullptr;
+      }
+
+      // --- 加载 Smartroute-revised 模型 (2特征) ---
+      std::string fsr_revised_model_path = selector_modle_prefix + "/fast_smart_revised_route/router.onnx";
+      if (fs::exists(fsr_revised_model_path)) {
+         _fast_route_revised_selector = std::make_unique<MethodSelector>(fsr_revised_model_path);
+         std::cout << "- Smartroute-revised Model loaded." << std::endl;
+
+         std::string revised_majority_id_path = selector_modle_prefix + "/fast_smart_revised_route/majority_acorn_id.txt";
+         if (fs::exists(revised_majority_id_path)) {
+             std::ifstream infile(revised_majority_id_path);
+             if (infile >> _revised_majority_acorn_id) {
+                 std::cout << "- Smartroute-revised majority ACORN ID loaded: " << _revised_majority_acorn_id << std::endl;
+             }
+         } else {
+             std::cout << "- [Warning] majority_acorn_id.txt not found, using default: " << _revised_majority_acorn_id << std::endl;
+         }
+      } else {
+         _fast_route_revised_selector = nullptr;
       }
 
       // === load ACORN index ===

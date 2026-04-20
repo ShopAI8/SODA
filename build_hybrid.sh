@@ -50,7 +50,7 @@ esac
 
 # --- Step 2: 编译代码 ---
 
-rm -rf /home/sunyahui/ljk/FilterVector/build_para_Reviews/ung
+# rm -rf /home/sunyahui/ljk/FilterVector/build_para_Reviews/ung
 
 # 1. 先编译 NaviX (因为 UNG 依赖它)
 if [ -z "$NAVIX_BUILD_DIR" ]; then

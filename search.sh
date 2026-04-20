@@ -47,7 +47,8 @@ mkdir -p "$RESULT_OUTPUT_DIR/results"
 mkdir -p "$RESULT_OUTPUT_DIR/others"
 
 # --- Step 4: 准备Lsearch参数序列 ---
-LSEARCH_VALUES=$(seq "$LSEARCH_START" "$LSEARCH_STEP" "$LSEARCH_END" | tr '\n' ' ')
+# LSEARCH_VALUES=$(seq "$LSEARCH_START" "$LSEARCH_STEP" "$LSEARCH_END" | tr '\n' ' ')
+LSEARCH_VALUES=$( for ((i=$LSEARCH_START; i<=$LSEARCH_END; )); do echo $i; if [ $i -lt 500 ]; then i=$((i+10)); else i=$((i+$LSEARCH_STEP)); fi; done | tr '\n' ' ' )
 echo "将在以下Lsearch值上进行测试: $LSEARCH_VALUES"
 
 # --- Step 5: 定义依赖文件和目录的路径 ---
@@ -92,22 +93,22 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
     --scenario containment \
     --num_entry_points "$NUM_ENTRY_POINTS" \
     --Lsearch $LSEARCH_VALUES \
-    --algo_choice_csv " " \
     --lsearch_start "$LSEARCH_START" \
     --lsearch_step "$LSEARCH_STEP" \
     --efs_start "$EFS_START" \
     --efs_step_slow "$EFS_STEP_SLOW" --efs_step_fast "$EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
-    --navix_index_path "$INDEX_PATH/navix_output/hnsw_base.index" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
+    --navix_index_path "$INDEX_PATH/navix_output/hnsw_base.index" \
+    --algo_choice_csv "$QUERY_DIR/algo_choice_repeat.csv" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
 
 # --- Step 7: 后处理，计算各指标全局平均值 ---
-echo "正在计算所有 Query 指标的全局平均值..."
-DETAILS_CSV="${RESULT_OUTPUT_DIR}/results/query_details_repeat${NUM_REPEATS}.csv"
-AVERAGE_CSV="${RESULT_OUTPUT_DIR}/results/query_details_global_average.csv"
+# echo "正在计算所有 Query 指标的全局平均值..."
+# DETAILS_CSV="${RESULT_OUTPUT_DIR}/results/query_details_repeat${NUM_REPEATS}.csv"
+# AVERAGE_CSV="${RESULT_OUTPUT_DIR}/results/query_details_global_average.csv"
 
-if [ -f "$DETAILS_CSV" ]; then
-    python3 UNG/data/average_query_details.py --input_csv "$DETAILS_CSV" --output_csv "$AVERAGE_CSV"
-else
-    echo "⚠️ 未找到明细文件 $DETAILS_CSV，跳过平均值计算。"
-fi
+# if [ -f "$DETAILS_CSV" ]; then
+#     python3 UNG/data/average_query_details.py --input_csv "$DETAILS_CSV" --output_csv "$AVERAGE_CSV"
+# else
+#     echo "⚠️ 未找到明细文件 $DETAILS_CSV，跳过平均值计算。"
+# fi
 
 echo "所有搜索和统计任务已全部结束！"
