@@ -279,7 +279,6 @@ def generate_qps_recall_grid(all_plot_items, output_path, main_title):
 
 
 def generate_build_summary_plot(all_build_data, output_dir, file_prefix, main_title):
-    # (此函数未修改)
     if not all_build_data:
         print("错误：没有可供绘制的构建性能数据。"); return
     df = pd.DataFrame(all_build_data)

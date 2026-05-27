@@ -104,8 +104,13 @@ target_link_libraries(demo_residual_quantizer PRIVATE faiss)
 # add_executable(test_Laion_arb_pred EXCLUDE_FROM_ALL test_Laion_arb_pred.cpp)
 # target_link_libraries(test_Laion_arb_pred PRIVATE faiss)
 
-add_executable(test_acorn EXCLUDE_FROM_ALL test_acorn.cpp)
+add_executable(test_acorn EXCLUDE_FROM_ALL
+    test_acorn.cpp
+    rabitq_side_index_acorn.cpp
+)
 target_link_libraries(test_acorn PRIVATE faiss)
+target_include_directories(test_acorn PRIVATE ${PROJECT_SOURCE_DIR}/../../RaBitQ/RaBitQ-Library/include)
+target_compile_options(test_acorn PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mavx2 -mfma -mf16c -mpopcnt>)
 
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
@@ -123,4 +128,3 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(faiss PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(faiss_avx2 PRIVATE OpenMP::OpenMP_CXX)
 endif()
-

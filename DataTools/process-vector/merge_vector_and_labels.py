@@ -86,7 +86,7 @@ def generate_and_merge_files(dataset, folders_to_merge, output_folder_name):
     print(f"   合并列表: {folders_to_merge}")
     print("="*80)
 
-    base_path = f"/home/fengxiaoyao/FilterVector/FilterVectorData/{dataset}"
+    base_path = f"/noraiddata/lijiakang/FilterVector/FilterVectorData/{dataset}"
     
     # --- 1. 自动生成输出文件路径 ---
     print("\n🔎 正在生成输出文件路径...")

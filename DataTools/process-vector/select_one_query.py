@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # ================= 配置区域 =================
     
     # 1. 设置新的UNG算法原始csv文件路径
-    ung_file = '/home/fengxiaoyao/FilterVector/FilterVectorResults/Music/Results/ACORN-gamma/Index[M32_LB100_alpha1.2_C6_EP16_AN1511563_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss1000-efsf1000-lt5000_K10_th100]/results/query_details_repeat1.csv' 
+    ung_file = '/noraiddata/lijiakang/FilterVector/FilterVectorResults/Music/Results/ACORN-gamma/Index[M32_LB100_alpha1.2_C6_EP16_AN1511563_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss1000-efsf1000-lt5000_K10_th100]/results/query_details_repeat1.csv' 
     
     # 2. 手动输入上一步得到的 QueryID 
     target_qid = 9

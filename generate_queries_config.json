@@ -5,12 +5,12 @@
          "task_name": "analyze_A_queries",
          "mode": "analyze_only",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "analysis_params": {
             "analyze": true,
-            "candidate_file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query_labels.txt",
-            "profiled_output": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_A_12/profiled_A_12.csv"
+            "candidate_file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query_labels.txt",
+            "profiled_output": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_A_12/profiled_A_12.csv"
          }
       },
       {
@@ -18,12 +18,12 @@
          "task_name": "analyze_B_4_queries",
          "mode": "analyze_only",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "analysis_params": {
             "analyze": true,
-            "candidate_file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_B_4/Laion_query_labels.txt",
-            "profiled_output": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_B_4/profiled_B_4.csv"
+            "candidate_file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_B_4/Laion_query_labels.txt",
+            "profiled_output": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_B_4/profiled_B_4.csv"
          }
       },
       {
@@ -31,12 +31,12 @@
          "task_name": "analyze_B_5_queries",
          "mode": "analyze_only",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "analysis_params": {
             "analyze": true,
-            "candidate_file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_B_5/Laion_query_labels.txt",
-            "profiled_output": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_B_5/profiled_B_5.csv"
+            "candidate_file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_B_5/Laion_query_labels.txt",
+            "profiled_output": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_B_5/profiled_B_5.csv"
          }
       },
       {
@@ -44,7 +44,7 @@
          "task_name": "weighted_sub_base_l=2",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -60,7 +60,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -71,7 +71,7 @@
          "task_name": "weighted_sub_base_l=3",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -87,7 +87,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -98,7 +98,7 @@
          "task_name": "weighted_sub_base_l=4",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -114,7 +114,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -125,7 +125,7 @@
          "task_name": "weighted_sub_base_l=5",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -141,7 +141,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -152,7 +152,7 @@
          "task_name": "weighted_sub_base_l=6",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -168,7 +168,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -179,7 +179,7 @@
          "task_name": "weighted_sub_base_l=7",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -195,7 +195,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -206,7 +206,7 @@
          "task_name": "weighted_sub_base_l=8",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -222,7 +222,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true
@@ -233,7 +233,7 @@
          "task_name": "weighted_sub_base_l=9",
          "mode": "weighted_sub_base",
          "dataset": "Laion",
-         "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion",
+         "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
          "overwrite": true,
          "generation_params": {
             "num_points": 500,
@@ -249,7 +249,7 @@
             "K": 10,
             "min_children": 0,
             "max_coverage": 10000000,
-            "cache-file": "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/sub_base_cache"
+            "cache-file": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/sub_base_cache"
          },
          "analysis_params": {
             "analyze": true

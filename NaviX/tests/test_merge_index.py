@@ -8,7 +8,7 @@ import faiss
 import numpy as np
 from faiss.contrib.datasets import SyntheticDataset
 
-from common_faiss_tests import Randu10k
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import Randu10k
 
 ru = Randu10k()
 xb = ru.xb

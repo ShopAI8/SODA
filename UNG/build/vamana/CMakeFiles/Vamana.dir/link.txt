@@ -1,0 +1,2 @@
+/usr/bin/ar qc libVamana.a CMakeFiles/Vamana.dir/vamana.cpp.o
+/usr/bin/ranlib libVamana.a

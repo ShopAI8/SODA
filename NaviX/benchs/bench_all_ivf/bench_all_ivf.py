@@ -15,7 +15,7 @@ import numpy as np
 try:
     import datasets_fb as datasets
 except ModuleNotFoundError:
-    import datasets_oss as datasets
+    import FilterVector.FilterVectorCode.NaviX.benchs.bench_all_ivf.datasets_oss as datasets
 
 sanitize = datasets.sanitize
 

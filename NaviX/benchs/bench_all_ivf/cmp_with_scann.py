@@ -77,7 +77,7 @@ def main():
 
     if not os.path.exists(cache_dir + "xb.npy"):
         # prepare cache
-        from datasets import load_dataset
+        from FilterVector.FilterVectorCode.NaviX.benchs.datasets import load_dataset
         ds = load_dataset(args.db, download=args.download)
         print(ds)
         # store for SCANN

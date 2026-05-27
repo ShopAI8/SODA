@@ -1,0 +1,5 @@
+if(EXISTS "/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/tests/faiss_test[1]_tests.cmake")
+  include("/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/tests/faiss_test[1]_tests.cmake")
+else()
+  add_test(faiss_test_NOT_BUILT faiss_test_NOT_BUILT)
+endif()

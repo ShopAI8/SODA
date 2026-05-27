@@ -28,7 +28,7 @@ except ImportError:
 # ==========================================
 ## "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"
 DATASET_LIST = ["Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
-BASE_DIR = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
+BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 
 ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'UNG-nTtrue', 'pre-filter']
 ACORN_FAMILY = ['ACORN-gamma', 'NaviX']

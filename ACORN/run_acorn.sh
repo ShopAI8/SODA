@@ -235,7 +235,7 @@ if [[ "$mode" == "search" || "$mode" == "all" ]]; then
       # =========================================================================
       # 关键修改：指向 Index 目录下的 index_files 文件夹，获取重排后的数据
       # =========================================================================
-      REORDER_DIR="/home/fengxiaoyao/FilterVector/FilterVectorResults/Reviews/Index/M32_LB100_alpha1.2_C6_EP16_AN288065_AM32_AMB64_AG80/index_files"
+      REORDER_DIR="/noraiddata/lijiakang/FilterVector/FilterVectorResults/Reviews/Index/M32_LB100_alpha1.2_C6_EP16_AN288065_AM32_AMB64_AG80/index_files"
       
       reordered_fvecs="${REORDER_DIR}/reordered_vecs.fvecs"
       reordered_bin="${REORDER_DIR}/reordered_vecs.bin"

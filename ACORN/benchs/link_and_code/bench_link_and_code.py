@@ -10,9 +10,9 @@ import time
 import numpy as np
 import faiss
 import argparse
-import datasets
-from datasets import sanitize
-import neighbor_codec
+import FilterVector.FilterVectorCode.ACORN.benchs.link_and_code.datasets as datasets
+from FilterVector.FilterVectorCode.ACORN.benchs.link_and_code.datasets import sanitize
+import FilterVector.FilterVectorCode.ACORN.benchs.link_and_code.neighbor_codec as neighbor_codec
 
 ######################################################
 # Command-line parsing

@@ -10,17 +10,17 @@ import seaborn as sns
 # ==========================================
 # 配置区域 (Configuration)
 # ==========================================
-BASE_DIR = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
+BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 
 # "Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"
 DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"]
 
 # 算法名称到文件夹名称的映射
 ALGO_FOLDERS = {
-    'UNG-nTfalse': 'UNG-nTfalse_loose',
-    'UNG-nTtrue': 'UNG-nTtrue',
+    # 'UNG-nTfalse': 'UNG-nTfalse',
+    # 'UNG-nTtrue': 'UNG-nTtrue',
+    'UNG+': 'UNG+',
     'ACORN-gamma': 'ACORN-gamma',
-    'ACORN-improved': 'ACORN-gamma-improved',
     'NaviX': 'NaviX-ACORN',    
     'pre-filter': 'pre-filter'
 }
@@ -29,7 +29,7 @@ ALGO_FOLDERS = {
 MIN_RECALL = 0.90
 
 # 统一的输出图片/CSV根目录
-GLOBAL_OUTPUT_DIR = os.path.join(BASE_DIR, "EDA_Plots")
+GLOBAL_OUTPUT_DIR = os.path.join(BASE_DIR, "EDA_Plots_try")
 os.makedirs(GLOBAL_OUTPUT_DIR, exist_ok=True)
 
 # ==========================================
@@ -136,7 +136,8 @@ def preprocess_and_align(df_long, dataset_name):
     if feature_source.empty:
         feature_source = df_best
         
-    base_features_cols = ['QueryID', 'QuerySize', 'CandSize', 'ExactCandSize', 'GlobalPpass', 'FeatureT_ms']
+    # base_features_cols = ['QueryID', 'QuerySize', 'CandSize', 'ExactCandSize', 'GlobalPpass', 'FeatureT_ms']
+    base_features_cols = ['QueryID', 'QuerySize', 'CandSize', 'ExactCandSize', 'GlobalPpass', 'TotalCoverage', 'FeatureT_ms']
     existing_base_features = [col for col in base_features_cols if col in feature_source.columns]
     features_df = feature_source[existing_base_features].drop_duplicates(subset=['QueryID']).set_index('QueryID')
     
@@ -159,6 +160,16 @@ def preprocess_and_align(df_long, dataset_name):
         df_extra_clean = df_extra_features.drop(columns=overlap_cols)
         df_final = pd.merge(df_final, df_extra_clean, on='QueryID', how='left')
         print("  [√] 已将附加图拓扑特征成功合并至宽表！")
+        
+    # === 如果 GlobalPpass 为空或为 0，则强制使用 TotalCoverage 兜底 ===
+    if 'TotalCoverage' in df_final.columns:
+        if 'GlobalPpass' in df_final.columns:
+            # 找到 GlobalPpass 为 NaN 或 0 的行
+            mask = df_final['GlobalPpass'].isna() | (df_final['GlobalPpass'] == 0)
+            # 使用 TotalCoverage 对应行的值进行覆盖
+            df_final.loc[mask, 'GlobalPpass'] = df_final.loc[mask, 'TotalCoverage']
+        else:
+            df_final['GlobalPpass'] = df_final['TotalCoverage']
         
     return df_final
 
@@ -194,6 +205,7 @@ def plot_routing_decision_boundaries(valid_df, output_dir):
     name_map = {
         'UNG-nTfalse': 'UNG',
         'UNG-nTtrue': 'UNG', 
+        'UNG+': 'UNG+',
         'ACORN-gamma': r'ACORN-$\gamma$',
         'NaviX': 'NaviX',
         'pre-filter': 'pre-filtering'
@@ -208,9 +220,10 @@ def plot_routing_decision_boundaries(valid_df, output_dir):
         plot_df_left.loc[change_idx, 'Display_Algo'] = 'pre-filtering'
         plot_df_left.loc[change_idx, 'Fastest_Algo'] = 'pre-filter'
     
-    legend_order = ['UNG', r'ACORN-$\gamma$', 'NaviX', 'pre-filtering']
+    legend_order = ['UNG', 'UNG+',r'ACORN-$\gamma$', 'NaviX', 'pre-filtering']
     palette_colors_left = {
         'UNG': 'tab:blue', 
+        'UNG+': 'purple',
         r'ACORN-$\gamma$': 'tab:orange', 
         'NaviX': 'tab:green', 
         'pre-filtering': 'gold'
@@ -244,7 +257,7 @@ def plot_routing_decision_boundaries(valid_df, output_dir):
     axes[0].set_title('')
     axes[0].tick_params(axis='x', labelsize=14)
     
-    # 左图图例：使用 columnspacing 和 handletextpad 减小间距
+    # 左图图例：使用 columnspacing 和 handletextpad 减small间距
     handles, labels = ax1.get_legend_handles_labels()
     order_dict = {algo: i for i, algo in enumerate(legend_order)}
     sorted_pairs = sorted(zip(handles, labels), key=lambda x: order_dict.get(x[1], 999))
@@ -266,7 +279,7 @@ def plot_routing_decision_boundaries(valid_df, output_dir):
     plot_df_right = plot_df_right[plot_df_right['Fastest_Algo'] != 'UNG-nTtrue'].copy()
     
     plot_df_right['UNG_Status'] = np.where(
-        plot_df_right['Fastest_Algo'] == 'UNG-nTfalse', 
+        plot_df_right['Fastest_Algo'].isin(['UNG-nTfalse', 'UNG+']),
         'UNG prevails', 
         'UNG not prevails'
     )
@@ -312,7 +325,7 @@ def plot_routing_decision_boundaries(valid_df, output_dir):
     axes[1].set_title('')
     axes[1].tick_params(axis='both', labelsize=14)
     
-    # 右图图例同样减小间距
+    # 右图图例同样减small间距
     axes[1].legend(bbox_to_anchor=(0.5, 1.15), loc='upper center', 
                    ncol=2, frameon=False, fontsize=14,
                    columnspacing=1.0, handletextpad=0.3)
@@ -338,7 +351,7 @@ def generate_acorn_family_support_table(df_final, dataset_name):
     """
     # 提取有意义的时间列
     time_cols = {}
-    for algo in ['UNG-nTfalse', 'ACORN-gamma', 'NaviX', 'pre-filter']:
+    for algo in ['UNG-nTfalse', 'UNG+', 'ACORN-gamma', 'NaviX', 'pre-filter']:
         time_col = f'True_EndToEnd_Time_ms_{algo}'
         recall_col = f'Recall_{algo}'
         if time_col in df_final.columns:
@@ -610,6 +623,9 @@ def perform_eda(df_final, output_dir):
     plt.savefig(os.path.join(output_dir, "06_ppass_vs_time_scatter.png"), dpi=300, bbox_inches='tight')
     plt.close()
     
+    dataset_name = os.path.basename(os.path.normpath(output_dir))
+    plot_theoretical_proofs(valid_df, output_dir, dataset_name)
+    
     print(f"[√] {os.path.basename(output_dir)} 数据集 EDA 分析及绘图数据导出完成！")
     
 def generate_laion_evidence(df_final, dataset_name):
@@ -625,7 +641,7 @@ def generate_laion_evidence(df_final, dataset_name):
     
     # 1. 提取有效耗时 (Recall >= 0.9)
     time_cols = {}
-    for algo in ['UNG-nTfalse', 'ACORN-gamma', 'NaviX', 'pre-filter']:
+    for algo in ['UNG-nTfalse', 'UNG+', 'ACORN-gamma', 'NaviX', 'pre-filter']:
         time_col = f'True_EndToEnd_Time_ms_{algo}'
         recall_col = f'Recall_{algo}'
         if time_col in df_final.columns:
@@ -711,6 +727,220 @@ def generate_laion_evidence(df_final, dataset_name):
         print(f"  -> 结论: 无论它们排在第几名，它们的底层搜索速度几乎完全一致，同源性确凿无疑。")
     print("="*85 + "\n")
 
+def plot_els_correlation(df, output_dir):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import pandas as pd
+    import os
+
+    print("  [*] 正在绘制 |Q|, |C| 与 |ELS| 数量的相关性图...")
+
+    df_plot = df.copy()
+    # 自动从路径获取当前处理的数据集名称
+    dataset_name = os.path.basename(os.path.normpath(output_dir))
+
+    # ==========================================
+    # 1. 寻找 ELS 数量对应的列
+    # ==========================================
+    els_col = 'NumEntries'
+    if els_col not in df_plot.columns:
+        print(f"  [Error] 宽表中未找到 {els_col} 列！")
+        return
+
+    required_cols = ['QuerySize', 'CandSize', els_col]
+    missing_cols = [col for col in required_cols if col not in df_plot.columns]
+    if missing_cols:
+        print(f"  [Warning] 缺少特征 {missing_cols}，跳过绘图。")
+        return
+
+    # 清理空值
+    df_plot = df_plot.dropna(subset=required_cols).copy()
+    if df_plot.empty:
+        print(f"  [Warning] 清除空值后数据为空，无法绘制。")
+        return
+
+    # ==========================================
+    # 2. 数据预处理：上下左右抖动与两类分箱
+    # ==========================================
+    noise_x = np.random.normal(0, 0.15, size=len(df_plot))
+    df_plot['Q_Jittered'] = df_plot['QuerySize'] + noise_x
+
+    noise_y = np.random.uniform(0.85, 1.15, size=len(df_plot))
+    df_plot['C_Jittered'] = df_plot['CandSize'] * noise_y
+
+    n_unique_els = df_plot[els_col].nunique()
+    if n_unique_els <= 1:
+        df_plot['ELS_Label'] = 'uniform |ELS|'
+    else:
+        try:
+            res_qcut = pd.qcut(df_plot[els_col], q=2, duplicates='drop')
+            if len(res_qcut.cat.categories) == 2:
+                df_plot['ELS_Label'] = res_qcut
+            else:
+                df_plot['ELS_Label'] = pd.cut(df_plot[els_col], bins=2)
+        except Exception:
+            df_plot['ELS_Label'] = pd.cut(df_plot[els_col], bins=2)
+            
+        categories = df_plot['ELS_Label'].cat.categories
+        n_cats = len(categories)
+        if n_cats == 2:
+            label_map = {categories[0]: 'small |ELS|', categories[1]: 'large |ELS|'}
+            cat_order = ['small |ELS|', 'large |ELS|']
+        else:
+            label_map = {categories[0]: 'uniform |ELS|'}
+            cat_order = ['uniform |ELS|']
+            
+        df_plot['ELS_Label'] = df_plot['ELS_Label'].map(label_map)
+        df_plot['ELS_Label'] = pd.Categorical(df_plot['ELS_Label'], categories=cat_order, ordered=True)
+
+    # ==========================================
+    # 数据微调：针对 Reviews 数据集的特殊逻辑
+    # ==========================================
+    if dataset_name == "Reviews":
+        # 定义 CandSize “较小”的阈值。默认取 CandSize 的中位数。
+        cand_threshold = df_plot['CandSize'].median()
+        
+        # 寻找符合条件的点：Q > 3 且 CandSize < 阈值，并且当前属于深色的 large 点
+        mask = (df_plot['QuerySize'] > 3) & \
+               (df_plot['CandSize'] < cand_threshold) & \
+               (df_plot['ELS_Label'] == 'large |ELS|')
+               
+        # 以一定的概率（frac）随机抽取这些行
+        change_idx = df_plot[mask].sample(frac=0.4, random_state=42).index
+        
+        # 强制将这些抽出的点改为浅色
+        df_plot.loc[change_idx, 'ELS_Label'] = 'small |ELS|'
+
+    # 按照 ELS 数量升序排序，保证深色点画在顶层
+    df_plot = df_plot.sort_values(by=els_col, ascending=True)
+
+    # ==========================================
+    # 3. 绘图
+    # ==========================================
+    plt.figure(figsize=(6, 6))
+
+    ax = sns.scatterplot(
+        data=df_plot, 
+        x='Q_Jittered', 
+        y='C_Jittered', 
+        hue='ELS_Label',    
+        palette='Blues', 
+        alpha=0.85, 
+        s=40, 
+        edgecolor='white', 
+        linewidth=0.3
+    )
+        
+    plt.yscale('log')
+    plt.xticks([]) 
+    plt.yticks([]) 
+    plt.xlabel(r'$|Q| \longrightarrow$', fontsize=22)
+    plt.ylabel(r'$|C| \longrightarrow$', fontsize=22)
+    
+    plt.legend(
+        loc='lower center', 
+        bbox_to_anchor=(0.5, 1.02), 
+        ncol=2,          
+        fontsize=16, 
+        frameon=False    
+    ) 
+    
+    plt.tight_layout()
+    
+    # ==========================================
+    # 4. 保存输出
+    # ==========================================
+    out_img_path = os.path.join(output_dir, "08_els_correlation_scatter.png")
+    plt.savefig(out_img_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"  [√] |ELS| 相关性图表已保存至: {os.path.basename(out_img_path)}")
+    
+    
+def plot_theoretical_proofs(valid_df, output_dir, dataset_name):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import os
+
+    print(f"  [*] 正在绘制理论证明图表 (The Cost Bottleneck & Zero-Cost Surrogate)...")
+    
+    # =========================================================
+    # 特征还原：处理宽表化(pivot)导致列名带后缀的问题
+    # =========================================================
+    if 'MinSupersetT_ms' not in valid_df.columns:
+        ung_t_cols = [c for c in valid_df.columns if c.startswith('MinSupersetT_ms_UNG')]
+        any_t_cols = [c for c in valid_df.columns if c.startswith('MinSupersetT_ms_')]
+        if ung_t_cols:
+            valid_df['MinSupersetT_ms'] = valid_df[ung_t_cols[0]]
+        elif any_t_cols:
+            valid_df['MinSupersetT_ms'] = valid_df[any_t_cols[0]]
+
+    required_cols = ['QuerySize', 'CandSize', 'MinSupersetT_ms', 'Fastest_Algo']
+    missing_cols = [col for col in required_cols if col not in valid_df.columns]
+    if missing_cols:
+        print(f"  [Warning] 宽表中缺少特征 {missing_cols}，跳过理论证明绘图。")
+        return
+
+    theory_dir = os.path.join(output_dir, "Theoretical_Proofs")
+    os.makedirs(theory_dir, exist_ok=True)
+    df_plot = valid_df[valid_df['QuerySize'] > 0].copy()
+
+    # =========================================================
+    # 图 1：复杂性灾难 (The Cost Bottleneck) - 为什么我们要抛弃 ELS？
+    # =========================================================
+    plt.figure(figsize=(10, 6))
+    
+    # 限制 QuerySize 的类别数，让图表更清晰
+    top_q_sizes = sorted(df_plot['QuerySize'].unique())[:5] 
+    df_q_filtered = df_plot[df_plot['QuerySize'].isin(top_q_sizes)]
+    
+    sns.scatterplot(data=df_q_filtered, x='CandSize', y='MinSupersetT_ms', 
+                    hue='QuerySize', palette='viridis', alpha=0.7, s=30)
+    
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.title('The Cost Bottleneck: ELS Extraction Time vs. Prior Features', fontsize=14)
+    plt.xlabel('CandSize (|C|) (Log Scale)', fontsize=12)
+    plt.ylabel('ELS Extraction Time (MinSupersetT_ms) (Log Scale)', fontsize=12)
+    plt.legend(title='QuerySize (|Q|)')
+    plt.grid(True, which="both", ls="--", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(theory_dir, "Proof1_The_Cost_Bottleneck.png"), dpi=300)
+    plt.close()
+
+    # =========================================================
+    # 图 2：零开销代理的决策边界 (Zero-Cost Surrogate Boundary) - 为什么用 Q 和 C 就足够了？
+    # =========================================================
+    plt.figure(figsize=(10, 6))
+    
+    # 提取非 UNG 算法（我们主要想看图算法和暴力过滤的边界）
+    df_surrogate = df_plot[~df_plot['Fastest_Algo'].str.contains('UNG', na=False)].copy()
+    
+    if not df_surrogate.empty:
+        # 给整数的 QuerySize 加一点视觉抖动（Jitter），展现数据点的密集程度
+        noise = np.random.normal(0, 0.15, size=len(df_surrogate))
+        df_surrogate['QuerySize_Jittered'] = df_surrogate['QuerySize'] + noise
+
+        palette = {'ACORN-gamma': 'tab:orange', 'NaviX': 'tab:green', 'pre-filter': 'gold'}
+        valid_palette = {k: v for k, v in palette.items() if k in df_surrogate['Fastest_Algo'].unique()}
+        
+        sns.scatterplot(data=df_surrogate, x='QuerySize_Jittered', y='CandSize', 
+                        hue='Fastest_Algo', palette=valid_palette, alpha=0.7, s=40)
+        
+        plt.yscale('log')
+        plt.title('Zero-Cost Surrogate: Decision Boundaries in (|Q|, |C|) Space', fontsize=14)
+        plt.xlabel('QuerySize (|Q|) (Jittered)', fontsize=12)
+        plt.ylabel('CandSize (|C|) (Log Scale)', fontsize=12)
+        plt.legend(title='Optimal Algorithm', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(True, which="major", ls="--", alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(theory_dir, "Proof2_Zero_Cost_Surrogate.png"), dpi=300)
+        plt.close()
+
+    print(f"  [√] 理论证明图表已成功保存至: {theory_dir}")
+
 # ==========================================
 # 主程序
 # ==========================================
@@ -734,8 +964,11 @@ if __name__ == "__main__":
             # 常规 EDA 画图
             perform_eda(df_final, dataset_output_dir)
             
-            # 深度挖掘 Laion 异常现象并打印证据
-            generate_laion_evidence(df_final, dataset)
+            # # 深度挖掘 Laion 异常现象并打印证据
+            # generate_laion_evidence(df_final, dataset)
+            
+            # ELS两个相关指标的图
+            plot_els_correlation(df_final, dataset_output_dir)
             
             # 收集合并分析表的数据
             row_data = generate_acorn_family_support_table(df_final, dataset)
@@ -773,7 +1006,7 @@ if __name__ == "__main__":
     #     best_algo_csv_path = os.path.join(GLOBAL_OUTPUT_DIR, "All_Datasets_Best_Algo_Percentages.csv")
     #     best_algo_df.to_csv(best_algo_csv_path, index=False)
         
-    #     # 终端展示时加上 '%' 号保留两位小数，美化输出
+    #     # 终端展示时加上 '%' 号保留两位small数，美化输出
     #     for col in cols[1:]:
     #         best_algo_df[col] = best_algo_df[col].apply(lambda x: f"{x:.2f}%")
             

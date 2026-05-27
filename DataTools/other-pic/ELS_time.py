@@ -10,6 +10,7 @@ FILTER_RANGE = (0.0, 1.0)
 Y_AXIS_RANGE = (0.0, 1.0)
 LABEL_FONT_SIZE = 24
 TICK_FONT_SIZE = 22
+MAX_ROWS_TO_READ = 1000  # 例如设为 1000 表示每个 CSV 只读取前 1000 行
 
 # --- 8 种颜色配色方案 (统一深青色) ---
 USER_PALETTE = [
@@ -30,13 +31,18 @@ def process_single_dataset(dataset_name, path_data_file):
         cols_to_use = ['QueryID', 'MinSupersetT_ms', 'Time_ms']
         
         # 读取数据
-        df_raw = pd.read_csv(path_data_file, usecols=cols_to_use)
+        df_raw = pd.read_csv(
+            path_data_file,
+            usecols=cols_to_use,
+            nrows=MAX_ROWS_TO_READ,
+        )
         
         # 2. 数据聚合 (防止同一个 QueryID 有多行数据，取平均值)
         # 如果数据已经是每个 QueryID 一行，这一步不会改变数据，但保留它更安全
         df_data = df_raw.groupby('QueryID').mean()
         
-        print(f"    成功加载数据，共 {len(df_data)} 个查询点。")
+        rows_hint = "全部行" if MAX_ROWS_TO_READ is None else f"前 {MAX_ROWS_TO_READ} 行"
+        print(f"    成功加载数据（{rows_hint}），共 {len(df_data)} 个查询点。")
 
         # 3. 计算比例
         # 防止除以 0 导致的错误，先处理 Time_ms 为 0 的情况（如果有）
@@ -76,14 +82,14 @@ def process_single_dataset(dataset_name, path_data_file):
 # --- 3. 定义数据集路径 (请在此处填入您筛选好的单一 CSV 文件路径) ---
 # 格式: "数据集名称": "CSV文件绝对路径"
 datasets_to_load = {
-    "Genome": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Genome/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN108077_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls10-Le40000-Lp1000_efsS20-efss100-efsf100-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "Reviews": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Reviews/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN288065_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-sub-base-123456789_K10]_Search[Ls20-Le40000-Lp1000_efsS50-efss100-efsf100-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "Amazon": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Amazon/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN602453_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-sub-base-123456789_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "VariousImg": "/home/fengxiaoyao/FilterVector/FilterVectorResults/VariousImg/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN758935_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls20-Le40000-Lp1000_efsS50-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "Music": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Music/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN1511563_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "BookReviews": "/home/fengxiaoyao/FilterVector/FilterVectorResults/BookReviews/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN2065775_AM32_AMB64_AG80]_GT[GT_query_select_imp_B_C_D-weighted-sub-base-123456789_K10]_Search[Ls10-Le20000-Lp500_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "Tiktok": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Tiktok/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN2201307_AM32_AMB64_AG80]_GT[GT_query_select_imp_A_B_C-weighted-sub-base-123456789_K10]_Search[Ls1000-Le40000-Lp1000_efsS500-efss500-efsf500-lt5000_K10_th100]/results/query_details_repeat1.csv",
-    "Laion": "/home/fengxiaoyao/FilterVector/FilterVectorResults/Laion/Results/UNG-nTfalse/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_imp_C_D-weighted-sub-base-123456789_K10]_Search[Ls50-Le60000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]/results/query_details_repeat1.csv",
+    "Genome": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Genome/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN108077_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-weighted-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS100-efss100-efsf100-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "Reviews": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Reviews/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN288065_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS100-efss100-efsf100-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "Amazon": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Amazon/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN602453_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "VariousImg": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/VariousImg/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN758935_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-weighted-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "Music": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Music/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN1511563_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-weighted-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "BookReviews": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/BookReviews/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN2065775_AM32_AMB64_AG80]_GT[GT_query_select_200_B_C_D-weighted-sub-base-123456789_random_300_K10]_Search[Ls500-Le20000-Lp500_efsS200-efss200-efsf200-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "Tiktok": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Tiktok/Results/UNG-nTfalse/Index[M32_LB100_alpha1.2_C6_EP16_AN2201307_AM32_AMB64_AG80]_GT[GT_query_select_200_A_B_C-weighted-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS500-efss500-efsf500-lt5000_K10_th100]/results/query_details_repeat1.csv",
+    "Laion": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/Laion/Results/UNG-nTfalse/Index[M32_LB1000_alpha1.2_C16_EP16_AN15151002_AM32_AMB64_AG80]_GT[GT_query_select_200_C_D-weighted-sub-base-123456789_random_300_K10]_Search[Ls1000-Le40000-Lp1000_efsS10-efss10-efsf10-lt500000_K10_th100]/results/query_details_repeat1.csv",
 }
 
 
@@ -202,7 +208,9 @@ else:
     
     ax.tick_params(axis='both', colors='black', labelsize=TICK_FONT_SIZE)
     
+    # 给左侧 ylabel 留出更稳定的边距，避免保存时被裁切。
     plt.tight_layout()
+    plt.subplots_adjust(left=0.12)
     save_name = "ELS time.png"
-    plt.savefig(save_name, dpi=150)
+    plt.savefig(save_name, dpi=150, bbox_inches="tight", pad_inches=0.15)
     print(f"绘图完成，图像已保存为 {save_name}")

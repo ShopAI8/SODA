@@ -11,7 +11,7 @@ import faiss
 import unittest
 import array
 
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import get_dataset_2
 
 
 class TestClustering(unittest.TestCase):

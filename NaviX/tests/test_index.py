@@ -15,7 +15,7 @@ import os
 import re
 import warnings
 
-from common_faiss_tests import get_dataset, get_dataset_2
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import get_dataset, get_dataset_2
 from faiss.contrib.evaluation import check_ref_knn_with_draws
 
 class TestModuleInterface(unittest.TestCase):

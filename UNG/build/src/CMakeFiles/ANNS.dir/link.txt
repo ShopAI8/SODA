@@ -1,0 +1,2 @@
+/usr/bin/ar qc libANNS.a CMakeFiles/ANNS.dir/utils.cpp.o CMakeFiles/ANNS.dir/storage.cpp.o CMakeFiles/ANNS.dir/trie.cpp.o CMakeFiles/ANNS.dir/distance.cpp.o CMakeFiles/ANNS.dir/search_queue.cpp.o CMakeFiles/ANNS.dir/filtered_scan.cpp.o CMakeFiles/ANNS.dir/uni_nav_graph.cpp.o CMakeFiles/ANNS.dir/MethodSelector.cpp.o CMakeFiles/ANNS.dir/rabitq_side_index.cpp.o
+/usr/bin/ranlib libANNS.a

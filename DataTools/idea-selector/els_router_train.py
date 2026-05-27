@@ -23,8 +23,9 @@ except ImportError:
 # ==========================================
 # 1. 全局配置区域
 # ==========================================
-DATASET_LIST = ["Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"]
-BASE_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
+## "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"
+DATASET_LIST = [ "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"]
+BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 PERCENTAGE_THRESHOLD = 0.35    # 性能差异阈值
 
 FINAL_FEATURES = ['QuerySize', 'CandSize', 'TrieTotalNodes']
@@ -195,8 +196,26 @@ def process_dataset(dataset_name):
     if len(df_clean) < 10:
         print("❌ 有效样本过少，停止训练。")
         return
-
-    X_features = generate_els_features(df_clean)
+    
+    if len(counts) < 2:
+        majority_class = counts.idxmax()
+        minority_class = 1 if majority_class == 0 else 0
+        print(f"⚠️ 警告: 数据完全一边倒，只有单一类别 ({majority_class})！")
+        print(f"⚠️ 正在注入 1 条伪造的少数类 ({minority_class}) 样本，以骗过 ONNX 导出检查...")
+        
+        # 提取特征
+        X_features = generate_els_features(df_clean)
+        
+        # 复制第一条数据作为假数据，并赋予少数类标签
+        fake_X = X_features.iloc[[0]].copy()
+        fake_y = pd.Series([minority_class], index=[len(y)])
+        
+        # 拼接到原数据集中
+        X_features = pd.concat([X_features, fake_X], ignore_index=True)
+        y = pd.concat([y, fake_y], ignore_index=True)
+    else:
+        # 正常情况提取特征
+        X_features = generate_els_features(df_clean)
     
     print(f"\n[模型竞技场启动] 使用特征: {FINAL_FEATURES}")
     results_cache = {}

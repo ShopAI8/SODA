@@ -288,7 +288,7 @@ def imbalance_factor(k, assign):
 def check_if_torch(x):
     if x.__class__ == np.ndarray:
         return False
-    import torch
+    import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
     if isinstance(x, torch.Tensor):
         return True
     raise NotImplementedError(f"Unknown tensor type {type(x)}")
@@ -308,7 +308,7 @@ def reassign_centroids(hassign, centroids, rs=None):
         return 0
 
     if is_torch:
-        import torch
+        import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
         fac = torch.ones_like(centroids[0])
     else:
         fac = np.ones_like(centroids[0])
@@ -391,7 +391,7 @@ def kmeans(k, data, niter=25, seed=1234, checkpoint=None, verbose=True,
         fac = hassign.reshape(-1, 1).astype('float32')
         fac[fac == 0] = 1  # quiet warning
         if is_torch:
-            import torch
+            import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
             fac = torch.from_numpy(fac).to(sums.device)
 
         centroids = sums / fac
@@ -417,7 +417,7 @@ def kmeans(k, data, niter=25, seed=1234, checkpoint=None, verbose=True,
         if checkpoint is not None:
             log('storing centroids in', checkpoint)
             if is_torch:
-                import torch
+                import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
                 torch.save(centroids, checkpoint)
             else:
                 np.save(checkpoint, centroids)

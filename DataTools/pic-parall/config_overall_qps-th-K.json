@@ -1,0 +1,2931 @@
+{
+   "global_settings": {
+      "base_results_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults",
+      "base_data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData",
+      "font_sizes_qps_grid": {
+         "main_title": 40,
+         "legend": 34,
+         "subplot_title": 34,
+         "axis_label": 30,
+         "tick_label": 30,
+         "num_label" : 27
+      },
+      "font_sizes_build_plots": {
+         "main_title": 20,
+         "legend": 20,
+         "axis_label": 18,
+         "tick_label":18
+      },
+      "font_sizes_speedup_plot": {
+         "legend": 50,
+         "axis_label_y": 46,
+         "tick_label_y": 48,
+         "tick_label_x": 44,
+         "annotation_text": 20
+      }
+   },
+   "dataset_configurations": {
+      "Genome": {
+         "build_params": {
+            "N": 108077,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "Reviews": {
+         "build_params": {
+            "N": 288065,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "Amazon": {
+         "build_params": {
+            "N": 602453,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "VariousImg": {
+         "build_params": {
+            "N": 758935,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "Music": {
+         "build_params": {
+            "N": 1511563,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "BookReviews": {
+         "build_params": {
+            "N": 2065775,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "Tiktok": {
+         "build_params": {
+            "N": 2201307,
+            "max_degree": 32,
+            "Lbuild": 100,
+            "alpha": 1.2,
+            "num_cross_edges": 6,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      },
+      "Laion": {
+         "build_params": {
+            "N": 15151002,
+            "max_degree": 32,
+            "Lbuild": 1000,
+            "alpha": 1.2,
+            "num_cross_edges": 16,
+            "num_entry_points": 16,
+            "M": 32,
+            "gamma": 80,
+            "M_beta": 64
+         },
+         "structure_templates": {
+            "ung_index_handle": "M{max_degree}_LB{Lbuild}_alpha{alpha}_C{num_cross_edges}_EP{num_entry_points}_AN{N}_AM{M}_AMB{M_beta}_AG{gamma}",
+            "ung_gt_handle": "GT_{safe_query_name}_K{K}",
+            "search_params_handle": "Ls{lsearch_start}-Le{lsearch_end}-Lp{lsearch_step}_efsS{acorn_efs_start}-efss{acorn_efs_step_slow}-efsf{acorn_efs_step_fast}-lt{lsearch_threshold}_K{K}_th{threads}",
+            "result_dir_template": "{base_results_dir}/{dataset}/Results/{algorithm_name}/Index[{ung_index_handle}]_GT[{ung_gt_handle}]_Search[{search_params_handle}]"
+         },
+         "pruning_settings": {
+            "use_pruning_1": false,
+            "use_pruning_2": false
+         }
+      }
+   },
+   "global_comparison_tasks": {
+      "k_comparison_plots": [
+         {
+            "enabled": true,
+            "task_name": "sub_base_Multi_K_Comparison",
+            "output_filename": "sub_base_Multi_K_Comparison.png",
+            "main_title": "Performance Comparison Across Different K Values",
+            "plot_settings": {
+                    "legend_cols": 4,
+                    "hide_legend": true,
+                    "layout_rect_top": 0.75,
+                    "layout_rect_left": 0.01,
+                    "layout_rect_right": 0.99,
+                    "legend_anchor_y": 1.13,
+                    "legend_columnspacing": 0.7,
+                    "use_log_scale_y": true,
+                    "h_pad": 1.0,
+                    "w_pad": 0.0,
+                    "savefig_pad_inches": 0.01
+                },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "auto_lsearch_start_from_k": true,
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "k_values": [
+                     20
+                  ],
+                  "subplot_titles": [
+                     "Amazon\n$\\mathrm{K}=20$"
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "auto_lsearch_start_from_k": true,
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "k_values": [
+                     20
+                  ],
+                  "subplot_titles": [
+                     "Genome\n$\\mathrm{K}=20$"
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "auto_lsearch_start_from_k": true,
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "k_values": [
+                     20
+                  ],
+                  "subplot_titles": [
+                     "Reviews\n$\\mathrm{K}=20$"
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               }
+            ]
+         }
+      ],
+      "thread_comparison_plots": [
+         {
+            "enabled": false,
+            "task_name": "sub_base_Multi_Thread_Comparison",
+            "output_filename": "sub_base_Multi_Thread_Comparison.png",
+            "main_title": "Performance Comparison Across Different Thread Counts",
+            "plot_settings": {},
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 20,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 50,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Laion",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 50,
+                     "lsearch_end": 60000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 10,
+                     "acorn_efs_step_slow": 10,
+                     "acorn_efs_step_fast": 10,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 20,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 50,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 10,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 20,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 2000,
+                           "acorn_efs_step_fast": 2000
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Tiktok",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 500,
+                     "acorn_efs_step_slow": 500,
+                     "acorn_efs_step_fast": 500,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "BookReviews",
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                     "K": 10,
+                     "lsearch_start": 10,
+                     "lsearch_end": 20000,
+                     "lsearch_step": 500,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "thread_values": [
+                     10,
+                     100
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     "UNG",
+                     "SmartRoute"
+                  ]
+               }
+            ]
+         }
+      ],
+      "length_comparison_plots": [
+         {
+            "enabled": true,
+            "task_name": "sub_base_Multi_Length_Comparison",
+            "output_filename": "length.png",
+            "main_title": "sub_base Performance Comparison Across Query Lengths (K=10)",
+            "plot_settings": {
+               "legend_cols": 5,              
+               "layout_rect_top": 0.94,       
+               "legend_anchor_y": 1.02,
+               "use_log_scale_y": true,
+               "h_pad": 1.0,
+               "w_pad": 0.0
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Genome",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "Genome\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "Genome\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "Genome\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                        "subplot_title": "Reviews\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_large",
+                        "subplot_title": "Reviews\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_small",
+                        "subplot_title": "Reviews\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Amazon",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                        "subplot_title": "Amazon\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_large",
+                        "subplot_title": "Amazon\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_small",
+                        "subplot_title": "Amazon\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "VariousImg\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "VariousImg\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "VariousImg\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "Music\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "Music\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "Music\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "BookReviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "BookReviews\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "BookReviews\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "BookReviews\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 500,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 500
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 500,
+                           "lsearch_end": 20000,
+                           "lsearch_step": 500
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Tiktok",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 500,
+                     "acorn_efs_step_slow": 500,
+                     "acorn_efs_step_fast": 500,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "Tiktok\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "Tiktok\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "Tiktok\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     "UNG",
+                     "UNG+",
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Laion",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 10,
+                     "acorn_efs_step_slow": 10,
+                     "acorn_efs_step_fast": 10,
+                     "lsearch_threshold": 500000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                        "subplot_title": "Laion\nmixed"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_len_large",
+                        "subplot_title": "Laion\nlarge $|L_q|$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_len_small",
+                        "subplot_title": "Laion\nsmall $|L_q|$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"pre-filtering",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 200,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 10,
+                           "acorn_efs_step_fast": 10
+                        }
+                     },
+                     {
+                        "name":"Milvus-IVF",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 100,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"Milvus-HNSW",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 100,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"ACORN-γ",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 100,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"ACORN-1",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 100,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name":"NaviX",
+                        "params": {
+                           "lsearch_start": 10,
+                           "lsearch_end": 100,
+                           "lsearch_step": 10,
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering"
+                  ]
+               }
+            ]
+         }
+      ],
+      "smartroute_variants_plots": [
+         {
+            "enabled": false,
+            "task_name": "SmartRoute_Variants_Comparison",
+            "output_filename": "smartroute_variants.png",
+            "main_title": "Performance Comparison of SmartRoute Variants",
+            "plot_settings": {
+               "grid_layout": [2, 4],
+               "legend_cols": 5,
+               "layout_rect_top": 0.80,
+               "use_log_scale_y": false,
+               "h_pad": 1.0,
+               "w_pad": 0.0
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "subplot_title": "Amazon",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "subplot_title": "VariousImg",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "Laion",
+                  "subplot_title": "Laion",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 100,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 10,
+                     "acorn_efs_step_slow": 10,
+                     "acorn_efs_step_fast": 10,
+                     "lsearch_threshold": 500000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "subplot_title": "Reviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "subplot_title": "Genome",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "Tiktok",
+                  "subplot_title": "Tiktok",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 500,
+                     "acorn_efs_step_slow": 500,
+                     "acorn_efs_step_fast": 500,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "subplot_title": "Music",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               },
+               {
+                  "dataset_name": "BookReviews",
+                  "subplot_title": "BookReviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [  "SmartRoute", "SmartRoute+", "SmartRoute++", "SmartRoute+++" ]
+               }
+            ]
+         }
+      ],
+      "p_pass_comparison_plots": [
+         {
+            "enabled": false,
+            "task_name": "sub_base_Multi_p_pass_Comparison",
+            "output_filename": "p_pass.png",
+            "main_title": "Performance Comparison Across p_pass (K=10)",
+            "plot_settings": {
+               "grid_layout": [
+                  2,
+                  3
+               ],
+               "legend_cols": 5,
+               "layout_rect_top": 0.77,
+               "legend_anchor_y": 0.99,
+               "h_pad": 1.0,
+               "use_log_scale_y": true
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_large",
+                        "subplot_title": "Amazon\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_small",
+                        "subplot_title": "Amazon\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 20,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 50,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "VariousImg\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "VariousImg\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Laion",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 50,
+                     "lsearch_end": 60000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 10,
+                     "acorn_efs_step_slow": 10,
+                     "acorn_efs_step_fast": 10,
+                     "lsearch_threshold": 500000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "Laion\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "Laion\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 10,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 20,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 50,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_large",
+                        "subplot_title": "Reviews\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_small",
+                        "subplot_title": "Reviews\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 20,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "Genome\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "Genome\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 2000,
+                           "acorn_efs_step_fast": 2000
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Tiktok",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 500,
+                     "acorn_efs_step_slow": 500,
+                     "acorn_efs_step_fast": 500,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "Tiktok\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "Tiktok\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 500,
+                           "acorn_efs_step_slow": 500,
+                           "acorn_efs_step_fast": 500
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "Music\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "Music\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":200,
+                           "acorn_efs_step_fast": 200
+                        }
+                     },
+                     "UNG",
+                     
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "BookReviews",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 20000,
+                     "lsearch_step": 500,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "queries_to_compare": [
+                     {
+                        "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_ppass_large",
+                        "subplot_title": "BookReviews\nlarge $p_{\\mathrm{pass}}$"
+                     },
+                     {
+                        "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_ppass_small",
+                        "subplot_title": "BookReviews\nsmall $p_{\\mathrm{pass}}$"
+                     }
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":400,
+                           "acorn_efs_step_fast": 400
+                        }
+                     },
+                     "UNG",
+                     "SmartRoute"
+                  ]
+               }
+            ]
+         }
+      ],
+      "curated_k_plots": [
+         {
+            "enabled": false,
+            "task_name": "Curated_K5_Plot",
+            "output_filename": "K.png",
+            "main_title": "Performance Comparison for K=5",
+            "plot_settings": {
+               "grid_layout": [1, 2],
+               "legend_cols": 5,
+               "layout_rect_top": 0.88,
+               "legend_anchor_y": 1.06,
+               "use_log_scale_y": true,
+               "h_pad": 1.0,
+               "w_pad": 0.0,
+               "custom_alg_order": [
+                  "UNG", "ImprovedUNG", "NaviX","ACORN-1", "ACORN-γ", "ACORN-γ-improved", 
+                   "pre-filtering",  "NaiveRoute","SmartRoute"
+               ]
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Music",
+                  "common_parameters": {
+                     "K": 20,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 300,
+                     "acorn_efs_step_slow": 300,
+                     "acorn_efs_step_fast": 300,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 300,
+                           "acorn_efs_step_slow": 300,
+                           "acorn_efs_step_fast": 300
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 300,
+                           "acorn_efs_step_slow": 300,
+                           "acorn_efs_step_fast": 300
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 300,
+                           "acorn_efs_step_slow": 300,
+                           "acorn_efs_step_fast": 300
+                        }
+                     },
+                     "UNG",
+                     "ImprovedUNG",
+                     "SmartRoute",
+                     "pre-filtering",
+                     "NaviX",
+                     "NaiveRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "VariousImg",
+                  "common_parameters": {
+                     "K": 20,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 250,
+                     "lsearch_end": 10000,
+                     "lsearch_step": 250,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     {
+                        "name": "ACORN-γ-improved",
+                        "params": {
+                           "acorn_efs_start": 100,
+                           "acorn_efs_step_slow": 100,
+                           "acorn_efs_step_fast": 100
+                        }
+                     },
+                     "UNG",
+                     "ImprovedUNG",
+                     "SmartRoute",
+                     "pre-filtering",
+                     "NaviX",
+                     "NaiveRoute"
+                  ]
+               }
+            ]
+         }
+      ],
+      "curated_p_pass_plots": [
+         {
+            "enabled": true,
+            "task_name": "Curated_p_pass_Plot",
+            "output_filename": "p_pass.png",
+            "main_title": "Performance Comparison Across p_pass (K=10)",
+            "plot_settings": {
+               "grid_layout": [
+                  2,
+                  3
+               ],
+               "legend_cols": 4,
+               "hide_legend": false,
+               "layout_rect_top": 0.80,
+               "legend_anchor_y": 0.99,
+               "h_pad": 1.0,
+               "legend_columnspacing": 0.7,
+               "use_log_scale_y": true,
+               "custom_alg_order": [
+
+                  "ACORN-1","ACORN-γ","NaviX","pre-filtering","Milvus-IVF","Milvus-HNSW",
+                  "UNG",
+                  "UNG+",
+                  "SmartRoute",
+                  "SmartRoute+"     
+               ]
+            },
+            "queries_to_compare": [
+               {
+                  "suffix_name": "ppass_small",
+                  "subplot_title_suffix": "small $p_{\\mathrm{pass}}$"
+               },
+               {
+                  "suffix_name": "ppass_large",
+                  "subplot_title_suffix": "large $p_{\\mathrm{pass}}$"
+               }
+            ],
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "query_dir_base": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "query_dir_base": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "query_dir_base": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               }
+            ]
+         }
+      ],
+      "curated_thread_plots": [
+         {
+            "enabled": true,
+            "task_name": "Curated_Thread10_Plot",
+            "output_filename": "th.png",
+            "main_title": "Performance Comparison for Threads=10 (K=10)",
+            "plot_settings": {
+               "grid_layout": [
+                  1,
+                  3
+               ],
+               "legend_cols": 4,
+               "layout_rect_top": 0.70,
+               "legend_anchor_y": 0.99,
+               "use_log_scale_y": true,
+               "custom_alg_order": ["ACORN-1","ACORN-γ","NaviX","pre-filtering","Milvus-IVF","Milvus-HNSW",
+                  "UNG",
+                  "UNG+",
+                  "SmartRoute",
+                  "SmartRoute+"],
+               "hide_legend": true
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Amazon",
+                  "common_parameters": {
+                     "threads": 10,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Genome",
+                  "common_parameters": {
+                     "threads": 10,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Reviews",
+                  "common_parameters": {
+                     "threads": 10,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 100,
+                     "acorn_efs_step_slow": 100,
+                     "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               }
+            ]
+         }
+      ],
+      "curated_one_query_plots": [
+         {
+            "enabled": false,
+            "task_name": "Curated_one_query_Plot",
+            "output_filename": "one_query.png",
+            "main_title": "Performance Comparison for one_query (K=10)",
+            "plot_settings": {
+               "grid_layout": [
+                  1,
+                  3
+               ],
+               "legend_cols": 3,
+               "layout_rect_top": 0.81,
+               "legend_anchor_y": 0.99,
+               "use_log_scale_y": true,
+               "custom_alg_order": ["ACORN-γ","UNG","SmartRoute"],
+               "hide_legend": false,
+               "legend_label_map": { 
+                  "ACORN-γ": "ACORN"
+               }
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Music",
+                  "subplot_title": "Query\nExample 1",
+                  "common_parameters": {
+                     "threads": 100,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base_one_query_1",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     "UNG",
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "subplot_title": "Query\nExample 2",
+                  "common_parameters": {
+                     "threads": 100,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base_one_query_2",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     "UNG",
+                     "SmartRoute"
+                  ]
+               },
+               {
+                  "dataset_name": "Music",
+                  "subplot_title": "General\nqueries",
+                  "common_parameters": {
+                     "threads": 100,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-γ",
+                        "params": {
+                           "acorn_efs_start": 200,
+                           "acorn_efs_step_slow":1000,
+                           "acorn_efs_step_fast": 1000
+                        }
+                     },
+                     "UNG",
+                     "SmartRoute"
+                  ]
+               }
+            ]
+         }
+      ],
+      "curated_mixed_plots": [
+         {
+            "enabled": false,
+            "task_name": "Mixed_SmartRoute_Plot",
+            "output_filename": "mixed_smart_route.png",
+            "main_title": "Performance Comparison on Mixed Queries",
+            "plot_settings": {
+               "grid_layout": [1, 2],
+               "legend_cols": 3,
+               "layout_rect_top": 0.72, 
+               "legend_anchor_y": 1.00, 
+               "use_log_scale_y": true,
+               "custom_alg_order": [
+                   "ACORN-1","UNG", "ACORN-γ","pre-filtering","NaviX","SmartRoute"
+               ]
+            },
+            "datasets_to_compare": [
+               {
+                  "dataset_name": "Music",
+                  "subplot_title": "Music\nmixed",
+                  "common_parameters": {
+                     "threads": 100,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     "UNG",
+                     "SmartRoute",
+                     "NaviX",
+                     "pre-filtering",
+                     {
+                        "name": "ACORN-1",
+                        "params": { "acorn_efs_start": 200, "acorn_efs_step_slow": 1000, "acorn_efs_step_fast": 1000 }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": { "acorn_efs_start": 200, "acorn_efs_step_slow": 1000, "acorn_efs_step_fast":1000 }
+                     }
+                  ]
+               },
+               {
+                  "dataset_name": "Tiktok",
+                  "subplot_title": "Tiktok\nmixed",
+                  "common_parameters": {
+                     "threads": 100,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "lsearch_start": 1000,
+                     "lsearch_end": 40000,
+                     "lsearch_step": 1000,
+                     "acorn_efs_start": 500,
+                     "acorn_efs_step_slow": 500,
+                     "acorn_efs_step_fast": 500,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "ACORN-1",
+                        "params": { "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500 }
+                     },
+                     {
+                        "name": "ACORN-γ",
+                        "params": { "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500 }
+                     },
+                     "UNG",
+                     "SmartRoute",
+                     "pre-filtering",
+                     "NaviX"
+                  ]
+               }
+            ]
+         }
+      ]
+   },
+   "speedup_ratio_tasks": [
+      {
+         "enabled": true,
+         "main_title": "Speedup Ratio Comparison (QPS @ Recall > 0.9)",
+         "output_filename": "ratio.png",
+         "target_recall": 0.9,
+         "enable_imputation": false,
+         "datasets_to_process": [
+            "Genome", "Reviews", "Amazon", "VariousImg", "Music", "BookReviews", "Tiktok", "Laion"
+         ],
+         "algorithms_to_compare": [
+            "UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"
+         ],
+         "ratio_pairs": [
+            ["SmartRoute+", "ACORN-γ"],
+            ["SmartRoute+", "NaviX"],
+            ["SmartRoute+", "pre-filtering"],
+            ["SmartRoute+", "Milvus-HNSW"],
+            ["SmartRoute+", "Milvus-IVF"],
+            ["SmartRoute+", "UNG"],
+            ["UNG+", "UNG"],
+            ["SmartRoute+", "UNG+"],
+            ["SmartRoute+", "SmartRoute"],
+            ["SmartRoute", "UNG+"]
+         ],
+         "ratio_labels": [
+            "SmartRoute+/ACORN-gamma",
+            "SmartRoute+/NaviX",
+            "SmartRoute+/pre-filtering",
+            "SmartRoute+/Milvus-HNSW",
+            "SmartRoute+/Milvus-IVF",
+            "SmartRoute+/UNG",
+            "UNG+/UNG",
+            "SmartRoute+/UNG+",
+            "SmartRoute+/SmartRoute",
+            "SmartRoute/UNG+"
+         ],
+         "legend_order": [
+            "SmartRoute+/ACORN-gamma",
+            "SmartRoute+/UNG",
+            "SmartRoute+/NaviX",
+            "UNG+/UNG",
+            "SmartRoute+/pre-filtering",
+            "SmartRoute/UNG+",
+            "SmartRoute+/Milvus-HNSW",
+            "SmartRoute+/UNG+",
+            "SmartRoute+/Milvus-IVF",
+            "SmartRoute+/SmartRoute"
+            
+            
+            
+            
+         ],
+         "ratio_group_width": 1.10,
+         "x_category_spacing": 1.20,
+         "legend_cols": 5,
+         "ratio_labels_map": {
+            "SmartRoute+/ACORN-gamma": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{ACORN-γ}}$",
+            "SmartRoute+/NaviX": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{NaviX}}$",
+            "SmartRoute+/pre-filtering": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{Pre-Filter}}$",
+            "SmartRoute+/Milvus-HNSW": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{Milvus-Post+Pre}}$",
+            "SmartRoute+/Milvus-IVF": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{Milvus-IVF}}$",
+            "SmartRoute+/UNG": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{UNG}}$",
+            "UNG+/UNG": "$\\frac{\\mathsf{UNG+}}{\\mathsf{UNG}}$",
+            "SmartRoute+/UNG+": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{UNG+}}$",
+            "SmartRoute+/SmartRoute": "$\\frac{\\mathsf{SmartRoute+}}{\\mathsf{SmartRoute}}$",
+            "SmartRoute/UNG+": "$\\frac{\\mathsf{SmartRoute}}{\\mathsf{UNG+}}$"
+         },
+         "x_axis_categories": [
+            "mixed",
+            "small $|L_q|$",
+            "large $|L_q|$",
+            "small $p_{\\mathrm{pass}}$",
+            "large $p_{\\mathrm{pass}}$",
+            "$\\mathrm{th}=10$",
+            "$\\mathrm{K}=20$"
+         ],
+         "categories": [
+            {
+               "name": "Mixed",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "Small Length",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_len_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "Large Length",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_len_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "Small p_pass",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_ppass_small",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "Large p_pass",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300/A_B_C-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300/B_C_D-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300/A_B_C-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 100, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300/C_D-weighted-sub-base-123456789_ppass_large",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "th=10",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 10, "threads": 10, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 10, "threads": 10, "lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 10, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"ACORN-γ", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 10, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            },
+            {
+               "name": "K=20",
+               "parameters_to_use": {
+                  "Genome": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Reviews": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 100, "acorn_efs_step_slow": 100, "acorn_efs_step_fast": 100, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Amazon": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "VariousImg": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Music": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "BookReviews": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 200, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_B_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, {"name":"UNG+", "params": {"lsearch_start": 500, "lsearch_end": 20000, "lsearch_step": 500}}, "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Tiktok": {
+                     "K": 20, "threads": 100, "lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000,
+                     "acorn_efs_start": 500, "acorn_efs_step_slow": 500, "acorn_efs_step_fast": 500, "lsearch_threshold": 5000,
+                     "query_dir_name": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": ["UNG", "UNG+", "SmartRoute", "SmartRoute+", "pre-filtering", "Milvus-IVF", "Milvus-HNSW", "ACORN-γ", "ACORN-1", "NaviX"]
+                  },
+                  "Laion": {
+                     "K": 20, "threads": 100, "lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10,
+                     "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10, "lsearch_threshold": 500000,
+                     "query_dir_name": "query_select_200_C_D-weighted-sub-base-123456789_random_300",
+                     "algorithms_to_compare": [{"name":"UNG", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"UNG+", "params": {"lsearch_start": 1000, "lsearch_end": 40000, "lsearch_step": 1000}}, {"name":"pre-filtering", "params": {"lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-IVF", "params": {"lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"Milvus-HNSW", "params": {"lsearch_start": 20, "lsearch_end": 200, "lsearch_step": 10, "acorn_efs_start": 10, "acorn_efs_step_slow": 10, "acorn_efs_step_fast": 10}}, {"name":"ACORN-γ", "params": {"lsearch_start": 20, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"ACORN-1", "params": {"lsearch_start": 20, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, {"name":"NaviX", "params": {"lsearch_start": 20, "lsearch_end": 100, "lsearch_step": 10, "acorn_efs_start": 100, "acorn_efs_step_slow": 200, "acorn_efs_step_fast": 200}}, "SmartRoute", "SmartRoute+", "pre-filtering"]
+                  }
+               }
+            }
+         ]
+      }
+   ]
+}

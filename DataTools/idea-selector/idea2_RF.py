@@ -19,7 +19,7 @@ except ImportError:
 
 
 # --- 全局配置 ---
-BASE_RESULTS_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
+BASE_RESULTS_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 DATASET_NAME = "Laion" 
 TOP_N_FEATURES_TO_SELECT = 6
 

@@ -47,17 +47,6 @@
                "algorithms": [
                   "FastSmartRoute++"
                ]
-            },
-            {
-               "query_dir_name": "query_select_imp_A_B_C-weighted-sub-base-123456789/A_B_C-weighted-sub-base-123456789_len_small",
-               "acorn_search_params": {
-                  "acorn_efs_start": 500,
-                  "acorn_efs_step_slow": 500,
-                  "acorn_efs_step_fast":500
-               },
-               "algorithms": [
-                  "FastSmartRoute++"
-               ]
             }
          ]
       }

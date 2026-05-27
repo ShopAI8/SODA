@@ -53,12 +53,24 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
     ACORN_M_BETA=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.M_beta')
     ACORN_GAMMA=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.gamma')
     LSEARCH_THRESHOLD=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.lsearch_threshold')
+    BUILD_RABITQ_SIDE_INDEX=$(echo "$SHARED_CONFIG" | jq -r '.build_rabitq_side_index // false')
+    RABITQ_TOTAL_BITS=$(echo "$SHARED_CONFIG" | jq -r '.rabitq_total_bits // 4')
+    UNG_DISTANCE_MODE_DEFAULT=$(echo "$SHARED_CONFIG" | jq -r '.ung_distance_mode // "exact"')
+    OPTIMIZE_STANDALONE_PREFILTER=$(echo "$SHARED_CONFIG" | jq -r '.optimize_standalone_prefilter // false')
 
-    #项目根路径
-    PROJECT_ROOT="/home/sunyahui/ljk/FilterVector"
+    # 项目根路径：优先用外部传入，其次自动从当前脚本位置推导
+    PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
     export UNG_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/ung"
     export ACORN_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/acorn"
     export NAVIX_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/navix"
+
+    # Knowhere 路径：若未显式设置，则尝试使用当前仓库下的默认位置
+    if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" ]]; then
+        export KNOWHERE_INCLUDE_DIR="${SCRIPT_DIR}/knowhere/include"
+    fi
+    if [[ -z "${KNOWHERE_LIBRARY:-}" ]]; then
+        export KNOWHERE_LIBRARY="${SCRIPT_DIR}/knowhere/build/Release/libknowhere.so"
+    fi
 
     # export UNG_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/ung"
     # export ACORN_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/acorn"
@@ -98,16 +110,36 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
                 "pre-filter")     ROUTING_MODE=0; BASELINE_ALG=5 ; IS_REC_MORE_START=false;;
                 "ACORN-1")        ROUTING_MODE=0; BASELINE_ALG=6 ; IS_REC_MORE_START=false;;
                 "NaviX")          ROUTING_MODE=0; BASELINE_ALG=7 ; IS_REC_MORE_START=false;;
-                "UNG-nTfalse_loose")    ROUTING_MODE=0; BASELINE_ALG=8 ; IS_REC_MORE_START=false;;
+                "UNG+")           ROUTING_MODE=0; BASELINE_ALG=8 ; IS_REC_MORE_START=false;;
+                "Milvus-IVF")     ROUTING_MODE=0; BASELINE_ALG=9 ; IS_REC_MORE_START=false;;
+                "Milvus-HNSW")    ROUTING_MODE=0; BASELINE_ALG=10; IS_REC_MORE_START=false;;
                 "SmartRoute")     ROUTING_MODE=1; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;; 
                 "FastSmartRoute") ROUTING_MODE=2; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;; 
                 "FastSmartRoute+") ROUTING_MODE=3; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
                 "SmartRoute-revised") ROUTING_MODE=4; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
-                "FastSmartRoute++") ROUTING_MODE=5; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
+                "SmartRoute+")    ROUTING_MODE=5; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
+                "SmartRoute++")   ROUTING_MODE=6; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
+                "SmartRoute+++")   ROUTING_MODE=7; BASELINE_ALG=-1 ; IS_REC_MORE_START=true;;
                 *)
                     echo "错误: 未知的算法名称 '$ALGORITHM_NAME'。请在 exp.sh 的 case 语句中定义它。"
                     exit 1;;
             esac
+
+            # 默认遵循 JSON 配置；仅对少数算法做强制覆盖
+            UNG_DISTANCE_MODE="$UNG_DISTANCE_MODE_DEFAULT"
+            if [[ "$ALGORITHM_NAME" == "SmartRoute++" || "$ALGORITHM_NAME" == "SmartRoute+++" ]]; then
+                UNG_DISTANCE_MODE="rabitq"
+            fi
+
+            # 默认遵循 JSON 的 build_rabitq_side_index
+            EFFECTIVE_BUILD_RABITQ_SIDE_INDEX="$BUILD_RABITQ_SIDE_INDEX"
+            # SmartRoute++ / SmartRoute+++ 必定需要 RabitQ side index
+            if [[ "$ALGORITHM_NAME" == "SmartRoute++" || "$ALGORITHM_NAME" == "SmartRoute+++" ]]; then
+                if [[ "$BUILD_RABITQ_SIDE_INDEX" != "true" ]]; then
+                    echo "[WARN] 算法 '$ALGORITHM_NAME' 强制使用 rabitq，已自动将 build_rabitq_side_index 从 '$BUILD_RABITQ_SIDE_INDEX' 切换为 true。"
+                fi
+                EFFECTIVE_BUILD_RABITQ_SIDE_INDEX="true"
+            fi
             
             SHARED_DATASET_DIR="${BASE_OUTPUT_DIR}/${DATASET}"
             ALGO_RESULT_DIR="${SHARED_DATASET_DIR}/Results/${ALGORITHM_NAME}"
@@ -122,10 +154,12 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
                --dataset "$DATASET" --data_dir "$DATA_DIR" --exp_output_dir "$SHARED_DATASET_DIR" \
                --max_degree "$MAX_DEGREE" --Lbuild "$LBUILD" --alpha "$ALPHA" \
                --num_cross_edges "$NUM_CROSS_EDGES" --num_entry_points "$NUM_ENTRY_POINTS" \
-               --acorn_n "$ACORN_N" --acorn_m "$ACORN_M" --acorn_m_beta "$ACORN_M_BETA" --acorn_gamma "$ACORN_GAMMA"
+               --acorn_n "$ACORN_N" --acorn_m "$ACORN_M" --acorn_m_beta "$ACORN_M_BETA" --acorn_gamma "$ACORN_GAMMA" \
+               --build_rabitq_side_index "$EFFECTIVE_BUILD_RABITQ_SIDE_INDEX" \
+               --rabitq_total_bits "$RABITQ_TOTAL_BITS"
             
-            # 新增判断：如果 build_mode 不是 '串行'，则构建任务已完成，直接跳过 GT 生成和搜索，进入下一个实验。
-            if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "acorn_only" || "$BUILD_MODE" == "ung_only" ]]; then
+            # 新增判断：某些 build_mode 只做构建，不进行 GT 和搜索。
+            if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "acorn_only" || "$BUILD_MODE" == "navix_only" || "$BUILD_MODE" == "ung_only" ]]; then
                echo "[INFO] Skipping GT generation and search steps."
                echo "--- The current experimental configuration processing has been completed (BUILD ONLY) ---"
                continue
@@ -140,6 +174,12 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
 
             # --- 调用 search.sh ---
             INDEX_DIR_NAME="M${MAX_DEGREE}_LB${LBUILD}_alpha${ALPHA}_C${NUM_CROSS_EDGES}_EP${NUM_ENTRY_POINTS}_AN${ACORN_N}_AM${ACORN_M}_AMB${ACORN_M_BETA}_AG${ACORN_GAMMA}"
+            if [[ "$EFFECTIVE_BUILD_RABITQ_SIDE_INDEX" == "true" ]]; then
+               INDEX_DIR_NAME="${INDEX_DIR_NAME}_RQB${RABITQ_TOTAL_BITS}"
+            fi
+            echo "Using UNG distance mode: $UNG_DISTANCE_MODE"
+            echo "Using RabitQ side index: $EFFECTIVE_BUILD_RABITQ_SIDE_INDEX"
+            echo "Using index dir name: $INDEX_DIR_NAME"
             echo "Begin search (K=$K)..."
             ./search.sh \
                --dataset "$DATASET" --data_dir "$DATA_DIR" \
@@ -155,8 +195,10 @@ cat "$CONFIG_FILE" | jq -c '.experiments[]' | while read -r dataset_config; do
                --is_new_trie_method "$IS_NEW_TRIE_METHOD" --is_rec_more_start "$IS_REC_MORE_START" \
                --routing_mode "$ROUTING_MODE" \
                --baseline_alg "$BASELINE_ALG" \
+               --ung_distance_mode "$UNG_DISTANCE_MODE" \
                --efs_start "$ACORN_EFS_START" \
-               --efs_step_slow "$ACORN_EFS_STEP_SLOW" --efs_step_fast "$ACORN_EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" 
+               --efs_step_slow "$ACORN_EFS_STEP_SLOW" --efs_step_fast "$ACORN_EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
+               --optimize_standalone_prefilter "$OPTIMIZE_STANDALONE_PREFILTER"
                     
             echo "--- Finished: Dataset=[$DATASET], Query=[$QUERY_DIR_NAME], Algorithm=[$ALGORITHM_NAME] ---"
         done

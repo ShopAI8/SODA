@@ -13,7 +13,7 @@ import faiss
 # translation of test_knn.lua
 
 import numpy as np
-from common_faiss_tests import Randu10k, get_dataset_2, Randu10kUnbalanced
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import Randu10k, get_dataset_2, Randu10kUnbalanced
 
 ev = Randu10k()
 

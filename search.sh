@@ -36,6 +36,11 @@ while [[ $# -gt 0 ]]; do
     fi
 done
 
+# 默认参数
+if [ -z "$UNG_DISTANCE_MODE" ]; then
+    UNG_DISTANCE_MODE="exact"
+fi
+
 # --- Step 2: 根据搜索参数构造唯一的结果输出目录 ---
 SAFE_QUERY_NAME=$(echo "$QUERY_DIR_NAME" | tr '/' '_')
 GT_DIR_NAME="GT_${SAFE_QUERY_NAME}_K${K}"
@@ -47,8 +52,7 @@ mkdir -p "$RESULT_OUTPUT_DIR/results"
 mkdir -p "$RESULT_OUTPUT_DIR/others"
 
 # --- Step 4: 准备Lsearch参数序列 ---
-# LSEARCH_VALUES=$(seq "$LSEARCH_START" "$LSEARCH_STEP" "$LSEARCH_END" | tr '\n' ' ')
-LSEARCH_VALUES=$( for ((i=$LSEARCH_START; i<=$LSEARCH_END; )); do echo $i; if [ $i -lt 500 ]; then i=$((i+10)); else i=$((i+$LSEARCH_STEP)); fi; done | tr '\n' ' ' )
+LSEARCH_VALUES=$(seq "$LSEARCH_START" "$LSEARCH_STEP" "$LSEARCH_END" | tr '\n' ' ')
 echo "将在以下Lsearch值上进行测试: $LSEARCH_VALUES"
 
 # --- Step 5: 定义依赖文件和目录的路径 ---
@@ -61,20 +65,61 @@ fi
 INDEX_PATH="${SHARED_OUTPUT_DIR}/${INDEX_BASE_DIR}/${INDEX_DIR_NAME}"
 GT_PATH="${SHARED_OUTPUT_DIR}/GroundTruth/${GT_DIR_NAME}"
 MODEL_PATH="${SHARED_OUTPUT_DIR}/SelectModels"
-# MODEL_PATH="/home/fengxiaoyao/FilterVector/FilterVectorResults/OLD/${DATASET}/SelectModels"
-ACORN_INDEX_PREFIX="${INDEX_PATH}/acorn_output/"
+# MODEL_PATH="/noraiddata/lijiakang/FilterVector/FilterVectorResults/OLD/${DATASET}/SelectModels"
+ACORN_INDEX_PREFIX="${INDEX_PATH}/acorn_output"
+NAVIX_INDEX_PATH="${INDEX_PATH}/navix_output/hnsw_base.index"
+ACORN_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn.index"
+ACORN_1_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn1.index"
 
 QUERY_DIR="${DATA_DIR}/${QUERY_DIR_NAME}"
 echo "Using query directory from: $QUERY_DIR"
 
-ACORN_INDEX_PREFIX="${INDEX_PATH}/acorn_output/"
+# SmartRoute++/pre-filter-rabitq 场景下，UNG 走 RQB 索引；
+# 若 RQB 目录未构建所需 ACORN/NaviX 文件，则自动回退到非 RQB 目录读取对应索引文件。
+if [[ "$UNG_DISTANCE_MODE" == "rabitq" && "$INDEX_DIR_NAME" =~ ^(.*)_RQB[0-9]+$ ]]; then
+    EXACT_INDEX_DIR_NAME="${BASH_REMATCH[1]}"
+    EXACT_INDEX_PATH="${SHARED_OUTPUT_DIR}/${INDEX_BASE_DIR}/${EXACT_INDEX_DIR_NAME}"
+
+    # rabitq 模式优先要求 rabitq ACORN 文件；若 RQB 目录缺失则回退到 exact 标准 ACORN。
+    if [[ ! -f "${ACORN_INDEX_PREFIX}/acorn_rabitq.index" || ! -f "${ACORN_INDEX_PREFIX}/acorn1_rabitq.index" ]]; then
+        if [[ -f "${EXACT_INDEX_PATH}/acorn_output/acorn.index" && -f "${EXACT_INDEX_PATH}/acorn_output/acorn1.index" ]]; then
+            echo "[INFO] ACORN RAbitQ index files not found in RQB dir, fallback to exact dir: ${EXACT_INDEX_PATH}/acorn_output"
+            ACORN_INDEX_PREFIX="${EXACT_INDEX_PATH}/acorn_output"
+        fi
+    fi
+
+    if [[ ! -f "$NAVIX_INDEX_PATH" && -f "${EXACT_INDEX_PATH}/navix_output/hnsw_base.index" ]]; then
+        echo "[INFO] NaviX index not found in RQB dir, fallback to exact dir: ${EXACT_INDEX_PATH}/navix_output/hnsw_base.index"
+        NAVIX_INDEX_PATH="${EXACT_INDEX_PATH}/navix_output/hnsw_base.index"
+    fi
+fi
+
+# 根据最终 ACORN_INDEX_PREFIX 重新设置默认索引路径
+ACORN_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn.index"
+ACORN_1_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn1.index"
+
+if [[ "$UNG_DISTANCE_MODE" == "rabitq" ]]; then
+    if [[ -f "${ACORN_INDEX_PREFIX}/acorn_rabitq.index" && -f "${ACORN_INDEX_PREFIX}/acorn1_rabitq.index" ]]; then
+        ACORN_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn_rabitq.index"
+        ACORN_1_INDEX_FILE="${ACORN_INDEX_PREFIX}/acorn1_rabitq.index"
+        echo "[INFO] Using ACORN RAbitQ index files."
+    else
+        echo "[INFO] ACORN RAbitQ index files not found, fallback to standard ACORN files."
+    fi
+fi
 
 echo "使用索引: $INDEX_PATH"
 echo "使用GT: $GT_PATH"
 echo "结果将保存到: $RESULT_OUTPUT_DIR"
+echo "使用 ACORN 索引: ${ACORN_INDEX_FILE}"
+echo "使用 NaviX 索引: $NAVIX_INDEX_PATH"
 
 # --- Step 6: 执行搜索 ---
-# gdb --batch --ex "run" --ex "bt" --args \
+PERF_EVENTS="cache-references,cache-misses,L1-dcache-loads,L1-dcache-load-misses,l2_rqsts.all_demand_data_rd,l2_rqsts.demand_data_rd_miss,LLC-loads,LLC-load-misses,branches,branch-misses"
+PERF_LOG_PATH="$RESULT_OUTPUT_DIR/others/${DATASET}_perf_stat.log"
+echo "性能分析(Perf stat)结果将独立保存到: $PERF_LOG_PATH"
+
+perf stat -e $PERF_EVENTS -o "$PERF_LOG_PATH" \
 "$BUILD_DIR"/apps/search_UNG_index \
     --data_type float  --dataset "$DATASET" --dist_fn L2 --num_threads "$NUM_THREADS" --K "$K" --num_repeats "$NUM_REPEATS" \
     --is_new_method true \
@@ -88,7 +133,7 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
     --gt_file "$GT_PATH/${DATASET}_gt_labels_containment.bin" \
     --index_path_prefix "$INDEX_PATH/index_files/" \
     --result_path_prefix "$RESULT_OUTPUT_DIR/results/" \
-    --acorn_index_path "$ACORN_INDEX_PREFIX/acorn.index" --acorn_1_index_path "$ACORN_INDEX_PREFIX/acorn1.index" \
+    --acorn_index_path "${ACORN_INDEX_FILE}" --acorn_1_index_path "${ACORN_1_INDEX_FILE}" \
     --selector_modle_prefix "${MODEL_PATH}" \
     --scenario containment \
     --num_entry_points "$NUM_ENTRY_POINTS" \
@@ -97,18 +142,20 @@ echo "结果将保存到: $RESULT_OUTPUT_DIR"
     --lsearch_step "$LSEARCH_STEP" \
     --efs_start "$EFS_START" \
     --efs_step_slow "$EFS_STEP_SLOW" --efs_step_fast "$EFS_STEP_FAST" --lsearch_threshold "$LSEARCH_THRESHOLD" \
-    --navix_index_path "$INDEX_PATH/navix_output/hnsw_base.index" \
-    --algo_choice_csv "$QUERY_DIR/algo_choice_repeat.csv" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
+    --ung_distance_mode "$UNG_DISTANCE_MODE" \
+    --navix_index_path "$NAVIX_INDEX_PATH" \
+    --algo_choice_csv "$QUERY_DIR/algo_choice_repeat.csv" \
+    --optimize_standalone_prefilter "${OPTIMIZE_STANDALONE_PREFILTER:-false}" > "$RESULT_OUTPUT_DIR/others/${DATASET}_search_output.txt" 2>&1
 
 # --- Step 7: 后处理，计算各指标全局平均值 ---
-# echo "正在计算所有 Query 指标的全局平均值..."
-# DETAILS_CSV="${RESULT_OUTPUT_DIR}/results/query_details_repeat${NUM_REPEATS}.csv"
-# AVERAGE_CSV="${RESULT_OUTPUT_DIR}/results/query_details_global_average.csv"
+echo "正在计算所有 Query 指标的全局平均值..."
+DETAILS_CSV="${RESULT_OUTPUT_DIR}/results/query_details_repeat${NUM_REPEATS}.csv"
+AVERAGE_CSV="${RESULT_OUTPUT_DIR}/results/query_details_global_average.csv"
 
-# if [ -f "$DETAILS_CSV" ]; then
-#     python3 UNG/data/average_query_details.py --input_csv "$DETAILS_CSV" --output_csv "$AVERAGE_CSV"
-# else
-#     echo "⚠️ 未找到明细文件 $DETAILS_CSV，跳过平均值计算。"
-# fi
+if [ -f "$DETAILS_CSV" ]; then
+    python3 UNG/data/average_query_details.py --input_csv "$DETAILS_CSV" --output_csv "$AVERAGE_CSV"
+else
+    echo "⚠️ 未找到明细文件 $DETAILS_CSV，跳过平均值计算。"
+fi
 
 echo "所有搜索和统计任务已全部结束！"

@@ -114,16 +114,73 @@ namespace faiss
          }
       };
 
-      DistanceComputer *storage_distance_computer(const Index *storage)
+      struct BackendDistanceComputer : DistanceComputer
       {
+         DistanceComputer *basedis;
+         std::unique_ptr<ACORNDistanceBackend> backend;
+         bool backend_ready = false;
+
+         explicit BackendDistanceComputer(
+             DistanceComputer *basedis,
+             const std::shared_ptr<ACORNDistanceBackend> &backend_proto)
+             : basedis(basedis)
+         {
+            if (backend_proto)
+            {
+               backend = backend_proto->clone();
+            }
+         }
+
+         void set_query(const float *x) override
+         {
+            basedis->set_query(x);
+            backend_ready = false;
+            if (backend)
+            {
+               backend_ready = backend->prepare_query(x);
+            }
+         }
+
+         float operator()(idx_t i) override
+         {
+            if (backend && backend_ready)
+            {
+               return backend->distance(i);
+            }
+            return (*basedis)(i);
+         }
+
+         float symmetric_dis(idx_t i, idx_t j) override
+         {
+            return basedis->symmetric_dis(i, j);
+         }
+
+         ~BackendDistanceComputer() override
+         {
+            delete basedis;
+         }
+      };
+
+      DistanceComputer *storage_distance_computer(
+          const Index *storage,
+          const std::shared_ptr<ACORNDistanceBackend> &backend_proto = nullptr)
+      {
+         DistanceComputer *base = nullptr;
          if (storage->metric_type == METRIC_INNER_PRODUCT)
          {
-            return new NegativeDistanceComputer(storage->get_distance_computer());
+            base = new NegativeDistanceComputer(storage->get_distance_computer());
          }
          else
          {
-            return storage->get_distance_computer();
+            base = storage->get_distance_computer();
          }
+
+         // Runtime backend is only meaningful for non-IP metric paths.
+         if (backend_proto && storage->metric_type != METRIC_INNER_PRODUCT)
+         {
+            return new BackendDistanceComputer(base, backend_proto);
+         }
+         return base;
       }
 
       // TODO
@@ -418,6 +475,7 @@ namespace faiss
           storage,
           "Please use IndexACORNFlat (or variants) instead of IndexACORN directly");
       const SearchParametersACORN *params = nullptr;
+      std::shared_ptr<ACORNDistanceBackend> distance_backend = nullptr;
 
       int efSearch = acorn.efSearch;
       if (params_in)
@@ -425,6 +483,7 @@ namespace faiss
          params = dynamic_cast<const SearchParametersACORN *>(params_in);
          FAISS_THROW_IF_NOT_MSG(params, "params type invalid");
          efSearch = params->efSearch;
+         distance_backend = params->distance_backend;
       }
       size_t n1 = 0, n2 = 0, n3 = 0, ndis = 0, nreorder = 0;
       double candidates_loop = 0, neighbors_loop = 0, tuple_unwrap = 0, skips = 0,
@@ -441,7 +500,7 @@ namespace faiss
          {
             VisitedTable vt(ntotal);
 
-            DistanceComputer *dis = storage_distance_computer(storage);
+            DistanceComputer *dis = storage_distance_computer(storage, distance_backend);
             ScopeDeleter1<DistanceComputer> del(dis);
 
 #pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
@@ -687,6 +746,7 @@ namespace faiss
          storage,
          "Please use IndexACORNFlat (or variants) instead of IndexACORN directly");
      const SearchParametersACORN *params = nullptr;
+     std::shared_ptr<ACORNDistanceBackend> distance_backend = nullptr;
 
      int efSearch = acorn.efSearch;
      if (params_in)
@@ -694,6 +754,7 @@ namespace faiss
         params = dynamic_cast<const SearchParametersACORN *>(params_in);
         FAISS_THROW_IF_NOT_MSG(params, "params type invalid");
         efSearch = params->efSearch;
+        distance_backend = params->distance_backend;
      }
      size_t n1 = 0, n2 = 0, n3 = 0, ndis = 0, nreorder = 0;
      double candidates_loop = 0, neighbors_loop = 0, tuple_unwrap = 0, skips = 0,
@@ -710,7 +771,7 @@ namespace faiss
         {
            VisitedTable vt(ntotal);
 
-           DistanceComputer *dis = storage_distance_computer(storage);
+           DistanceComputer *dis = storage_distance_computer(storage, distance_backend);
            ScopeDeleter1<DistanceComputer> del(dis);
 
 #pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
@@ -802,6 +863,7 @@ namespace faiss
           storage,
           "Please use IndexACORNFlat (or variants) instead of IndexACORN directly");
       const SearchParametersACORN *params = nullptr;
+      std::shared_ptr<ACORNDistanceBackend> distance_backend = nullptr;
 
       int efSearch = acorn.efSearch;
       if (params_in)
@@ -809,6 +871,7 @@ namespace faiss
          params = dynamic_cast<const SearchParametersACORN *>(params_in);
          FAISS_THROW_IF_NOT_MSG(params, "params type invalid");
          efSearch = params->efSearch;
+         distance_backend = params->distance_backend;
       }
       size_t n1 = 0, n2 = 0, n3 = 0, ndis = 0, nreorder = 0;
 
@@ -823,7 +886,7 @@ namespace faiss
          {
             VisitedTable vt(ntotal);
 
-            DistanceComputer *dis = storage_distance_computer(storage);
+            DistanceComputer *dis = storage_distance_computer(storage, distance_backend);
             ScopeDeleter1<DistanceComputer> del(dis);
 
 #pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder)
@@ -955,6 +1018,7 @@ namespace faiss
           storage,
           "Please use IndexACORNFlat (or variants) instead of IndexACORN directly");
       const SearchParametersACORN *params = nullptr;
+      std::shared_ptr<ACORNDistanceBackend> distance_backend = nullptr;
 
       int efSearch = acorn.efSearch;
       if (params_in)
@@ -962,6 +1026,7 @@ namespace faiss
          params = dynamic_cast<const SearchParametersACORN *>(params_in);
          FAISS_THROW_IF_NOT_MSG(params, "params type invalid");
          efSearch = params->efSearch;
+         distance_backend = params->distance_backend;
       }
 
       idx_t check_period =
@@ -979,7 +1044,7 @@ namespace faiss
          {
             VisitedTable vt(ntotal);
 
-            DistanceComputer *dis = storage_distance_computer(storage);
+            DistanceComputer *dis = storage_distance_computer(storage, distance_backend);
             ScopeDeleter1<DistanceComputer> del(dis);
 
 #pragma omp for

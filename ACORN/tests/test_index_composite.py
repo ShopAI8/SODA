@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import platform
 
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.ACORN.tests.common_faiss_tests import get_dataset_2
 
 
 class TestRemoveFastScan(unittest.TestCase):

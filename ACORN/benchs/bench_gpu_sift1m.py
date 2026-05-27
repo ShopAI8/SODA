@@ -9,7 +9,7 @@ import numpy as np
 import pdb
 
 import faiss
-from datasets import load_sift1M, evaluate
+from FilterVector.FilterVectorCode.ACORN.benchs.datasets import load_sift1M, evaluate
 
 
 print("load data")

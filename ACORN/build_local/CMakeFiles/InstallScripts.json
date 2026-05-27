@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/faiss/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/demos/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/benchs/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/tutorial/cpp/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/tests/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/_deps/googletest-build/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/_deps/googletest-build/googletest/cmake_install.cmake",
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/_deps/nlohmann_json-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

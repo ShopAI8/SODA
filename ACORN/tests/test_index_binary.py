@@ -11,7 +11,7 @@ import numpy as np
 import unittest
 import faiss
 
-from common_faiss_tests import compare_binary_result_lists, make_binary_dataset
+from FilterVector.FilterVectorCode.ACORN.tests.common_faiss_tests import compare_binary_result_lists, make_binary_dataset
 
 
 

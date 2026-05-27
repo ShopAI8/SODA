@@ -37,7 +37,7 @@ import re
 import shutil
 
 # ================= 配置区域 =================
-BASE_ROOT = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
+BASE_ROOT = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 DATASETS = ["BookReviews"] 
 ALGORITHMS = ["UNG-nTfalse", "method3", "ACORN-gamma-improved","ACORN-gamma","ACORN-1"] #"UNG-nTfalse", "method3", "ACORN-gamma-improved","ACORN-gamma","ACORN-1"
 

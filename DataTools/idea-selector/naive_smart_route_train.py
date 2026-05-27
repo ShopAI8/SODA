@@ -23,13 +23,12 @@ except ImportError:
 # 1. 全局配置区域
 # ==========================================
 DATASET_LIST = ["Amazon", "BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
-BASE_DIR = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
+BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 
 # 记得修改output_dir！！！！！！
 
 ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'pre-filter']
 MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
-# MODELS_TO_TRY = ["XGBoost"]
 
 NAIVE_STRATEGY = {
     "default": "auto"

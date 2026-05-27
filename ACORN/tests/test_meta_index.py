@@ -8,7 +8,7 @@ import numpy as np
 import faiss
 import unittest
 
-from common_faiss_tests import Randu10k
+from FilterVector.FilterVectorCode.ACORN.tests.common_faiss_tests import Randu10k
 
 ru = Randu10k()
 

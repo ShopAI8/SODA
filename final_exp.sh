@@ -1,48 +1,39 @@
 #!/bin/bash
-set -e
 
-echo "=== 开始执行实验... ==="
+LOG_DIR="log"
+mkdir -p "$LOG_DIR"
+cd /home/lijiakang/FilterVector/FilterVectorCode
+echo "=== 启动批量实验任务流程 ==="
+echo "所有执行记录将保存至：$(pwd)/$LOG_DIR"
 
-# echo "$(date): [步骤 1] 运行 experiments-Reviews-1-2..."
-# cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-# ./exp.sh experiment_json/experiments-Reviews-1-2.json
+DATASETS=(
+    "Genome"
+    "Amazon"
+    "Reviews"
+)
 
-echo "$(date): [步骤 2] 运行 experiments-Genome-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Genome-baseline-1000-1.json > output.log
+PERF_EVENTS="cache-references,cache-misses,L1-dcache-loads,L1-dcache-load-misses,l2_rqsts.all_demand_data_rd,l2_rqsts.demand_data_rd_miss,LLC-loads,LLC-load-misses,branches,branch-misses"
 
-echo "$(date): [步骤 0] 运行 experiments-Amazon-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Amazon-baseline-1000-1.json > output.log
+for i in "${!DATASETS[@]}"; do
+    DS_NAME=${DATASETS[$i]}
+    JSON_FILE="experiment_json/202604-200-random-300-mix-th-K/experiments-${DS_NAME}-200-random-300-mix-len.json"
+    OUTPUT_LOG="$LOG_DIR/${DS_NAME}_output.log"
+    PERF_SUMMARY_LOG="$LOG_DIR/${DS_NAME}_perf_summary.log"
 
-echo "$(date): [步骤 1] 运行 experiments-BookReviews-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-BookReviews-baseline-1000-1.json > output.log
+    if [ ! -f "$JSON_FILE" ]; then
+        echo "$(date): [步骤 $i] 警告：找不到配置文件 $JSON_FILE，跳过。"
+        continue
+    fi
 
-echo "$(date): [步骤 3] 运行 experiments-Music-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Music-baseline-1000-1.json > output.log
+    echo "$(date): [步骤 $i] 正在处理数据集: $DS_NAME"
+    echo "   >> 运行日志: $OUTPUT_LOG"
+    echo "   >> 汇总性能数据: $PERF_SUMMARY_LOG"
 
-echo "$(date): [步骤 4] 运行 experiments-Reviews-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Reviews-baseline-1000-1.json > output.log
+    perf stat -e "$PERF_EVENTS" -o "$PERF_SUMMARY_LOG" \
+        ./exp.sh "$JSON_FILE" > "$OUTPUT_LOG" 2>&1
 
-echo "$(date): [步骤 5] 运行 experiments-Tiktok-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Tiktok-baseline-1000-1.json > output.log
+    echo "$(date): [步骤 $i] 数据集 $DS_NAME 任务执行完毕。"
+    echo "----------------------------------------------------------------"
+done
 
-echo "$(date): [步骤 6] 运行 experiments-VariousImg-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-VariousImg-baseline-1000-1.json > output.log
-
-echo "$(date): [步骤 7] 运行 experiments-Laion-baseline..."
-cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-./exp.sh /home/sunyahui/ljk/FilterVector/FilterVectorCode/experiment_json/202604-baseline_ljk/experiments-Laion-baseline-1000-1.json > output.log
-
-# echo "$(date): [步骤 8] 运行 experiments-Laion-ACORN-big..."
-# cd /home/sunyahui/ljk/FilterVector/FilterVectorCode
-# ./exp.sh experiment_json/experiments-Laion-ACORN-big.json > output.log
-
-
-
-echo "$(date): === 所有任务执行完毕。 ==="
+echo "$(date): === 所有批量实验已全部执行结束！日志存放在 $LOG_DIR 文件夹下。 ==="

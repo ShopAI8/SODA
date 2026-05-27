@@ -14,7 +14,7 @@ import faiss
 import numpy as np
 import sys
 
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import get_dataset_2
 
 from faiss.contrib import (
     big_batch_search,

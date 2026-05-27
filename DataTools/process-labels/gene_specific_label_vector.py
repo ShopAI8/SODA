@@ -8,13 +8,13 @@ import sys
 
 # 1. 输入: Base 向量库文件路径 (.fvecs)
 #    脚本需要从这里随机抽取向量
-INPUT_BASE_VECTORS = '/home/fengxiaoyao/FilterVector/FilterVectorData/BookReviews/BookReviews_base.fvecs'
+INPUT_BASE_VECTORS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews/BookReviews_base.fvecs'
 
 # 2. 输出: 生成的查询标签文件路径 (.txt)
-OUTPUT_QUERY_LABELS = '/home/fengxiaoyao/FilterVector/FilterVectorData/BookReviews/query_D_23/BookReviews_query_labels.txt'
+OUTPUT_QUERY_LABELS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews/query_D_23/BookReviews_query_labels.txt'
 
 # 3. 输出: 生成的查询向量文件路径 (.fvecs)
-OUTPUT_QUERY_VECTORS = '/home/fengxiaoyao/FilterVector/FilterVectorData/BookReviews/query_D_23/BookReviews_query.fvecs'
+OUTPUT_QUERY_VECTORS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews/query_D_23/BookReviews_query.fvecs'
 
 # 4. 核心任务配置: { '标签名': 数量 }
 #    例如: {'1': 10, '100': 5} 表示生成 10 个标签为 '1' 的查询，和 5 个标签为 '100' 的查询

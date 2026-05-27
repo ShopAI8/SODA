@@ -10,7 +10,7 @@ import numpy as np
 import re
 import faiss
 from multiprocessing.pool import ThreadPool
-from datasets import ivecs_read
+from FilterVector.FilterVectorCode.ACORN.benchs.datasets import ivecs_read
 
 
 # we mem-map the biggest files to avoid having them in memory all at

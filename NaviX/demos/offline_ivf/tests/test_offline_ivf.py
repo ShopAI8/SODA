@@ -5,12 +5,12 @@
 
 import numpy as np
 import unittest
-from utils import load_config
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.utils import load_config
 import pathlib as pl
 import tempfile
 from typing import List
-from tests.testing_utils import TestDataCreator
-from run import process_options_and_run_jobs
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.tests.testing_utils import TestDataCreator
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.run import process_options_and_run_jobs
 
 KNN_RESULTS_FILE: str = (
     "/my_test_data_in_my_test_data/knn/I0000000000_IVF256_PQ4_np2.npy"

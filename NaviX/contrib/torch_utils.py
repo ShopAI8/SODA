@@ -22,7 +22,7 @@ or Torch tensors; no mixing is allowed.
 
 
 import faiss
-import torch
+import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
 import contextlib
 import inspect
 import sys

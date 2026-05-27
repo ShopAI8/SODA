@@ -92,3 +92,65 @@ float MethodSelector::predict(const std::vector<float> &features)
 
    return final_prediction;
 }
+
+
+std::vector<float> MethodSelector::predict_batch(const std::vector<std::vector<float>>& batch_features) {
+    if (batch_features.empty()) {
+        return {};
+    }
+
+    size_t batch_size = batch_features.size();
+    size_t feature_dim = batch_features[0].size();
+
+    // 1. 将 2D 数组展平为 1D 连续内存,预分配内存避免多次扩容
+    std::vector<float> flat_input;
+    flat_input.reserve(batch_size * feature_dim);
+    for (const auto& row : batch_features) {
+        flat_input.insert(flat_input.end(), row.begin(), row.end());
+    }
+
+    // 2. 设置输入 Tensor 的 Shape (维度: [batch_size, feature_dim])
+    std::vector<int64_t> input_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(feature_dim) };
+
+    // 3. 创建 ONNX Runtime 的输入 Tensor
+    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+        memory_info, 
+        flat_input.data(), 
+        flat_input.size(), 
+        input_shape.data(), 
+        input_shape.size()
+    );
+
+   // 4. 运行推理
+    auto output_tensors = _session.Run(
+        Ort::RunOptions{nullptr},
+        _input_node_names.data(),
+        &input_tensor,
+        1,
+        _output_node_names.data(),
+        1
+    );
+
+    // 5. 提取批量输出结果并进行安全类型转换
+    Ort::Value& output_tensor = output_tensors.front();
+    auto type_info = output_tensor.GetTensorTypeAndShapeInfo().GetElementType();
+
+    std::vector<float> results(batch_size);
+
+    if (type_info == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64) {
+        int64_t* output_data = output_tensor.GetTensorMutableData<int64_t>();
+        // 逐个安全转换为 float
+        for (size_t i = 0; i < batch_size; ++i) {
+            results[i] = static_cast<float>(output_data[i]);
+        }
+    } else if (type_info == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+        float* output_data = output_tensor.GetTensorMutableData<float>();
+        // 如果本身就是 float，直接拷贝
+        results.assign(output_data, output_data + batch_size);
+    } else {
+        throw std::runtime_error("Unsupported ONNX output type in batch prediction!");
+    }
+
+    return results;
+}

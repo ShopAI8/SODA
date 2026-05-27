@@ -7,13 +7,14 @@ import sys
 # --- 辅助函数：定义算法和指标的简称 ---
 # ==============================================================================
 
-METRIC_MAP_SELECT = {'SearchTime_ms': 'ST'}
+# METRIC_MAP_SELECT = {'SearchTime_ms': 'ST'}
+METRIC_MAP_SELECT = {'Time_ms': 'T'}
 ALGO_MAP_SELECT = {
-    'SmartRoute': 'SR', 'FastSmartRoute': 'FSR', 'FastSmartRoute+': 'FSR+', 
+    'SmartRoute': 'SR',
     'pre-filter': 'PR', 'NaviX-ACORN': 'NX',
     'ACORN-gamma': 'AG', 'ACORN-1': 'A1',
     'ACORN-gamma-improved': 'AGI',
-    'UNG-nTfalse': 'UNG', 'UNG-nTtrue': 'UNGT'
+    'UNG-nTfalse': 'UNG', 'UNG+': 'UNG+'
 }
 
 # ==============================================================================
@@ -134,7 +135,8 @@ def run_selection(merged_summary_path, output_path, params, attribute_coverage_p
             return
 
         try:
-            metric_short = METRIC_MAP_SELECT['SearchTime_ms']
+            # metric_short = METRIC_MAP_SELECT['SearchTime_ms']
+            metric_short = METRIC_MAP_SELECT['Time_ms']
             target_col = f"{metric_short}_{ALGO_MAP_SELECT[target_alg]}"
             
             if target_col not in df_full.columns:
@@ -212,74 +214,73 @@ def run_selection(merged_summary_path, output_path, params, attribute_coverage_p
     df_C = df_qualified[df_qualified['QueryID'] >= bound_c_min].copy()
     
     # ========================================================
-    # --- 检查并应用 A 类 Recall 过滤器 ---
+    # ---  Recall 过滤器 (A, B, C 类) ---
     # ========================================================
-    a_filter_config = params.get("a_recall_filter", {})
-    
-    if (a_filter_config.get("enabled", False) and 
-        "algorithm_name" in a_filter_config and 
-        "min_recall" in a_filter_config):
-        
-        alg_key = a_filter_config["algorithm_name"]
-        min_recall = a_filter_config["min_recall"]
-        
-        # 检查算法是否在映射表 ALGO_MAP_SELECT 中
-        if alg_key not in ALGO_MAP_SELECT:
-            print(f"\n  -> 警告: 'a_recall_filter' 中的算法 '{alg_key}' 不在 ALGO_MAP_SELECT 中，跳过 A 类过滤器。")
-        else:
-            # 动态构建列名，例如: 'R_AG' (R 来自 pipeline, AG 来自 select)
-            alg_short_name = ALGO_MAP_SELECT[alg_key]
-            recall_col = f"R_{alg_short_name}" 
+    for category_label, df_cat, filter_key in [
+        ("A", df_A, "a_recall_filter"),
+        ("B", df_B, "b_recall_filter"),
+        ("C", df_C, "c_recall_filter")
+    ]:
+        recall_conf = params.get(filter_key, {})
+        if (recall_conf.get("enabled", False) and 
+            "algorithm_name" in recall_conf and 
+            "min_recall" in recall_conf):
             
-            if recall_col not in df_A.columns:
-                print(f"\n  -> 警告: 找不到列 '{recall_col}'，无法应用 A 类 Recall 过滤器。")
-            else:
-                print(f"\n  -> 正在对 A 类查询应用过滤器: {recall_col} >= {min_recall}")
-                original_a_count = len(df_A)
-                df_A = df_A[df_A[recall_col] >= min_recall]
-                print(f"     -> A 类合格查询数从 {original_a_count} 减少到 {len(df_A)}")
+            alg_key = recall_conf["algorithm_name"]
+            min_recall = recall_conf["min_recall"]
+            
+            if alg_key in ALGO_MAP_SELECT:
+                alg_short_name = ALGO_MAP_SELECT[alg_key]
+                recall_col = f"R_{alg_short_name}" 
+                
+                if recall_col in df_cat.columns:
+                    print(f"\n  -> 正在对 {category_label} 类查询应用 Recall 过滤器: {recall_col} >= {min_recall}")
+                    original_count = len(df_cat)
+                    if category_label == "A": df_A = df_A[df_A[recall_col] >= min_recall]
+                    elif category_label == "B": df_B = df_B[df_B[recall_col] >= min_recall]
+                    elif category_label == "C": df_C = df_C[df_C[recall_col] >= min_recall]
+                    
+                    new_count = len(df_A) if category_label == "A" else (len(df_B) if category_label == "B" else len(df_C))
+                    print(f"     -> {category_label} 类合格查询数从 {original_count} 减少到 {new_count}")
+                else:
+                    print(f"\n  -> 警告: 找不到列 '{recall_col}'，无法应用 {category_label} 类 Recall 过滤器。")
 
-    
     # ========================================================
-    # --- 检查并应用 C 类 p_pass (覆盖率) [min, max] 过滤 ---
+    # --- p_pass 范围过滤器 (B, C 类) ---
     # ========================================================
     dataset_name = params.get("current_dataset_name", None)
-    c_ppass_filters = params.get("c_ppass_filters", {}) # 读取 config.json
     
-    if dataset_name in c_ppass_filters:
-        ppass_range = c_ppass_filters[dataset_name]
+    for category_label, df_cat, filter_root_key in [
+        ("B", df_B, "b_ppass_filters"),
+        ("C", df_C, "c_ppass_filters")
+    ]:
+        ppass_filters_map = params.get(filter_root_key, {})
         
-        # 1. 验证格式是否为 [min, max] 列表
-        if (isinstance(ppass_range, list) and 
-            len(ppass_range) == 2 and 
-            (isinstance(ppass_range[0], (int, float, type(None))) or 
-             isinstance(ppass_range[1], (int, float, type(None))))):
+        if dataset_name in ppass_filters_map:
+            ppass_range = ppass_filters_map[dataset_name]
             
-            min_ppass, max_ppass = ppass_range[0], ppass_range[1]
-            
-            print(f"\n  -> 正在对 C 类查询应用 'p_pass' 范围过滤器 (来自 config.json):")
-            print(f"     -> 数据集 '{dataset_name}' 要求 p_pass 范围: [{min_ppass or 'N/A'}, {max_ppass or 'N/A'}]")
-            
-            original_c_count_ppass = len(df_C)
-            
-            if 'p_pass' not in df_C.columns:
-                print("     -> 警告: 找不到 'p_pass' 列，无法应用 C 类 p_pass 过滤器。")
-            else:
-                # 2. 按需应用过滤器
-                if min_ppass is not None:
-                    df_C = df_C[df_C['p_pass'] >= min_ppass]
+            if (isinstance(ppass_range, list) and len(ppass_range) == 2):
+                min_ppass, max_ppass = ppass_range[0], ppass_range[1]
+                print(f"\n  -> 正在对 {category_label} 类查询应用 'p_pass' 过滤器 (来自 {filter_root_key}):")
+                print(f"     -> 范围: [{min_ppass or 'N/A'}, {max_ppass or 'N/A'}]")
                 
-                if max_ppass is not None:
-                    df_C = df_C[df_C['p_pass'] <= max_ppass]
+                original_count = len(df_cat)
                 
-                print(f"     -> C 类合格查询数 (p_pass 过滤后) 从 {original_c_count_ppass} 减少到 {len(df_C)}")
+                if 'p_pass' in df_cat.columns:
+                    mask = pd.Series(True, index=df_cat.index)
+                    if min_ppass is not None: mask &= (df_cat['p_pass'] >= min_ppass)
+                    if max_ppass is not None: mask &= (df_cat['p_pass'] <= max_ppass)
+                    
+                    if category_label == "B": df_B = df_B[mask]
+                    elif category_label == "C": df_C = df_C[mask]
+                    
+                    new_count = len(df_B) if category_label == "B" else len(df_C)
+                    print(f"     -> {category_label} 类合格查询数从 {original_count} 减少到 {new_count}")
+                else:
+                    print(f"     -> 警告: 找不到 'p_pass' 列。")
 
-        else:
-            print(f"     -> 警告: '{dataset_name}' 的 'c_ppass_filters' 格式不正确。应为 [min, max] 列表。跳过此过滤器。")
-
-    
     # ========================================================
-    # --- (新增) 检查并应用 C 类长度过滤器 ---
+    # ---  检查并应用 C 类长度过滤器 ---
     # ========================================================
     c_length_range = params.get("c_length_range", None)
     
@@ -313,7 +314,7 @@ def run_selection(merged_summary_path, output_path, params, attribute_coverage_p
         return
 
     # --- 步骤 C: 按比例随机抽样 ---
-    TOTAL_SELECT = 1000
+    TOTAL_SELECT = 200
     
     ratios_list = params.get('selection_ratios', [1, 1, 2])
     

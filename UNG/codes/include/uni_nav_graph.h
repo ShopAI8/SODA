@@ -6,8 +6,10 @@
 #include "distance.h"
 #include "search_cache.h"
 #include "label_nav_graph.h"
+#include "rabitq_side_index.h"
 #include "vamana/vamana.h"
 #include "MethodSelector.h"
+#include "ThreadPool.h"
 #include "../../../ACORN/faiss/IndexACORN.h"
 #include "../../../ACORN/faiss/index_io.h"
 #include <unordered_map>
@@ -17,6 +19,11 @@
 #include <roaring/roaring.h>
 #include <roaring/roaring.hh>
 #include <faiss_navix/IndexHNSW.h>
+#include <memory>
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+#include <knowhere/index/index.h>
+#include <knowhere/index/index_node.h>
+#endif
 
 using BitsetType = boost::dynamic_bitset<>;
 
@@ -87,8 +94,21 @@ namespace ANNS
     double els_filter_time = 0;
     double els_total_time = 0;
 
-    //是否为UNG-loose
-    bool is_ung_loose = false;  
+      double global_sort_time_ms = 0.0;  // 记录平摊后的排序耗时
+      double mask_gen_time_ms = 0.0;     // 记录物理掩码生成耗时
+
+      // ===== RabitQ 细粒度时间统计 =====
+      double rabitq_ctx_prepare_time_ms = 0.0;  // query 预处理 (rotate + q_to_centroids + wrapper)
+      double rabitq_ctx_rotate_time_ms = 0.0;   // query rotate 阶段
+      double rabitq_ctx_q2c_time_ms = 0.0;      // query->centroids 距离预计算阶段
+      double rabitq_ctx_wrapper_time_ms = 0.0;  // wrapper 构造阶段
+      double rabitq_bin_time_ms = 0.0;          // bin 估计累计耗时
+      double rabitq_full_time_ms = 0.0;         // full refine 累计耗时
+      size_t rabitq_bin_calls = 0;              // bin 调用次数
+      size_t rabitq_full_calls = 0;             // full 调用次数
+      bool rabitq_ctx_reused = false;           // 本次查询是否复用已有 context
+
+      
    };
    struct NewEdgeCandidate
    {
@@ -127,6 +147,12 @@ namespace ANNS
    class UniNavGraph
    {
    public:
+      enum class UngDistanceMode
+      {
+         Exact,
+         RabitQ
+      };
+
       UniNavGraph(IdxType num_nodes) : _label_nav_graph(std::make_shared<LabelNavGraph>(num_nodes)) {} // 修改构造函数以初始化 _label_nav_graph
       UniNavGraph() = default;
       ~UniNavGraph() = default;
@@ -159,11 +185,30 @@ namespace ANNS
                          int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
                          int routing_mode, int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index = nullptr,
                          const std::vector<IdxType> &true_query_group_ids = {},// 包含每个查询其真实来源组ID的向量
-                         const std::vector<int>& query_algo_choices = {}); 
+                         const std::vector<int>& query_algo_choices = {},
+                         std::queue<int> task_queue = std::queue<int>(),bool optimize_standalone_prefilter = false); 
+
+      // 全局预测函数：统一计算所有查询的掩码和模型路由
+      std::vector<int> global_predict_algo_choices(
+          std::shared_ptr<IStorage> query_storage,
+          int routing_mode,
+          const std::vector<int>& csv_choices,
+          uint32_t num_threads,
+          std::vector<QueryStats>& out_global_stats);
+
+      // 全局排序函数：根据算法和哈希进行缓存友好重排
+      std::vector<int> get_sorted_query_ids(
+          std::shared_ptr<IStorage> query_storage,
+          const std::vector<int>& algo_choices,
+          int routing_mode);
 
       // I/O
       void save(std::string index_path_prefix, std::string results_path_prefix);
       void load(std::string index_path_prefix, std::string selector_modle_prefix, const std::string &data_type, const std::string &acorn_index_path, const std::string &acorn_1_index_path, const std::string &dataset);
+      void configure_rabitq_build(bool enable, size_t total_bits);
+      void set_ung_distance_mode(const std::string &mode);
+      void prepare_rabitq_query_contexts(std::shared_ptr<IStorage> &query_storage,
+                                         const std::string &query_bin_file = "");
 
       // query generator
 
@@ -266,7 +311,8 @@ namespace ANNS
       bool use_optimized_bitset);
     const std::bitset<16000000>& get_exact_cand_size_and_mask(
       const std::vector<LabelType>& query_labels,
-      size_t& cand_size) const;
+      size_t& cand_size,
+      bool use_optimized = true) const;
 
     // 使用CRoaring进行bitmap计算
     std::vector<roaring::Roaring> _vec_attr_roaring_inv;// 底层向量级别的 CRoaring 倒排索引 (用于极速计算 GlobalPpass)
@@ -277,6 +323,33 @@ namespace ANNS
         IdxType K,
         std::pair<IdxType, float>* results,
         size_t& num_distance_calcs);
+    void search_baseline_rabitq(
+      const std::bitset<16000000>& final_bitmap,
+      IdxType K,
+      std::pair<IdxType, float>* results,
+      size_t& num_distance_calcs,
+      ANNS::rabitq::RabitQSideIndex::QueryContext& query_ctx,
+      QueryStats& stats,
+      bool use_optimized_bitset,
+      const ANNS::rabitq::RabitQSideIndex* side_index = nullptr);
+    void search_baseline_rabitq_roaring(
+      const roaring::Roaring& valid_bitmap,
+      IdxType K,
+      std::pair<IdxType, float>* results,
+      size_t& num_distance_calcs,
+      ANNS::rabitq::RabitQSideIndex::QueryContext& query_ctx,
+      QueryStats& stats,
+      const ANNS::rabitq::RabitQSideIndex* side_index = nullptr);
+    bool run_milvus_knowhere_baseline(
+      IdxType query_id,
+      const char* query,
+      const std::vector<LabelType>& query_labels,
+      IdxType Lsearch,
+      IdxType K,
+      int milvus_baseline_alg,
+      SearchQueue& cur_result,
+      QueryStats& stats,
+      float& num_cmps_out);
 
 
       // 求search中flag需要的数据结构
@@ -313,9 +386,31 @@ namespace ANNS
     const std::string &csv_path,
     size_t expected_num_queries) const;
 
+    // 用于动态控制是否跳过 ELS filter
+    bool skip_els_filter = false;
+
+    // 类成员线程池，用于复用
+    std::unique_ptr<ThreadPool> _thread_pool = nullptr;
+
    private:
 
-      void thread_function(std::queue<int>& Qid_595,std::shared_ptr<IStorage> &query_storage,
+    //   void thread_function(std::queue<int>& Qid_595,std::shared_ptr<IStorage> &query_storage,
+    //                                std::shared_ptr<DistanceHandler> &distance_handler,
+    //                                uint32_t num_threads, IdxType Lsearch,
+    //                                IdxType num_entry_points, std::string scenario,
+    //                                IdxType K, std::pair<IdxType, float> *results,
+    //                                std::vector<float> &num_cmps,
+    //                                std::vector<QueryStats> &query_stats,
+    //                                bool is_new_trie_method, bool is_rec_more_start,
+    //                                bool is_ung_more_entry,
+    //                                int lsearch_start, int lsearch_step,
+    //                                int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
+    //                                int routing_mode,int baseline_alg, IdxType num_queries, 
+    //                                faiss_navix::IndexHNSWFlat* navix_index,
+    //                                const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices);
+
+      void thread_function(int id, SearchCacheList& search_cache_list,
+                           std::shared_ptr<IStorage> &query_storage,
                                    std::shared_ptr<DistanceHandler> &distance_handler,
                                    uint32_t num_threads, IdxType Lsearch,
                                    IdxType num_entry_points, std::string scenario,
@@ -328,7 +423,8 @@ namespace ANNS
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
                                    int routing_mode,int baseline_alg, IdxType num_queries, 
                                    faiss_navix::IndexHNSWFlat* navix_index,
-                                   const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices);
+                           const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices,
+                           bool optimize_standalone_prefilter);
       size_t get_candidate_count_for_label(LabelType label) const;
       // data
       std::shared_ptr<IStorage> _base_storage,
@@ -423,6 +519,12 @@ namespace ANNS
                                      IdxType target_id, const std::vector<IdxType> &entry_points,
                                      size_t &num_nodes_visited,
                                      bool clear_search_queue = true, bool clear_visited_set = true);
+      IdxType iterate_to_fixed_point_rabitq(const char *query, std::shared_ptr<SearchCache> search_cache,
+                                            IdxType target_id, const std::vector<IdxType> &entry_points,
+                                            size_t &num_nodes_visited,
+                                            QueryStats &stats,
+                                            ANNS::rabitq::RabitQSideIndex::QueryContext *cached_query_ctx = nullptr,
+                                            bool clear_search_queue = true, bool clear_visited_set = true);
       // search in global graph
       IdxType iterate_to_fixed_point_global(const char *query, std::shared_ptr<SearchCache> search_cache,
                                             IdxType target_id, const std::vector<IdxType> &entry_points,
@@ -443,6 +545,20 @@ namespace ANNS
       void statistics();
 
       std::string _dataset;
+      bool _build_rabitq_side_index = false;
+      size_t _rabitq_total_bits = 4;
+      double _rabitq_build_time_ms = 0.0;
+      uint64_t _rabitq_side_size_bytes = 0;
+      UngDistanceMode _ung_distance_mode = UngDistanceMode::Exact;
+      ANNS::rabitq::RabitQSideIndex _rabitq_side_index;
+      ANNS::rabitq::RabitQSideIndex _acorn_rabitq_side_index;
+      ANNS::rabitq::RabitQSideIndex _acorn_1_rabitq_side_index;
+      const IStorage *_rabitq_cached_query_storage = nullptr;
+      std::vector<std::unique_ptr<ANNS::rabitq::RabitQSideIndex::QueryContext>> _rabitq_query_ctx_cache;
+      std::vector<double> _rabitq_query_ctx_prepare_ms;
+      std::vector<double> _rabitq_query_ctx_rotate_ms;
+      std::vector<double> _rabitq_query_ctx_q2c_ms;
+      std::vector<double> _rabitq_query_ctx_wrapper_ms;
 
       // idea1 selector
       std::unique_ptr<MethodSelector> _trie_method_selector;
@@ -451,16 +567,28 @@ namespace ANNS
       // idea2 selector
       std::shared_ptr<faiss::IndexACORNFlat> _acorn_index;
       std::shared_ptr<faiss::IndexACORNFlat> _acorn_1_index;
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+      knowhere::Index<knowhere::IndexNode> _milvus_knowhere_index;
+      bool _milvus_knowhere_ready = false;
+      bool _milvus_knowhere_is_ivf = true;
+      int _milvus_knowhere_nlist = 4096;
+      int _milvus_knowhere_nprobe = 16;
+      knowhere::Index<knowhere::IndexNode> _milvus_knowhere_hnsw_index;
+      bool _milvus_knowhere_hnsw_ready = false;
+      int _milvus_knowhere_hnsw_m = 32;
+      int _milvus_knowhere_hnsw_efc = 200;
+      int _milvus_knowhere_hnsw_ef = 100;
+#endif
       std::unique_ptr<MethodSelector> _ung_acorn_selector;
       std::optional<bool> check_idea2_heuristic_override(const std::string& dataset_name, size_t num_entry_groups) const;
       std::optional<bool> check_pre_trie_heuristic(const std::string& dataset_name, size_t query_length, size_t candidate_set_size) const;
 
       // smartroute selector
-      std::unique_ptr<MethodSelector> _smart_route_selector;    // 单层 SmartRoute (5特征)
+      std::unique_ptr<MethodSelector> _smart_route_selector;    
+      int _majority_acorn_id = 2; // 默认为 ACORN-gamma (id:2)
       std::unique_ptr<MethodSelector> _fast_route_single_selector;
+      int _single_majority_acorn_id = 2;
       std::unique_ptr<MethodSelector> _fast_route_revised_selector;
-      int _single_majority_acorn_id = 2; // 单层模型的 ACORN 多数派兜底
-      int _naive_majority_acorn_id = 2; // 用于存储 Naive SmartRoute的 ACORN 家族多数派 ID
       int _revised_majority_acorn_id = 2;
       int determine_routing_strategy(
         int routing_mode, 

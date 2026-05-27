@@ -1,7 +1,7 @@
 {
    "global_settings": {
-      "base_results_dir": "/home/fengxiaoyao/FilterVector/FilterVectorResults",
-      "base_data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData",
+      "base_results_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults",
+      "base_data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData",
       "font_sizes_qps_grid": {
          "main_title": 40,
          "legend": 34,

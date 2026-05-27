@@ -10,6 +10,7 @@
 #pragma once
 
 #include <queue>
+#include <memory>
 #include <unordered_set>
 #include <vector>
 
@@ -33,10 +34,22 @@ namespace faiss
    struct DistanceComputer; // from AuxIndexStructures
    struct ACORNStats;
 
+   // Runtime-pluggable distance backend used by ACORN search.
+   // It enables replacing per-query point distance evaluation while
+   // preserving ACORN graph traversal logic.
+   struct ACORNDistanceBackend
+   {
+      virtual ~ACORNDistanceBackend() = default;
+      virtual std::unique_ptr<ACORNDistanceBackend> clone() const = 0;
+      virtual bool prepare_query(const float *x) = 0;
+      virtual float distance(idx_t i) = 0;
+   };
+
    struct SearchParametersACORN : SearchParameters
    {
       int efSearch = 16;
       bool check_relative_distance = true;
+      std::shared_ptr<ACORNDistanceBackend> distance_backend = nullptr;
 
       ~SearchParametersACORN() {}
    };

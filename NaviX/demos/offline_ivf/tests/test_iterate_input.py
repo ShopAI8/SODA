@@ -6,10 +6,10 @@
 import numpy as np
 import unittest
 from typing import List
-from utils import load_config
-from tests.testing_utils import TestDataCreator
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.utils import load_config
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.tests.testing_utils import TestDataCreator
 import tempfile
-from dataset import create_dataset_from_oivf_config
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.dataset import create_dataset_from_oivf_config
 
 DIMENSION: int = 768
 SMALL_FILE_SIZES: List[int] = [100, 210, 450]

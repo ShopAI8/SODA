@@ -13,7 +13,7 @@ import faiss
 import re
 
 from multiprocessing.pool import ThreadPool
-from datasets import ivecs_read
+from FilterVector.FilterVectorCode.NaviX.benchs.datasets import ivecs_read
 
 ####################################################################
 # Parse command line

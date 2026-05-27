@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import platform
 
-from common_faiss_tests import get_dataset_2, get_dataset
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import get_dataset_2, get_dataset
 from faiss.contrib.datasets import SyntheticDataset
 from faiss.contrib.inspect_tools import make_LinearTransform_matrix
 from faiss.contrib.evaluation import check_ref_knn_with_draws

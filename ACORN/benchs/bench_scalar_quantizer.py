@@ -6,7 +6,7 @@
 import time
 import numpy as np
 import faiss
-from datasets import load_sift1M
+from FilterVector.FilterVectorCode.ACORN.benchs.datasets import load_sift1M
 
 
 print("load data")

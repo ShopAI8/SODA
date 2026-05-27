@@ -7,8 +7,8 @@ import os
 import numpy as np
 import faiss
 import argparse
-import datasets
-from datasets import sanitize
+import FilterVector.FilterVectorCode.ACORN.benchs.datasets as datasets
+from FilterVector.FilterVectorCode.ACORN.benchs.datasets import sanitize
 
 ######################################################
 # Command-line parsing

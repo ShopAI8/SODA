@@ -11,8 +11,8 @@
             "alpha": 1.2,
             "num_cross_edges": 6,
             "num_entry_points": 16,
-            "Lsearch_start": 200,
-            "Lsearch_end": 20000,
+            "Lsearch_start": 1000,
+            "Lsearch_end": 40000,
             "Lsearch_step": 1000,
             "num_threads": 100,
             "K": 10,
@@ -34,6 +34,7 @@
                   "acorn_efs_step_fast": 200
                },
                "algorithms": [
+                  "FastSmartRoute",
                   "FastSmartRoute++"
                ]
             },
@@ -45,6 +46,7 @@
                   "acorn_efs_step_fast": 200
                },
                "algorithms": [
+                  "FastSmartRoute",
                   "FastSmartRoute++"
                ]
             },
@@ -56,6 +58,7 @@
                   "acorn_efs_step_fast": 200
                },
                "algorithms": [
+                  "FastSmartRoute",
                   "FastSmartRoute++"
                ]
             }

@@ -44,10 +44,10 @@ if __name__ == "__main__":
     # --- 配置区域 ---
     
     # 输入文件的路径
-    input_file = "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_base_labels.txt"
+    input_file = "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_base_labels.txt"
     
     # 输出文件的路径
-    output_file = "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_base_labels_fixed.txt"
+    output_file = "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_base_labels_fixed.txt"
     
     # 填充的标签ID
     fill_val = "6000"

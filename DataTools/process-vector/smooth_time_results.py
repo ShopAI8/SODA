@@ -4,18 +4,19 @@ import os
 import shutil
 
 # ================= 配置区域 =================
-BASE_ROOT = "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults"
+BASE_ROOT = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 
 # 需要处理的数据集名称列表
 # "Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"
-DATASETS = ["Amazon","BookReviews","Genome","Music","Reviews", "Tiktok","VariousImg","Laion"]
+DATASETS = ["Tiktok", "Laion"]
 
 # 需要处理的算法列表 
-ALGORITHMS = ["UNG-nTfalse_loose_false"]#"UNG-nTfalse_loose","UNG-nTfalse",  "method3", "ACORN-gamma-improved","ACORN-gamma","ACORN-1","SmartRoute","NaviX-ACORN","pre-filter"
+# "UNG-nTfalse","UNG+","ACORN-gamma","ACORN-1","NaviX-ACORN","pre-filter","SmartRoute","SmartRoute+","Milvus-IVF","Milvus-HNSW"
+ALGORITHMS = ["UNG-nTfalse","UNG+","ACORN-gamma","ACORN-1","NaviX-ACORN","pre-filter","SmartRoute","SmartRoute+","Milvus-IVF","Milvus-HNSW"]
 
 # 文件名常量
 FILE_NAME = "search_time_summary.csv"
-BACKUP_NAME = "search_time_summary.csv"
+BACKUP_SUFFIX = "_ori.csv"
 # ===========================================
 
 def force_monotonicity(df):
@@ -65,18 +66,20 @@ def force_monotonicity(df):
 
 def process_file(file_path):
     dir_name = os.path.dirname(file_path)
-    backup_path = os.path.join(dir_name, BACKUP_NAME)
+    base_name, ext = os.path.splitext(FILE_NAME)
+    backup_name = base_name + BACKUP_SUFFIX
+    backup_path = os.path.join(dir_name, backup_name)
     
     # --- 1. 备份逻辑 ---
     if not os.path.exists(backup_path):
         try:
             shutil.move(file_path, backup_path)
-            print(f"  [备份] 生成 {BACKUP_NAME}")
+            print(f"  [备份] 生成 {backup_name}")
         except Exception as e:
             print(f"  [错误] 备份失败: {e}")
             return
     else:
-        print(f"  [提示] 备份文件已存在，将基于 {BACKUP_NAME} 重新生成")
+        print(f"  [提示] 备份文件已存在，将基于 {backup_name} 重新生成")
 
     # --- 2. 处理逻辑 ---
     try:

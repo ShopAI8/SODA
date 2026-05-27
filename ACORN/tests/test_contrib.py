@@ -14,7 +14,7 @@ from faiss.contrib import evaluation
 from faiss.contrib import ivf_tools
 from faiss.contrib import clustering
 
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.ACORN.tests.common_faiss_tests import get_dataset_2
 try:
     from faiss.contrib.exhaustive_search import \
         knn_ground_truth, knn, range_ground_truth, \

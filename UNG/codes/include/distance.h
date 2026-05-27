@@ -1,5 +1,5 @@
-#ifndef DISTANCE
-#define DISTANCE
+#ifndef ANNS_DISTANCE_H
+#define ANNS_DISTANCE_H
 
 #include <memory>
 #include <immintrin.h>
@@ -31,4 +31,4 @@ namespace ANNS {
     };
 }
 
-#endif // DISTANCE
+#endif // ANNS_DISTANCE_H

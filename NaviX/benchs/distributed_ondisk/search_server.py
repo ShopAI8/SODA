@@ -7,7 +7,7 @@ import time
 
 from faiss.contrib import rpc
 
-import combined_index
+import FilterVector.FilterVectorCode.NaviX.benchs.distributed_ondisk.combined_index as combined_index
 import argparse
 
 

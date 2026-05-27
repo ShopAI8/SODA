@@ -12,7 +12,7 @@ import io
 import sys
 import pickle
 from multiprocessing.pool import ThreadPool
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.NaviX.tests.common_faiss_tests import get_dataset_2
 
 
 d = 32

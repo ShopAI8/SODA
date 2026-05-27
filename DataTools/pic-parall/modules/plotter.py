@@ -57,9 +57,9 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
     # --- 固定子图大小 ---
     fixed_subplot_width = 6.0
     fixed_subplot_height = 4.3
-    rect_left = 0.0
-    rect_right = 1.0
-    rect_bottom = 0.03
+    rect_left = plot_settings.get('layout_rect_left', 0.0)
+    rect_right = plot_settings.get('layout_rect_right', 1.0)
+    rect_bottom = plot_settings.get('layout_rect_bottom', 0.03)
     rect_top = plot_settings.get('layout_rect_top', 0.88)
     width_fraction = rect_right - rect_left
     height_fraction = rect_top - rect_bottom
@@ -70,25 +70,31 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
     main_gs = GridSpec(n_rows, n_cols, figure=fig)
     
     # --- 样式策略 ---
-    markers_list = ['o', 's', '^', 'D', 'v', 'p', '*']
+    markers_list = ['o', 's', '*','^', 'D', 'v', 'p']
     
     # 1. 定义颜色映射 (全局固定)
     alg_color_map = {
-        "UNG": "tab:blue",
-        "ACORN-1": "tab:purple",
+        "UNG": "tab:pink",
+        "UNG+": "tab:blue",
+        "ACORN-1": "tab:cyan",
         "ACORN-γ": "tab:orange",
-        "ACORN-γ-improved": "tab:gray",
         "pre-filtering": "gold",  
-        "NaviX": "tab:green",          
-        "SmartRoute": "tab:pink",
-        "FastSmartRoute": "tab:red",
-        "SmartRoute-revised":"tab:cyan",
+        "NaviX": "tab:gray",     
+        "Milvus-IVF": "tab:purple",
+        "Milvus-HNSW": "tab:olive" ,     
+        "SmartRoute": "tab:green",
+        "SmartRoute+": "tab:red"
         # "ImprovedUNG": "tab:cyan",
-        "UNG-loose":"tab:brown",
-        "UNG-filtered":"tab:olive",
     }
 
-    legend_label_map = plot_settings.get('legend_label_map', {})
+    global_legend_label_map = {
+        "Milvus-HNSW": "Milvus-Post+Pre",
+        "pre-filtering": "Pre-Filter",
+    }
+    legend_label_map = {
+        **global_legend_label_map,
+        **plot_settings.get('legend_label_map', {})
+    }
     reverse_label_map = {v: k for k, v in legend_label_map.items()}
     fallback_colors = ['cyan', 'magenta', 'yellow', 'black', 'brown']
 
@@ -99,12 +105,12 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
 
     # 2. 定义图例顺序 (Legend Order)
     # 这决定了图例中标签的排列顺序
-    default_legend_order = ["UNG","ACORN-1", "ACORN-γ", "ACORN-γ-improved", "NaviX", "pre-filtering",  "SmartRoute", "SmartRoute-revised","FastSmartRoute"]
+    default_legend_order = ["ACORN-1", "ACORN-γ","NaviX","pre-filtering","Milvus-IVF","Milvus-HNSW", "UNG","UNG+", "SmartRoute", "SmartRoute+"]
     alg_order = plot_settings.get('custom_alg_order', default_legend_order)
 
     # 3. 定义绘图层级顺序 (Drawing Order / Z-Order)
     # 列表越靠前的算法，越先被绘制 (即位于图层最底部/Under)
-    default_drawing_order = ["UNG", "ACORN-γ", "ACORN-1","ACORN-γ-improved", "NaviX","pre-filtering", "SmartRoute", "SmartRoute-revised","FastSmartRoute"]
+    default_drawing_order = ["Milvus-IVF","Milvus-HNSW","UNG", "ACORN-γ", "ACORN-1","ACORN-γ-improved", "NaviX","UNG+","pre-filtering", "SmartRoute", "SmartRoute+"]
     drawing_order = plot_settings.get('custom_z_order', default_drawing_order)
 
     def get_marker_for_alg(name):
@@ -164,19 +170,35 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
                 df_sorted = df.sort_values(by='Average_Recall')
                 display_label = legend_label_map.get(alg_name, alg_name)
                 
-                # 直接绘制折线
-                current_markersize = 20 if alg_name == "pre-filtering" else 12
-                is_clip_on = False if alg_name in ["pre-filtering", "FastSmartRoute","SmartRoute-revised"] else True
-                
-                # 直接绘制折线
-                ax.plot(df_sorted['Average_Recall'], df_sorted['QPS'], 
-                        marker=current_marker, 
-                        linestyle='-', 
+                current_markersize = 15 if alg_name in ["SmartRoute+"] else 13
+                is_clip_on = False if alg_name in ["pre-filtering", "SmartRoute","SmartRoute+"] else True
+
+                # pre-filtering 只保留一个代表点，避免被绘制成折线。
+                if alg_name == "pre-filtering":
+                    representative_point = (
+                        df_sorted
+                        .sort_values(by=['QPS', 'Average_Recall'], ascending=[True, False])
+                        .head(1)
+                    )
+                    ax.plot(
+                        representative_point['Average_Recall'],
+                        representative_point['QPS'],
+                        marker=current_marker,
+                        linestyle='None',
                         label=display_label,
-                        lw=5, 
                         markersize=current_markersize,
                         color=current_color,
-                        clip_on=is_clip_on) # clip_on=False 允许图形画到坐标轴边框外部
+                        clip_on=is_clip_on
+                    )
+                else:
+                    ax.plot(df_sorted['Average_Recall'], df_sorted['QPS'], 
+                            marker=current_marker, 
+                            linestyle='-', 
+                            label=display_label,
+                            lw=5, 
+                            markersize=current_markersize,
+                            color=current_color,
+                            clip_on=is_clip_on) # clip_on=False 允许图形画到坐标轴边框外部
 
         if numbering_offset_start is not None:
             current_plot_number = numbering_offset_start + i
@@ -286,12 +308,16 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
 
     legend_cols = plot_settings.get('legend_cols', len(legend_handles))
     legend_y = plot_settings.get('legend_anchor_y', 0.92)
+    legend_columnspacing = plot_settings.get('legend_columnspacing', 0.8)
+    legend_labelspacing = plot_settings.get('legend_labelspacing', 0.25)
     
     if legend_handles and not plot_settings.get('hide_legend', False):
         fig.legend(legend_handles, sorted_unique_labels, 
                    loc='upper center', bbox_to_anchor=(0.5, legend_y), 
                    ncol=legend_cols, fontsize=font_sizes.get('legend', 24),
-                   frameon=False)
+                   frameon=False,
+                   columnspacing=legend_columnspacing,
+                   labelspacing=legend_labelspacing)
 
     # --- 布局和保存 ---
     h_pad_val = plot_settings.get('h_pad', 1.08)
@@ -301,7 +327,8 @@ def generate_qps_recall_grid(all_plot_items, main_title, output_filename, font_s
     output_dir = "plots"
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, output_filename)
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    savefig_pad_inches = plot_settings.get('savefig_pad_inches', 0.02)
+    plt.savefig(output_path, dpi=150, bbox_inches='tight', pad_inches=savefig_pad_inches)
     plt.close(fig)
     print(f"\n✅ (Z-Order Fixed, No Interpolation) 网格图表已成功保存到: {os.path.abspath(output_path)}")
 
@@ -393,18 +420,49 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
     data_category_names = data_category_names[:min_len]
 
     hue_order = task_config.get('ratio_labels', [])
+    configured_legend_order = task_config.get('legend_order', [])
+    if configured_legend_order:
+        ordered_ratio_names = [name for name in configured_legend_order if name in hue_order]
+        ordered_ratio_names.extend([name for name in hue_order if name not in ordered_ratio_names])
+    else:
+        # 【默认行为】保持旧版视觉布局
+        # 原JSON中 hue_order 的索引顺序为：
+        # 0: SmartRoute+/ACORN-gamma, 1: SmartRoute+/ACORN-1
+        # 2: SmartRoute+/NaviX,       3: SmartRoute+/pre-filtering
+        # 4: SmartRoute+/Milvus-HNSW, 5: SmartRoute+/Milvus-IVF
+        # 6: SmartRoute+/UNG,         7: UNG+/UNG
+        # 8: SmartRoute+/UNG+,        9: SmartRoute+/SmartRoute
+        if len(hue_order) == 10:
+            reorder_indices = [
+                1, 0,
+                2, 3,
+                4, 5,
+                6, 7,
+                8, 9
+            ]
+        elif len(hue_order) == 12:
+            reorder_indices = [1, 6, 0, 2, 7, 11, 3, 8, 4, 9, 5, 10]
+        elif len(hue_order) == 6:
+            reorder_indices = [0, 3, 1, 4, 2, 5]
+        else:
+            reorder_indices = range(len(hue_order))
+        ordered_ratio_names = [hue_order[idx] for idx in reorder_indices]
     
-    colors_list = ['#E41A1C', '#377EB8', '#4DAF4A', '#984EA3', '#FF7F00', '#A65628']
-    markers_list = ['o', 's', 'v', '^', 'D', 'P']
+    colors_list = [
+        '#E41A1C', '#FF7F00', '#BCBD22', '#8C564B',  '#377EB8','#A65628', 
+        '#17BECF','#999999', '#F781BF', '#4DAF4A', '#984EA3','#000000'
+    ]
+    markers_list = ['o', 's', 'v', '^', 'D', 'P', '*', 'X', 'p', 'h', '<', '>']
     
-    palette_map = dict(zip(hue_order, colors_list))
-    markers_map = dict(zip(hue_order, markers_list))
+    palette_map = dict(zip(ordered_ratio_names, colors_list))
+    markers_map = dict(zip(ordered_ratio_names, markers_list))
     
     # --- 3. 初始化画布 ---
-    fig, ax = plt.subplots(figsize=(25, 8)) 
+    fig, ax = plt.subplots(figsize=(30, 8)) 
     
-    n_bars = len(hue_order)
-    total_width = 0.85
+    n_bars = len(ordered_ratio_names)
+    total_width = task_config.get('ratio_group_width', 1.10)
+    category_spacing = task_config.get('x_category_spacing', 1.0)
     bar_width = total_width / n_bars
     offsets = np.arange(n_bars) - (n_bars - 1) / 2.0
     
@@ -412,23 +470,19 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
     valid_x_ticks = []
     valid_x_labels = []
     
-    current_x_idx = 0
+    current_x_idx = 0.0
 
     # --- 4. 核心绘图循环 ---
     for i in range(len(x_labels_display)):
         cat_data_name = data_category_names[i]
         display_label = x_labels_display[i]
-        
-        # 在代码层面过滤掉 K=5
-        if "K=5" in display_label or "K=5" in cat_data_name:
-            continue
             
         valid_x_ticks.append(current_x_idx)
         valid_x_labels.append(display_label)
         
         x_base = current_x_idx
         
-        for j, ratio_name in enumerate(hue_order):
+        for j, ratio_name in enumerate(ordered_ratio_names):
             x_center = x_base + offsets[j] * bar_width
             
             sub_df = df[(df['category'] == cat_data_name) & (df['ratio_name'] == ratio_name)]
@@ -438,22 +492,30 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
             mar = markers_map.get(ratio_name, 'o')
             
             y_vals = sub_df['ratio_plot'].values
+
+            # --- 新增：根据形状动态调整视觉大小 ---
+            # 圆形/正方形显得大，保持 350 左右；
+            # 星号、加号、叉号显得小，给它们放大到 600-800
+            marker_size_map = {
+                'o': 350, 's': 300, 'v': 350, '^': 350, '<': 350, 
+                'D': 280, 'p': 350, 'h': 350, 
+                'P': 550, 'X': 550, '*': 800  # 给瘦弱的形状补偿极大的数值
+            }
+            # 获取当前形状对应的大小，如果没有在字典中，默认给 350
+            dynamic_s = marker_size_map.get(mar, 350)
             
             # 画散点 (Scatter)
-            # s=600 保持大尺寸
             ax.scatter([x_center]*len(y_vals), y_vals, 
                        color=col, marker=mar, 
-                       s=600,  
+                       s=dynamic_s,  # <--- 使用动态计算的大小
                        edgecolor='white', linewidth=2.0, zorder=10, alpha=0.9)
         
-        current_x_idx += 1 
+        current_x_idx += category_spacing 
 
     # --- 5. 坐标轴设置 ---
     ax.set_yscale('log')
     ax.set_ylim(0.1, y_top_limit) # Y轴上限
     
-    # 【修改点 C】 设置严格对齐的 Y 轴刻度
-    # 从 -1 (0.1) 到 next_int_pow (有限值最大整数幂)
     y_ticks = [10**k for k in range(-1, int(next_int_pow) + 1)]
     # 添加最顶部的无穷大刻度 (它是 next_int_pow + 1)
     y_ticks.append(y_top_limit) 
@@ -466,8 +528,7 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
         #y_ticklabels.append(f"$10^{{{exp_val}}}$")
         y_ticklabels.append(f"$\\mathsf{{10}}^{{\\mathsf{{{exp_val}}}}}$")
     
-    # 最顶部的标签设为无穷大符号
-    y_ticklabels.append(r"$\infty$")
+    y_ticklabels.append(r"$\mathsf{N/A}$")
     
     ax.set_yticklabels(y_ticklabels, fontsize=font_sizes.get('tick_label_y', 40))
     
@@ -487,10 +548,7 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
     legend_proxies = []
     legend_labels = []
     
-    reorder_indices = [0, 3, 1, 4, 2, 5] if len(hue_order) == 6 else range(len(hue_order))
-    
-    for idx in reorder_indices:
-        r_name = hue_order[idx]
+    for r_name in ordered_ratio_names:
         col = palette_map[r_name]
         mar = markers_map[r_name]
         
@@ -502,17 +560,25 @@ def generate_speedup_ratio_plot(all_ratios_data, task_config, font_sizes, output
         legend_proxies.append(proxy)
         legend_labels.append(label_str)
 
-    legend_cols = task_config.get('legend_cols', 4) 
+    # 强制将 10 个元素的图例列数设为 5
+    if len(hue_order) == 10:
+        legend_cols = 5
+    elif len(hue_order) == 12:
+        legend_cols = 5
+    else:
+        legend_cols = task_config.get('legend_cols', 4) 
 
     ax.legend(legend_proxies, legend_labels, 
               handler_map={LegendProxy: PointInBoxLegendHandler()},
               loc='upper center', 
-              bbox_to_anchor=(0.5, 1.30), 
+              bbox_to_anchor=(0.45, 1.55), 
               ncol=legend_cols,
               fontsize=font_sizes.get('legend', 48) + 4, 
               frameon=False,
-              handletextpad=0.4,
-              columnspacing=1.2
+              handlelength=1.0,     # 图形区域占用的宽度
+              handletextpad=0.5,    # 点和文字的边缘距离
+              columnspacing=0.6,    # 列与列的间距
+              labelspacing=0.2      # 行与行的间距
              )
 
     # --- 7. 保存 ---

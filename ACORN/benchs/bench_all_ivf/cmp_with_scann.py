@@ -78,7 +78,7 @@ def main():
     if args.lib == "faiss":
         # prepare cache
         import faiss
-        from datasets import load_dataset
+        from FilterVector.FilterVectorCode.ACORN.benchs.datasets import load_dataset
 
         ds = load_dataset(args.db, download=args.download)
         print(ds)

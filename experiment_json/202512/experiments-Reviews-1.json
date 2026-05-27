@@ -3,8 +3,8 @@
       {
          "dataset_name": "Reviews",
          "shared_config": {
-            "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Reviews",
-            "output_dir": "/home/fengxiaoyao/FilterVector/FilterVectorResults/",
+            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Reviews",
+            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,
@@ -111,8 +111,8 @@
       {
          "dataset_name": "Reviews",
          "shared_config": {
-            "data_dir": "/home/fengxiaoyao/FilterVector/FilterVectorData/Reviews",
-            "output_dir": "/home/fengxiaoyao/FilterVector/FilterVectorResults/",
+            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Reviews",
+            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,

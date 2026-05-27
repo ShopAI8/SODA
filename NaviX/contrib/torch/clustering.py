@@ -8,7 +8,7 @@ This contrib module contains Pytorch code for k-means clustering
 """
 import faiss
 import faiss.contrib.torch_utils
-import torch
+import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
 
 # the kmeans can produce both torch and numpy centroids
 from faiss.contrib.clustering import kmeans

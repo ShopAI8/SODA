@@ -1,6 +1,7 @@
 import json
 import os
 import glob
+import re
 from modules import data_handler, plotter, utils
 import numpy as np
 import pandas as pd 
@@ -57,13 +58,15 @@ def fetch_data_for_subplot(config, dataset_name, base_params, algorithms, cache,
       "ACORN-γ": "ACORN-gamma",
       "ACORN-γ-improved": "ACORN-gamma-improved",
       "UNG": "UNG-nTfalse",
+      "UNG+": "UNG+",
       "pre-filtering": "pre-filter",  
       "NaviX": "NaviX-ACORN",    
+      "Milvus-IVF": "Milvus-IVF",
+      "Milvus-HNSW": "Milvus-HNSW",
       "SmartRoute": "SmartRoute",
-      "FastSmartRoute": "FastSmartRoute",
-      "SmartRoute-revised": "SmartRoute-revised",
-      "UNG-loose": "UNG-nTfalse_loose",
-      "UNG-filter": "UNG-nTfalse_loose_false",                 
+      "SmartRoute+": "SmartRoute+",
+      "SmartRoute++": "SmartRoute++",
+      "SmartRoute+++": "SmartRoute+++"                    
    }
    
    if num_queries == 0:
@@ -142,7 +145,7 @@ def handle_qps_recall_tasks(config, font_sizes):
    special_task_keys = ['k_comparison_plots', 'length_comparison_plots', 'selectivity_comparison_plots', 
                         'p_pass_comparison_plots', 'thread_comparison_plots',
                         'curated_k_plots', 'curated_p_pass_plots', 'curated_thread_plots', 'curated_one_query_plots','curated_mixed_plots',
-                        'speedup_ratio_tasks']
+                        'speedup_ratio_tasks', 'smartroute_variants_plots']
    
    tasks_by_dataset = {k: v for k, v in tasks.items() if k not in special_task_keys}
 
@@ -218,7 +221,15 @@ def handle_qps_recall_tasks(config, font_sizes):
                   if not query_base_dir:
                      all_plot_items_for_grid.append({'data': {}, 'title': f"{dataset_name}\n(Config Error)", 'xlabel': ""})
                      continue
-                  base_name_part = os.path.basename(query_base_dir).replace("query_select_imp_", "")
+                  base_name_part = os.path.basename(query_base_dir)
+                  # Support both old curated bases like:
+                  #   query_select_imp_A_B_C-...
+                  # and current result/query dirs like:
+                  #   query_select_200_A_B_C-..._random_300
+                  base_name_part = re.sub(r"^query_select_(?:imp|pf)_", "", base_name_part)
+                  base_name_part = re.sub(r"^query_select_\d+_", "", base_name_part)
+                  base_name_part = re.sub(r"_random_\d+$", "", base_name_part)
+                  base_name_part = re.sub(r"^query_select_", "", base_name_part)
                   final_query_dir = f"{query_base_dir}/{base_name_part}_{query_suffix_name}"
                   common_params['query_dir_name'] = final_query_dir
                   combined_plot_data = fetch_data_for_subplot(config, dataset_name, common_params, algorithms, query_count_cache)
@@ -381,6 +392,42 @@ def handle_qps_recall_tasks(config, font_sizes):
                   plot_settings,
                   numbering_offset_start=1
                )
+   
+   # --- 4.7 SmartRoute Variants 联合对比图 ('smartroute_variants.png') ---
+   sr_variants_tasks = tasks.get('smartroute_variants_plots', [])
+   if sr_variants_tasks:
+      print("#"*80 + f"\n📈 4.7 开始生成 SmartRoute 四种算法对比图 (编号 1...)...\n" + "#"*80)
+      for task in sr_variants_tasks:
+         if not task.get("enabled", False): continue
+         all_plot_items_for_grid = []
+         plot_settings = task.get('plot_settings', {})
+
+         for dataset_info in task.get('datasets_to_compare', []):
+               dataset_name = dataset_info['dataset_name']
+               common_params = dataset_info.get('common_parameters', {})
+               algorithms = dataset_info.get('algorithms_to_compare', [])
+
+               # 获取数据
+               combined_plot_data = fetch_data_for_subplot(config, dataset_name, common_params, algorithms, query_count_cache)
+
+               title = dataset_info.get('subplot_title', f"{dataset_name}\n(Untitled)")
+               xlabel = f"Recall@{common_params.get('K', 'N/A')}"
+
+               if combined_plot_data:
+                  all_plot_items_for_grid.append({'data': combined_plot_data, 'title': title, 'xlabel': xlabel})
+               else:
+                  all_plot_items_for_grid.append({'data': {}, 'title': f"{title}\n(No Data)", 'xlabel': xlabel})
+
+         if all_plot_items_for_grid:
+               print(f"  -> 准备为 '{task.get('output_filename')}' 绘制 {len(all_plot_items_for_grid)} 个图表，起始编号: 1")
+               plotter.generate_qps_recall_grid(
+                  all_plot_items_for_grid, 
+                  task.get('main_title'), 
+                  task.get('output_filename'), 
+                  font_sizes, 
+                  plot_settings,
+                  numbering_offset_start=1
+               )
 
    # ==================================================================
    # --- [!! 无编号任务开始 !!] ---
@@ -419,26 +466,63 @@ def handle_qps_recall_tasks(config, font_sizes):
                else: 
                   values_to_iterate = dataset_info.get(values_key, [])
                   default_titles_provided = dataset_info.get(titles_key)
-                  if default_titles_provided: subplot_titles = default_titles_provided
+                  normalized_items = []
+                  for idx_value, value in enumerate(values_to_iterate):
+                     if isinstance(value, dict):
+                        iter_value = value.get(param_key, value.get('value'))
+                        if iter_value is None and config_key == "k_comparison_plots":
+                           iter_value = value.get('K')
+                        if iter_value is None and config_key == "thread_comparison_plots":
+                           iter_value = value.get('threads')
+                        if iter_value is None:
+                           continue
+                        normalized_items.append({
+                           'value': iter_value,
+                           'specific_params': value.get('specific_params', {}),
+                           'subplot_title': value.get('subplot_title')
+                        })
+                     else:
+                        normalized_items.append({
+                           'value': value,
+                           'specific_params': {},
+                           'subplot_title': None
+                        })
+
+                  if default_titles_provided:
+                     subplot_titles = default_titles_provided
                   else:
-                     if config_key == "thread_comparison_plots": subplot_titles = [f"{dataset_name}\n$\\mathrm{{th}}={v}$" for v in values_to_iterate]
-                     elif config_key == "k_comparison_plots": subplot_titles = [f"{dataset_name}\n$\\mathrm{{{param_key.upper()}}}={v}$" for v in values_to_iterate]
-                     else: subplot_titles = [f"{dataset_name}\n{param_key}={v}" for v in values_to_iterate]
-                  for value, subplot_title in zip(values_to_iterate, subplot_titles):
+                     if config_key == "thread_comparison_plots":
+                        subplot_titles = [f"{dataset_name}\n$\\mathrm{{th}}={item['value']}$" for item in normalized_items]
+                     elif config_key == "k_comparison_plots":
+                        subplot_titles = [f"{dataset_name}\n$\\mathrm{{{param_key.upper()}}}={item['value']}$" for item in normalized_items]
+                     else:
+                        subplot_titles = [f"{dataset_name}\n{param_key}={item['value']}" for item in normalized_items]
+
+                  auto_lsearch_start_from_k = dataset_info.get('auto_lsearch_start_from_k', False)
+                  for idx_item, item in enumerate(normalized_items):
+                     value = item['value']
+                     subplot_title = item.get('subplot_title') or (subplot_titles[idx_item] if idx_item < len(subplot_titles) else f"{dataset_name}\n{param_key}={value}")
                      current_iter_params = common_params.copy()
                      current_iter_params[param_key] = value
+                     current_iter_params.update(item.get('specific_params', {}))
+                     if config_key == "k_comparison_plots" and auto_lsearch_start_from_k:
+                        current_iter_params['lsearch_start'] = value
                      combined_plot_data = fetch_data_for_subplot(config, dataset_name, current_iter_params, algorithms, query_count_cache)
                      if combined_plot_data:
                         all_plot_items_for_grid.append({'data': combined_plot_data, 'title': subplot_title, 'xlabel': f"Recall@{current_iter_params.get('K', common_params.get('K', 'N/A'))}"})
 
          if all_plot_items_for_grid:
-               #  这里不传递 numbering_offset_start
+               grid_kwargs = {}
+               if config_key == "k_comparison_plots":
+                   grid_kwargs['numbering_offset_start'] = 1
+
                plotter.generate_qps_recall_grid(
                    all_plot_items_for_grid, 
                    task.get('main_title'), 
                    task.get('output_filename'), 
                    font_sizes, 
-                   task.get('plot_settings', {})
+                   task.get('plot_settings', {}),
+                   **grid_kwargs
                )
 
    # --- 6. Normal QPS-Recall Plots ---
@@ -679,6 +763,10 @@ def handle_speedup_ratio_tasks(config, font_sizes):
             
         debug_df = pd.DataFrame(all_debug_data)
 
+        ordered_ratio_names = task.get('legend_order', []) or task.get('ratio_labels', [])
+        ordered_ratio_names = [name for name in ordered_ratio_names if name in task.get('ratio_labels', [])]
+        ordered_ratio_names.extend([name for name in task.get('ratio_labels', []) if name not in ordered_ratio_names])
+
         # 保存 CSV
         output_dir = "debug_csvs"
         os.makedirs(output_dir, exist_ok=True)
@@ -694,6 +782,31 @@ def handle_speedup_ratio_tasks(config, font_sizes):
         debug_df[[c for c in cols_to_save if c in debug_df.columns]].to_csv(csv_path, index=False, float_format='%.4f')
         print(f"\n✅ [DEBUG] 详细计算过程 (分子优先策略) 已保存到: {os.path.abspath(csv_path)}")
 
+        # 保存透视后的比值表
+        pivot_df = debug_df.pivot_table(
+            index=['category', 'dataset'],
+            columns='ratio_name',
+            values='ratio_value',
+            aggfunc='first'
+        )
+        pivot_df = pivot_df.reindex(columns=ordered_ratio_names)
+        pivot_df = pivot_df.reset_index()
+
+        ratio_table_csv_path = os.path.join(output_dir, f"{csv_filename_base}_ratio_table.csv")
+        pivot_df.to_csv(ratio_table_csv_path, index=False, float_format='%.4f')
+        print(f"✅ [DEBUG] 比值透视表已保存到: {os.path.abspath(ratio_table_csv_path)}")
+
+        # 保存按类别统计的均值表
+        mean_df = debug_df.groupby(['category', 'ratio_name'], dropna=False)['ratio_value'].mean().unstack('ratio_name')
+        mean_df = mean_df.reindex(columns=ordered_ratio_names)
+        overall_mean = debug_df.groupby('ratio_name', dropna=False)['ratio_value'].mean().reindex(ordered_ratio_names)
+        mean_df.loc['Overall Mean'] = overall_mean
+        mean_df = mean_df.reset_index().rename(columns={'category': 'summary_group'})
+
+        ratio_mean_csv_path = os.path.join(output_dir, f"{csv_filename_base}_ratio_means.csv")
+        mean_df.to_csv(ratio_mean_csv_path, index=False, float_format='%.4f')
+        print(f"✅ [DEBUG] 比值均值表已保存到: {os.path.abspath(ratio_mean_csv_path)}")
+
         # 绘图
         all_ratios_list_final = debug_df.to_dict('records')
         if all_ratios_list_final:
@@ -704,7 +817,7 @@ def handle_speedup_ratio_tasks(config, font_sizes):
 
 def main():
    """主函数，负责执行整个流程。"""
-   config_file = "/home/sunyahui/ljk/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps_ung.json"
+   config_file = "/home/lijiakang/FilterVector/FilterVectorCode/DataTools/pic-parall/config_overall_qps-th-K.json"
    try:
       with open(config_file, 'r', encoding='utf-8') as f:
          config = json.load(f)

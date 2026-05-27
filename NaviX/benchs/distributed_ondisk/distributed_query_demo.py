@@ -10,8 +10,8 @@ import time
 import rpc
 import sys
 
-import combined_index
-import search_server
+import FilterVector.FilterVectorCode.NaviX.benchs.distributed_ondisk.combined_index as combined_index
+import FilterVector.FilterVectorCode.NaviX.benchs.distributed_ondisk.search_server as search_server
 
 hostnames = sys.argv[1:]
 

@@ -48,7 +48,7 @@ def check_single_label_vectors(file_path):
 
 if __name__ == "__main__":
     # ==========================================
-    input_filename = "/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_base_labels.txt" 
+    input_filename = "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_base_labels.txt" 
     # ==========================================
     
     check_single_label_vectors(input_filename)

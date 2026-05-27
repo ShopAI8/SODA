@@ -13,12 +13,12 @@ from faiss.contrib.ondisk import merge_ondisk
 from faiss.contrib.big_batch_search import big_batch_search
 from faiss.contrib.exhaustive_search import knn_ground_truth
 from faiss.contrib.evaluation import knn_intersection_measure
-from utils import (
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.utils import (
     get_intersection_cardinality_frequencies,
     margin,
     is_pretransform_index,
 )
-from dataset import create_dataset_from_oivf_config
+from FilterVector.FilterVectorCode.NaviX.demos.offline_ivf.dataset import create_dataset_from_oivf_config
 
 logging.basicConfig(
     format=(

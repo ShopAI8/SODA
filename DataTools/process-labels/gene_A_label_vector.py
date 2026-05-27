@@ -12,8 +12,8 @@ RUN_TASK_GENERATE_QUERIES = True # 是否执行 [生成对应 query task]
 # --- 2. 配置区域 A (修改 Base 标签) ---
 
 if RUN_TASK_MODIFY_BASE:
-    BASE_INPUT_LABELS = '/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_base_labels_reorder_ori.txt'
-    BASE_OUTPUT_LABELS = '/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_A_base_labels.txt'
+    BASE_INPUT_LABELS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_base_labels_reorder_ori.txt'
+    BASE_OUTPUT_LABELS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_A_base_labels.txt'
     ATTRIBUTES_TO_ADD_CONFIG = {
         1: 0.8
     }
@@ -21,13 +21,13 @@ if RUN_TASK_MODIFY_BASE:
 # --- 3. 配置区域 B (生成查询任务) ---
 if RUN_TASK_GENERATE_QUERIES:
     # 输入: Base 向量文件 (用于从中抽样)
-    BASE_VECTORS_FILE = '/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/Laion_base.fvecs' 
+    BASE_VECTORS_FILE = '/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/Laion_base.fvecs' 
     
     # 输出: 新生成的查询标签文件
-    OUTPUT_QUERY_LABELS = '/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query_labels.txt'
+    OUTPUT_QUERY_LABELS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query_labels.txt'
     
     # 输出: 新生成的查询向量文件
-    OUTPUT_QUERY_VECTORS = '/home/fengxiaoyao/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query.fvecs'
+    OUTPUT_QUERY_VECTORS = '/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion/query_A_12/Laion_query.fvecs'
     
     # 查询组合 (标签: 数量)
     QUERY_COMPOSITION = {

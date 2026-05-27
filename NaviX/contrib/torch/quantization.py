@@ -7,7 +7,7 @@
 This contrib module contains Pytorch code for quantization.
 """
 
-import torch
+import FilterVector.FilterVectorCode.NaviX.contrib.torch as torch
 import faiss
 import math
 from faiss.contrib.torch import clustering

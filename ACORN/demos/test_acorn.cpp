@@ -15,6 +15,7 @@
 #include <set>
 #include <thread>
 #include <unordered_set> // +++ 新增，用于 recall 计算
+#include <unordered_map>
 
 #include "../faiss/Index.h"
 #include "../faiss/IndexACORN.h"
@@ -23,6 +24,7 @@
 #include "../faiss/index_io.h"
 #include "../faiss/impl/platform_macros.h"
 #include "utils.cpp"
+#include "rabitq_side_index_acorn.h"
 
 // +++ 新增类型别名，与 UNG 框架保持一致
 namespace ANNS
@@ -164,13 +166,15 @@ int main(int argc, char *argv[])
    std::string base_path, base_label_path, query_path, csv_dir, avg_csv_dir, gt_bin_path;
    std::vector<int> efs_list;
    bool if_bfs_filter = true;
+   bool build_rabitq_side_index = false;
+   size_t rabitq_total_bits = 4;
    std::string mode, index_path_acorn, index_path_acorn1;
 
    // --- 参数解析 ---
    {
       if (argc < 20)
       {
-         fprintf(stderr, "Usage: %s <mode> <N> <gamma> <dataset> <M> <M_beta> <base_path> <base_label_path> <query_path> <csv_dir> <avg_csv_dir> <gt_bin_path> <nthreads> <repeat_num> <if_bfs_filter> <efs_list> <index_path_acorn> <index_path_acorn1><k> \n", argv[0]);
+         fprintf(stderr, "Usage: %s <mode> <N> <gamma> <dataset> <M> <M_beta> <base_path> <base_label_path> <query_path> <csv_dir> <avg_csv_dir> <gt_bin_path> <nthreads> <repeat_num> <if_bfs_filter> <efs_list> <index_path_acorn> <index_path_acorn1> <k> [build_rabitq_side_index] [rabitq_total_bits]\n", argv[0]);
          fprintf(stderr, "       <mode> must be 'build' or 'search'\n");
          exit(1);
       }
@@ -206,10 +210,26 @@ int main(int argc, char *argv[])
       index_path_acorn = argv[17];
       index_path_acorn1 = argv[18];
       k = atoi(argv[19]);
+      if (argc >= 21)
+      {
+         std::string rabitq_flag = std::string(argv[20]);
+         std::transform(rabitq_flag.begin(), rabitq_flag.end(), rabitq_flag.begin(), ::tolower);
+         build_rabitq_side_index = (rabitq_flag == "true" || rabitq_flag == "1");
+      }
+      if (argc >= 22)
+      {
+         rabitq_total_bits = static_cast<size_t>(std::strtoul(argv[21], NULL, 10));
+      }
+      if (build_rabitq_side_index && (rabitq_total_bits < 1 || rabitq_total_bits > 9))
+      {
+         fprintf(stderr, "Invalid rabitq_total_bits=%zu. Expected in [1, 9].\n", rabitq_total_bits);
+         exit(1);
+      }
 
       printf("Running in '%s' mode\n", mode.c_str());
       printf("DEBUG: N=%zu, gamma=%d, M=%d, M_beta=%d, threads=%d, repeat=%d\n", N, gamma, M, M_beta, nthreads, repeat_num);
       printf("DEBUG: if_bfs_filter parsed as: %s (Raw int value: %d)\n", if_bfs_filter ? "TRUE" : "FALSE", if_bfs_filter);
+      printf("DEBUG: build_rabitq_side_index=%s, rabitq_total_bits=%zu\n", build_rabitq_side_index ? "TRUE" : "FALSE", rabitq_total_bits);
 
       char *token = strtok(efs_list_str, ",");
       while (token != NULL)
@@ -285,6 +305,83 @@ int main(int argc, char *argv[])
       double acorn_1_build_time_s = elapsed() - t_start_acorn1;
       printf("[%.3f s] ACORN-1 build time: %.3f s\n", elapsed() - t0, acorn_1_build_time_s);
 
+      // --- ACORN RabitQ side-index 构建 (可选) ---
+      bool rabitq_enabled = false;
+      double rabitq_build_time_s = 0.0;
+      long long rabitq_side_size_bytes = 0;
+      long long rabitq_side_size_bytes_1 = 0;
+      if (build_rabitq_side_index)
+      {
+         std::cout << "[RabitQ] Building side index for ACORN..." << std::endl;
+         std::unordered_map<int, uint32_t> attr_to_group;
+         std::vector<uint32_t> point_to_group(N, 1U);
+         uint32_t next_group = 1U;
+         for (size_t i = 0; i < N; ++i)
+         {
+            int key = metadata[i].empty() ? -1 : metadata[i][0];
+            auto it = attr_to_group.find(key);
+            if (it == attr_to_group.end())
+            {
+               attr_to_group[key] = next_group;
+               point_to_group[i] = next_group;
+               next_group++;
+            }
+            else
+            {
+               point_to_group[i] = it->second;
+            }
+         }
+         uint32_t num_groups = next_group - 1;
+
+         acorn_rabitq::RabitQSideIndex rabitq_side_index;
+         double t_start_rabitq = elapsed();
+         rabitq_enabled = rabitq_side_index.build(
+             xb,
+             N,
+             d,
+             point_to_group,
+             num_groups,
+             rabitq_total_bits);
+         rabitq_build_time_s = elapsed() - t_start_rabitq;
+
+         if (rabitq_enabled)
+         {
+            std::string rabitq_side_path = index_path_acorn + ".rabitq_side.bin";
+            std::string rabitq_side_path_1 = index_path_acorn1 + ".rabitq_side.bin";
+            if (!rabitq_side_index.save(rabitq_side_path))
+            {
+               std::cerr << "[RabitQ] Failed to save side index: " << rabitq_side_path << std::endl;
+               rabitq_enabled = false;
+            }
+            else
+            {
+               rabitq_side_size_bytes = static_cast<long long>(rabitq_side_index.estimated_memory_bytes(false));
+            }
+
+            if (rabitq_enabled && !rabitq_side_index.save(rabitq_side_path_1))
+            {
+               std::cerr << "[RabitQ] Failed to save side index for ACORN-1: " << rabitq_side_path_1 << std::endl;
+               rabitq_enabled = false;
+            }
+            else if (rabitq_enabled)
+            {
+               rabitq_side_size_bytes_1 = static_cast<long long>(rabitq_side_index.estimated_memory_bytes(false));
+            }
+         }
+
+         if (rabitq_enabled)
+         {
+            std::cout << "[RabitQ] Side index built successfully. build_time="
+                      << rabitq_build_time_s << " s, side_size="
+                      << (double)rabitq_side_size_bytes / (1024.0 * 1024.0) << " MB"
+                      << std::endl;
+         }
+         else
+         {
+            std::cerr << "[RabitQ] Side index build failed. Continue with exact ACORN index only." << std::endl;
+         }
+      }
+
       delete[] xb;
 
       // 保存索引
@@ -304,11 +401,29 @@ int main(int argc, char *argv[])
       size_t acorn_vectors_memory_bytes = (size_t)acorn_vectors_size_bytes; // 保持一致
       size_t acorn_total_logical_memory_bytes = acorn_index_only_logical_memory_bytes + acorn_vectors_memory_bytes;
 
+      // Meta size fields now use sizeof-style logical memory accounting.
+      long long acorn_total_size_for_meta = static_cast<long long>(acorn_total_logical_memory_bytes);
+      long long acorn_index_only_size_for_meta = static_cast<long long>(acorn_index_only_logical_memory_bytes);
+      if (rabitq_enabled && rabitq_side_size_bytes > 0)
+      {
+         acorn_total_size_for_meta += rabitq_side_size_bytes;
+         acorn_index_only_size_for_meta += rabitq_side_size_bytes;
+         acorn_total_logical_memory_bytes += static_cast<size_t>(rabitq_side_size_bytes);
+         acorn_index_only_logical_memory_bytes += static_cast<size_t>(rabitq_side_size_bytes);
+      }
+      double acorn_total_build_time_s = acorn_build_time_s + (rabitq_enabled ? rabitq_build_time_s : 0.0);
+
       std::ofstream meta_file(index_path_acorn + ".meta");
       meta_file << "build_time_s:" << acorn_build_time_s << std::endl;
+      meta_file << "total_build_time_s:" << acorn_total_build_time_s << std::endl;
       // 磁盘大小 (Disk size)
-      meta_file << "total_size_bytes:" << acorn_total_size_bytes << std::endl;
-      meta_file << "index_only_size_bytes:" << acorn_index_only_size_bytes << std::endl;
+      meta_file << "total_size_bytes:" << acorn_total_size_for_meta << std::endl;
+      meta_file << "index_only_size_bytes:" << acorn_index_only_size_for_meta << std::endl;
+      meta_file << "faiss_index_file_size_bytes:" << acorn_total_size_bytes << std::endl;
+      meta_file << "rabitq_enabled:" << (rabitq_enabled ? 1 : 0) << std::endl;
+      meta_file << "rabitq_total_bits:" << (rabitq_enabled ? rabitq_total_bits : 0) << std::endl;
+      meta_file << "rabitq_build_time_s:" << (rabitq_enabled ? rabitq_build_time_s : 0.0) << std::endl;
+      meta_file << "rabitq_side_size_bytes:" << (rabitq_enabled ? rabitq_side_size_bytes : 0) << std::endl;
       // 逻辑内存大小 (Logical Memory size - 新增)
       meta_file << "total_logical_memory_bytes:" << acorn_total_logical_memory_bytes << std::endl;
       meta_file << "index_only_logical_memory_bytes:" << acorn_index_only_logical_memory_bytes << std::endl;
@@ -334,11 +449,28 @@ int main(int argc, char *argv[])
       size_t acorn_1_total_logical_memory_bytes = acorn_1_index_only_logical_memory_bytes + acorn_1_vectors_memory_bytes;
 
       // 保存元数据文件
+      long long acorn_1_total_size_for_meta = static_cast<long long>(acorn_1_total_logical_memory_bytes);
+      long long acorn_1_index_only_size_for_meta = static_cast<long long>(acorn_1_index_only_logical_memory_bytes);
+      if (rabitq_enabled && rabitq_side_size_bytes_1 > 0)
+      {
+         acorn_1_total_size_for_meta += rabitq_side_size_bytes_1;
+         acorn_1_index_only_size_for_meta += rabitq_side_size_bytes_1;
+         acorn_1_total_logical_memory_bytes += static_cast<size_t>(rabitq_side_size_bytes_1);
+         acorn_1_index_only_logical_memory_bytes += static_cast<size_t>(rabitq_side_size_bytes_1);
+      }
+      double acorn_1_total_build_time_s = acorn_1_build_time_s + (rabitq_enabled ? rabitq_build_time_s : 0.0);
+
       std::ofstream meta_file1(index_path_acorn1 + ".meta");
       meta_file1 << "build_time_s:" << acorn_1_build_time_s << std::endl;
+      meta_file1 << "total_build_time_s:" << acorn_1_total_build_time_s << std::endl;
       // 磁盘大小 (Disk size)
-      meta_file1 << "total_size_bytes:" << acorn_1_total_size_bytes << std::endl;
-      meta_file1 << "index_only_size_bytes:" << acorn_1_index_only_size_bytes << std::endl;
+      meta_file1 << "total_size_bytes:" << acorn_1_total_size_for_meta << std::endl;
+      meta_file1 << "index_only_size_bytes:" << acorn_1_index_only_size_for_meta << std::endl;
+      meta_file1 << "faiss_index_file_size_bytes:" << acorn_1_total_size_bytes << std::endl;
+      meta_file1 << "rabitq_enabled:" << (rabitq_enabled ? 1 : 0) << std::endl;
+      meta_file1 << "rabitq_total_bits:" << (rabitq_enabled ? rabitq_total_bits : 0) << std::endl;
+      meta_file1 << "rabitq_build_time_s:" << (rabitq_enabled ? rabitq_build_time_s : 0.0) << std::endl;
+      meta_file1 << "rabitq_side_size_bytes:" << (rabitq_enabled ? rabitq_side_size_bytes_1 : 0) << std::endl;
       // 逻辑内存大小 (Logical Memory size - 新增)
       meta_file1 << "total_logical_memory_bytes:" << acorn_1_total_logical_memory_bytes << std::endl;
       meta_file1 << "index_only_logical_memory_bytes:" << acorn_1_index_only_logical_memory_bytes << std::endl;

@@ -19,6 +19,8 @@ int main(int argc, char **argv)
    std::string index_type, scenario;
    ANNS::IdxType max_degree, Lbuild; // Vamana
    float alpha;                      // Vamana
+   bool build_rabitq_side_index = false;
+   size_t rabitq_total_bits = 4;
 
    // parameters for acorn in ung (hardcoded to default values)
    bool ung_and_acorn = false;
@@ -75,6 +77,10 @@ int main(int argc, char **argv)
                          "Size of candidate set for building Vamana");
       desc.add_options()("alpha", po::value<float>(&alpha)->default_value(ANNS::default_paras::ALPHA),
                          "Alpha for building Vamana");
+      desc.add_options()("build_rabitq_side_index", po::value<bool>(&build_rabitq_side_index)->default_value(false),
+                         "Build and persist RabitQ side index for UNG query acceleration");
+      desc.add_options()("rabitq_total_bits", po::value<size_t>(&rabitq_total_bits)->default_value(4),
+                         "Total quantization bits for RabitQ side index [1..9]");
 
       po::variables_map vm;
       po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -95,6 +101,11 @@ int main(int argc, char **argv)
    if (scenario != "general" && scenario != "equality")
    {
       std::cerr << "Invalid scenario: " << scenario << std::endl;
+      return -1;
+   }
+   if (build_rabitq_side_index && (rabitq_total_bits < 1 || rabitq_total_bits > 9))
+   {
+      std::cerr << "Invalid rabitq_total_bits: " << rabitq_total_bits << ", expected in [1, 9]." << std::endl;
       return -1;
    }
 
@@ -125,6 +136,7 @@ int main(int argc, char **argv)
 
    // build index
    ANNS::UniNavGraph index;
+   index.configure_rabitq_build(build_rabitq_side_index, rabitq_total_bits);
    auto start_time = std::chrono::high_resolution_clock::now();
    std::cout << "new_cross_edge.ung_and_acorn: " << new_cross_edge.ung_and_acorn << std::endl;
    index.build(base_storage, distance_handler, scenario, index_type, num_threads, num_cross_edges, max_degree, Lbuild, alpha, dataset, new_cross_edge);

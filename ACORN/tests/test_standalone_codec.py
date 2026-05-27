@@ -10,7 +10,7 @@ import numpy as np
 import unittest
 import faiss
 
-from common_faiss_tests import get_dataset_2
+from FilterVector.FilterVectorCode.ACORN.tests.common_faiss_tests import get_dataset_2
 from faiss.contrib.datasets import SyntheticDataset
 from faiss.contrib.inspect_tools import get_additive_quantizer_codebooks
 

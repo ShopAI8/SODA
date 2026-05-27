@@ -14,8 +14,14 @@ def build_paths_for_exp(config, dataset_name, exp_params):
         
     format_params['safe_query_name'] = format_params['query_dir_name'].replace('/', '_')
     
-    # Dynamically format handles
+    # 1. 动态生成基础的 Index Handle
     ung_index_handle = templates['ung_index_handle'].format(**format_params)
+    
+    # --- 针对特定的 SmartRoute 变体追加 _RQB4 后缀 ---
+    alg_name = format_params.get('algorithm_name', '')
+    if alg_name in ['SmartRoute++', 'SmartRoute+++']:
+        ung_index_handle += '_RQB4'
+
     ung_gt_handle = templates['ung_gt_handle'].format(**format_params)
     search_params_handle = templates['search_params_handle'].format(**format_params)
     

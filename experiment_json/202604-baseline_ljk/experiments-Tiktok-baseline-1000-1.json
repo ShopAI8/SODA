@@ -34,12 +34,7 @@
                   "acorn_efs_step_fast":500
                },
                "algorithms": [
-                  "ACORN-gamma",
-                  "ACORN-gamma-improved",
-                  "ACORN-1",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "UNG-nTfalse_loose"
                ]
             },
             {
@@ -50,12 +45,7 @@
                   "acorn_efs_step_fast":500
                },
                "algorithms": [
-                  "ACORN-gamma",
-                  "ACORN-gamma-improved",
-                  "ACORN-1",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "UNG-nTfalse_loose"
                ]
             },
             {
@@ -66,12 +56,7 @@
                   "acorn_efs_step_fast":500
                },
                "algorithms": [
-                  "ACORN-gamma",
-                  "ACORN-gamma-improved",
-                  "ACORN-1",
-                  "NaviX-ACORN",
-                  "pre-filter",
-                  "FastSmartRoute"
+                  "UNG-nTfalse_loose"
                ]
             }
          ]

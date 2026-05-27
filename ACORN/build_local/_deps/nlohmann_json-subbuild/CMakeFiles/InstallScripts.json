@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/_deps/nlohmann_json-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

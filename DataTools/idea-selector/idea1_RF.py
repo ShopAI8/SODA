@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.tree import export_text
 
 # --- 全局配置 ---
-BASE_RESULTS_DIR = "/home/fengxiaoyao/FilterVector/FilterVectorResults"
+BASE_RESULTS_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
 DATASET_NAME = "BookReviews"
 TOP_N_FEATURES_TO_SELECT = 7  # 在第二阶段中，选择最重要的特征数量
 

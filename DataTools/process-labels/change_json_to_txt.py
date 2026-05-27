@@ -3,11 +3,11 @@
 import json
 
 # 读取 JSON 文件
-with open('/home/fengxiaoyao/FilterVector/FilterVectorData/hackernews/hackernews_attr.json', 'r') as file:
+with open('/noraiddata/lijiakang/FilterVector/FilterVectorData/hackernews/hackernews_attr.json', 'r') as file:
     data = json.load(file)
 
 # 打开一个 TXT 文件，准备写入
-with open('/home/fengxiaoyao/FilterVector/FilterVectorData/hackernews/hackernews_base_labels_noreorder_ori.txt', 'w') as output_file:
+with open('/noraiddata/lijiakang/FilterVector/FilterVectorData/hackernews/hackernews_base_labels_noreorder_ori.txt', 'w') as output_file:
     for vector in data:
         # 将每个向量的元素连接为逗号分隔的字符串
         line = ",".join(map(str, vector))

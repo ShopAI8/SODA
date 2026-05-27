@@ -8,6 +8,8 @@
 #include <stack>
 #include <bitset>
 #include <cstring>
+#include <cctype>
+#include <cmath>
 
 #include <random>
 #include <fstream>
@@ -24,6 +26,7 @@
 #include <boost/dynamic_bitset.hpp>
 #include <iomanip>
 #include <atomic> // 引入原子操作头文件
+#include <mutex>
 #include <ThreadPool.h>
 #include <shared_mutex>
 
@@ -32,6 +35,15 @@
 #include "include/uni_nav_graph.h"
 #include <roaring/roaring.h>
 #include <roaring/roaring.hh>
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+#include <knowhere/binaryset.h>
+#include <knowhere/bitsetview.h>
+#include <knowhere/comp/knowhere_config.h>
+#include <knowhere/comp/index_param.h>
+#include <knowhere/dataset.h>
+#include <knowhere/index/index_factory.h>
+#include <knowhere/version.h>
+#endif
 
 namespace fs = boost::filesystem;
 using BitsetType = boost::dynamic_bitset<>;
@@ -62,6 +74,554 @@ struct TreeInfo
 
 namespace ANNS
 {
+   namespace
+   {
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+      struct MilvusKnowhereCacheMeta {
+         std::string index_kind;
+         int64_t rows = 0;
+         int64_t dim = 0;
+         int nlist = 0;
+         int nprobe = 0;
+         double build_time_ms = -1.0;
+         double train_time_ms = -1.0;
+         double add_time_ms = -1.0;
+         double index_sizeof_mb = 0.0;
+         double serialized_index_size_mb = 0.0;
+      };
+
+      bool
+      save_milvus_knowhere_meta(const std::string& meta_path, const MilvusKnowhereCacheMeta& meta) {
+         std::ofstream out(meta_path, std::ios::trunc);
+         if (!out.is_open()) {
+            return false;
+         }
+         out << std::fixed << std::setprecision(6);
+         out << "index_kind=" << meta.index_kind << "\n";
+         out << "rows=" << meta.rows << "\n";
+         out << "dim=" << meta.dim << "\n";
+         out << "nlist=" << meta.nlist << "\n";
+         out << "nprobe=" << meta.nprobe << "\n";
+         if (meta.build_time_ms >= 0.0) {
+            out << "build_time_ms=" << meta.build_time_ms << "\n";
+         }
+         if (meta.train_time_ms >= 0.0) {
+            out << "train_time_ms=" << meta.train_time_ms << "\n";
+         }
+         if (meta.add_time_ms >= 0.0) {
+            out << "add_time_ms=" << meta.add_time_ms << "\n";
+         }
+         if (meta.index_sizeof_mb > 0.0) {
+            out << "index_sizeof_mb=" << meta.index_sizeof_mb << "\n";
+         }
+         if (meta.serialized_index_size_mb > 0.0) {
+            out << "serialized_index_size_mb=" << meta.serialized_index_size_mb << "\n";
+         }
+         return out.good();
+      }
+
+      bool
+      load_milvus_knowhere_meta(const std::string& meta_path, MilvusKnowhereCacheMeta& meta) {
+         std::ifstream in(meta_path);
+         if (!in.is_open()) {
+            return false;
+         }
+         std::string line;
+         while (std::getline(in, line)) {
+            const auto pos = line.find('=');
+            if (pos == std::string::npos) {
+               continue;
+            }
+            const std::string key = line.substr(0, pos);
+            const std::string value = line.substr(pos + 1);
+            if (key == "index_kind") {
+               meta.index_kind = value;
+            } else if (key == "rows") {
+               meta.rows = std::stoll(value);
+            } else if (key == "dim") {
+               meta.dim = std::stoll(value);
+            } else if (key == "nlist") {
+               meta.nlist = std::stoi(value);
+            } else if (key == "nprobe") {
+               meta.nprobe = std::stoi(value);
+            } else if (key == "build_time_ms") {
+               meta.build_time_ms = std::stod(value);
+            } else if (key == "train_time_ms") {
+               meta.train_time_ms = std::stod(value);
+            } else if (key == "add_time_ms") {
+               meta.add_time_ms = std::stod(value);
+            } else if (key == "index_sizeof_mb") {
+               meta.index_sizeof_mb = std::stod(value);
+            } else if (key == "serialized_index_size_mb") {
+               meta.serialized_index_size_mb = std::stod(value);
+            }
+         }
+         return !meta.index_kind.empty() && meta.rows > 0 && meta.dim > 0;
+      }
+
+      bool
+      save_milvus_knowhere_index_file(const knowhere::Index<knowhere::IndexNode>& index,
+                                      const std::string& file_path,
+                                      uint64_t* serialized_size_bytes = nullptr) {
+         knowhere::BinarySet binset;
+         if (index.Serialize(binset) != knowhere::Status::success || binset.binary_map_.empty()) {
+            return false;
+         }
+         const auto& bin = binset.binary_map_.begin()->second;
+         if (bin == nullptr || bin->data == nullptr || bin->size <= 0) {
+            return false;
+         }
+         std::ofstream out(file_path, std::ios::binary | std::ios::trunc);
+         if (!out.is_open()) {
+            return false;
+         }
+         out.write(reinterpret_cast<const char*>(bin->data.get()), static_cast<std::streamsize>(bin->size));
+         if (serialized_size_bytes != nullptr) {
+            *serialized_size_bytes = static_cast<uint64_t>(bin->size);
+         }
+         return out.good();
+      }
+#endif
+
+      class ACORNRabitQDistanceBackend final : public faiss::ACORNDistanceBackend
+      {
+         public:
+            struct Snapshot
+            {
+               double ctx_prepare_time_ms = 0.0;
+               double ctx_rotate_time_ms = 0.0;
+               double ctx_q2c_time_ms = 0.0;
+               double ctx_wrapper_time_ms = 0.0;
+               double bin_time_ms = 0.0;
+               double full_time_ms = 0.0;
+               size_t bin_calls = 0;
+               size_t full_calls = 0;
+               size_t prepare_calls = 0;
+            };
+
+            explicit ACORNRabitQDistanceBackend(const ANNS::rabitq::RabitQSideIndex *side_index)
+                : side_index_(side_index), shared_metrics_(std::make_shared<SharedMetrics>())
+            {
+            }
+
+            ~ACORNRabitQDistanceBackend() override
+            {
+               flush_local_to_shared();
+            }
+
+            std::unique_ptr<faiss::ACORNDistanceBackend> clone() const override
+            {
+               return std::unique_ptr<faiss::ACORNDistanceBackend>(
+                   new ACORNRabitQDistanceBackend(side_index_, shared_metrics_));
+            }
+
+            bool prepare_query(const float *x) override
+            {
+               if (side_index_ == nullptr || !side_index_->enabled() || x == nullptr)
+               {
+                  return false;
+               }
+               query_ctx_ = ANNS::rabitq::RabitQSideIndex::QueryContext{};
+               top_full_worst_ = std::priority_queue<float>();
+               auto begin = std::chrono::high_resolution_clock::now();
+               ANNS::rabitq::RabitQSideIndex::InitTiming init_timing;
+               const bool ok = side_index_->init_query(reinterpret_cast<const char *>(x), query_ctx_, &init_timing);
+               const uint64_t elapsed_ns = static_cast<uint64_t>(
+                   std::chrono::duration_cast<std::chrono::nanoseconds>(
+                       std::chrono::high_resolution_clock::now() - begin)
+                       .count());
+               if (ok)
+               {
+                  local_metrics_.ctx_prepare_time_ns += elapsed_ns;
+                  local_metrics_.ctx_rotate_time_ns += ms_to_ns(init_timing.rotate_ms);
+                  local_metrics_.ctx_q2c_time_ns += ms_to_ns(init_timing.q_to_centroids_ms);
+                  local_metrics_.ctx_wrapper_time_ns += ms_to_ns(init_timing.wrapper_ms);
+                  local_metrics_.prepare_calls += 1;
+               }
+               return ok;
+            }
+
+            float distance(faiss::idx_t i) override
+            {
+               if (side_index_ == nullptr || i < 0)
+               {
+                  return std::numeric_limits<float>::max();
+               }
+               // Two-stage accounting for ACORN RabitQ path:
+               // 1) estimate_bin for coarse timing/call stats
+               // 2) estimate_full for final returned distance (keeps correctness aligned with exact scoring semantics)
+               float low_dist = 0.0F;
+               local_metrics_.bin_calls += 1;
+               distance_calls_ += 1;
+               float bin_dist = 0.0F;
+               if (should_sample(distance_calls_))
+               {
+                  auto bin_begin = std::chrono::high_resolution_clock::now();
+                  bin_dist = side_index_->estimate_bin(static_cast<ANNS::IdxType>(i), query_ctx_, &low_dist);
+                  const uint64_t bin_elapsed_ns = static_cast<uint64_t>(
+                      std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::high_resolution_clock::now() - bin_begin)
+                          .count());
+                  local_metrics_.bin_time_ns += (bin_elapsed_ns * kSamplePeriod);
+               }
+               else
+               {
+                  bin_dist = side_index_->estimate_bin(static_cast<ANNS::IdxType>(i), query_ctx_, &low_dist);
+               }
+
+               // Adaptive two-stage refinement:
+               // - warmup: compute some full distances to bootstrap a cutoff
+               // - steady-state: only refine when low_bound looks competitive
+               bool should_refine = false;
+               if (top_full_worst_.size() < full_warmup_)
+               {
+                  should_refine = true;
+               }
+               else if (!top_full_worst_.empty())
+               {
+                  const float cutoff = top_full_worst_.top();
+                  should_refine = (low_dist < cutoff);
+               }
+
+               if (!should_refine)
+               {
+                  return bin_dist;
+               }
+
+               local_metrics_.full_calls += 1;
+               float full_dist = 0.0F;
+               if (should_sample(local_metrics_.full_calls))
+               {
+                  auto full_begin = std::chrono::high_resolution_clock::now();
+                  full_dist = side_index_->estimate_full(static_cast<ANNS::IdxType>(i), query_ctx_, nullptr);
+                  const uint64_t full_elapsed_ns = static_cast<uint64_t>(
+                      std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::high_resolution_clock::now() - full_begin)
+                          .count());
+                  local_metrics_.full_time_ns += (full_elapsed_ns * kSamplePeriod);
+               }
+               else
+               {
+                  full_dist = side_index_->estimate_full(static_cast<ANNS::IdxType>(i), query_ctx_, nullptr);
+               }
+
+               if (top_full_worst_.size() < full_keep_)
+               {
+                  top_full_worst_.push(full_dist);
+               }
+               else if (full_dist < top_full_worst_.top())
+               {
+                  top_full_worst_.pop();
+                  top_full_worst_.push(full_dist);
+               }
+               return full_dist;
+            }
+
+            Snapshot snapshot() const
+            {
+               flush_local_to_shared();
+               Snapshot out;
+               out.ctx_prepare_time_ms = ns_to_ms(shared_metrics_->ctx_prepare_time_ns.load(std::memory_order_relaxed));
+               out.ctx_rotate_time_ms = ns_to_ms(shared_metrics_->ctx_rotate_time_ns.load(std::memory_order_relaxed));
+               out.ctx_q2c_time_ms = ns_to_ms(shared_metrics_->ctx_q2c_time_ns.load(std::memory_order_relaxed));
+               out.ctx_wrapper_time_ms = ns_to_ms(shared_metrics_->ctx_wrapper_time_ns.load(std::memory_order_relaxed));
+               out.bin_time_ms = ns_to_ms(shared_metrics_->bin_time_ns.load(std::memory_order_relaxed));
+               out.full_time_ms = ns_to_ms(shared_metrics_->full_time_ns.load(std::memory_order_relaxed));
+               out.bin_calls = static_cast<size_t>(shared_metrics_->bin_calls.load(std::memory_order_relaxed));
+               out.full_calls = static_cast<size_t>(shared_metrics_->full_calls.load(std::memory_order_relaxed));
+               out.prepare_calls = static_cast<size_t>(shared_metrics_->prepare_calls.load(std::memory_order_relaxed));
+               return out;
+            }
+
+         private:
+            struct LocalMetrics
+            {
+               uint64_t ctx_prepare_time_ns = 0;
+               uint64_t ctx_rotate_time_ns = 0;
+               uint64_t ctx_q2c_time_ns = 0;
+               uint64_t ctx_wrapper_time_ns = 0;
+               uint64_t bin_time_ns = 0;
+               uint64_t full_time_ns = 0;
+               uint64_t bin_calls = 0;
+               uint64_t full_calls = 0;
+               uint64_t prepare_calls = 0;
+            };
+
+            struct SharedMetrics
+            {
+               std::atomic<uint64_t> ctx_prepare_time_ns{0};
+               std::atomic<uint64_t> ctx_rotate_time_ns{0};
+               std::atomic<uint64_t> ctx_q2c_time_ns{0};
+               std::atomic<uint64_t> ctx_wrapper_time_ns{0};
+               std::atomic<uint64_t> bin_time_ns{0};
+               std::atomic<uint64_t> full_time_ns{0};
+               std::atomic<uint64_t> bin_calls{0};
+               std::atomic<uint64_t> full_calls{0};
+               std::atomic<uint64_t> prepare_calls{0};
+            };
+
+            ACORNRabitQDistanceBackend(
+                const ANNS::rabitq::RabitQSideIndex *side_index,
+                std::shared_ptr<SharedMetrics> shared_metrics)
+                : side_index_(side_index), shared_metrics_(std::move(shared_metrics))
+            {
+            }
+
+            static uint64_t ms_to_ns(double ms)
+            {
+               return static_cast<uint64_t>(std::max(0.0, ms) * 1000000.0);
+            }
+
+            static double ns_to_ms(uint64_t ns)
+            {
+               return static_cast<double>(ns) / 1000000.0;
+            }
+
+            static bool should_sample(uint64_t counter)
+            {
+               return (counter % kSamplePeriod) == 0;
+            }
+
+            void flush_local_to_shared() const
+            {
+               if (local_flushed_)
+               {
+                  return;
+               }
+               local_flushed_ = true;
+               if (local_metrics_.ctx_prepare_time_ns)
+                  shared_metrics_->ctx_prepare_time_ns.fetch_add(local_metrics_.ctx_prepare_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.ctx_rotate_time_ns)
+                  shared_metrics_->ctx_rotate_time_ns.fetch_add(local_metrics_.ctx_rotate_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.ctx_q2c_time_ns)
+                  shared_metrics_->ctx_q2c_time_ns.fetch_add(local_metrics_.ctx_q2c_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.ctx_wrapper_time_ns)
+                  shared_metrics_->ctx_wrapper_time_ns.fetch_add(local_metrics_.ctx_wrapper_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.bin_time_ns)
+                  shared_metrics_->bin_time_ns.fetch_add(local_metrics_.bin_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.full_time_ns)
+                  shared_metrics_->full_time_ns.fetch_add(local_metrics_.full_time_ns, std::memory_order_relaxed);
+               if (local_metrics_.bin_calls)
+                  shared_metrics_->bin_calls.fetch_add(local_metrics_.bin_calls, std::memory_order_relaxed);
+               if (local_metrics_.full_calls)
+                  shared_metrics_->full_calls.fetch_add(local_metrics_.full_calls, std::memory_order_relaxed);
+               if (local_metrics_.prepare_calls)
+                  shared_metrics_->prepare_calls.fetch_add(local_metrics_.prepare_calls, std::memory_order_relaxed);
+            }
+
+            const ANNS::rabitq::RabitQSideIndex *side_index_ = nullptr;
+            ANNS::rabitq::RabitQSideIndex::QueryContext query_ctx_{};
+            std::shared_ptr<SharedMetrics> shared_metrics_;
+            mutable LocalMetrics local_metrics_{};
+            mutable bool local_flushed_ = false;
+            uint64_t distance_calls_ = 0;
+            std::priority_queue<float> top_full_worst_{};
+            size_t full_warmup_ = 128;
+            size_t full_keep_ = 256;
+            static constexpr uint64_t kSamplePeriod = 32;
+      };
+   } // namespace
+
+
+   void UniNavGraph::configure_rabitq_build(bool enable, size_t total_bits)
+   {
+      if (!enable)
+      {
+         _build_rabitq_side_index = false;
+         _rabitq_total_bits = total_bits;
+         return;
+      }
+
+      if (total_bits < 1 || total_bits > 9)
+      {
+         std::cerr << "[RabitQ] Invalid total_bits=" << total_bits
+                   << ", expected [1, 9]. Disable RabitQ side-index build." << std::endl;
+         _build_rabitq_side_index = false;
+         _rabitq_total_bits = 4;
+         return;
+      }
+
+      _build_rabitq_side_index = true;
+      _rabitq_total_bits = total_bits;
+   }
+
+   void UniNavGraph::set_ung_distance_mode(const std::string &mode)
+   {
+      std::string lowered = mode;
+      std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
+         return static_cast<char>(std::tolower(c));
+      });
+
+      if (lowered == "rabitq")
+      {
+         _ung_distance_mode = UngDistanceMode::RabitQ;
+         if (!_rabitq_side_index.enabled() &&
+             !_acorn_rabitq_side_index.enabled() &&
+             !_acorn_1_rabitq_side_index.enabled())
+         {
+            std::cerr << "[RabitQ] Distance mode is set to rabitq, but side index is not available. "
+                      << "UNG will fallback to exact distance at query time." << std::endl;
+         }
+      }
+      else
+      {
+         if (lowered != "exact")
+         {
+            std::cerr << "[RabitQ] Unknown ung_distance_mode='" << mode
+                      << "', fallback to exact." << std::endl;
+         }
+         _ung_distance_mode = UngDistanceMode::Exact;
+      }
+   }
+
+   void UniNavGraph::prepare_rabitq_query_contexts(std::shared_ptr<IStorage> &query_storage,
+                                                   const std::string &query_bin_file)
+   {
+      if (_ung_distance_mode != UngDistanceMode::RabitQ || !_rabitq_side_index.enabled())
+      {
+         return;
+      }
+      if (!query_storage)
+      {
+         return;
+      }
+
+      const auto num_queries = query_storage->get_num_points();
+      const bool need_refresh =
+          (_rabitq_cached_query_storage != query_storage.get()) ||
+          (_rabitq_query_ctx_cache.size() != num_queries);
+
+      if (!need_refresh)
+      {
+         return;
+      }
+
+      std::string cache_file_path;
+      if (!query_bin_file.empty())
+      {
+         fs::path query_path(query_bin_file);
+         cache_file_path = (query_path.parent_path() / "query_rabitq_ctx_cache.bin").string();
+      }
+
+      if (!cache_file_path.empty())
+      {
+         std::vector<std::unique_ptr<ANNS::rabitq::RabitQSideIndex::QueryContext>> loaded_cache;
+         if (_rabitq_side_index.load_query_context_cache(cache_file_path, loaded_cache) &&
+             loaded_cache.size() == static_cast<size_t>(num_queries))
+         {
+            _rabitq_query_ctx_cache = std::move(loaded_cache);
+            _rabitq_query_ctx_prepare_ms.assign(num_queries, 0.0);
+            _rabitq_query_ctx_rotate_ms.assign(num_queries, 0.0);
+            _rabitq_query_ctx_q2c_ms.assign(num_queries, 0.0);
+            _rabitq_query_ctx_wrapper_ms.assign(num_queries, 0.0);
+            _rabitq_cached_query_storage = query_storage.get();
+            std::cout << "[RabitQ] Query contexts loaded from cache: " << cache_file_path << std::endl;
+            return;
+         }
+      }
+
+      std::cout << "[RabitQ] Preparing query contexts for reuse ..." << std::endl;
+      auto prep_all_start = std::chrono::high_resolution_clock::now();
+      _rabitq_query_ctx_cache.clear();
+      _rabitq_query_ctx_cache.resize(num_queries);
+      _rabitq_query_ctx_prepare_ms.assign(num_queries, 0.0);
+      _rabitq_query_ctx_rotate_ms.assign(num_queries, 0.0);
+      _rabitq_query_ctx_q2c_ms.assign(num_queries, 0.0);
+      _rabitq_query_ctx_wrapper_ms.assign(num_queries, 0.0);
+
+      std::atomic<bool> all_ok{true};
+      const IdxType invalid_query_id = std::numeric_limits<IdxType>::max();
+      std::atomic<IdxType> first_failed_query_id{invalid_query_id};
+      std::atomic<IdxType> prepared_count{0};
+      const IdxType progress_step = 1000;
+      const int omp_threads = std::max<int>(1, std::min<int>(
+          static_cast<int>(num_queries), omp_get_max_threads()));
+      std::cout << "[RabitQ] Query context prepare OpenMP threads: "
+                << omp_threads << std::endl;
+
+#pragma omp parallel for schedule(dynamic, 64) num_threads(omp_threads)
+      for (IdxType query_id = 0; query_id < num_queries; ++query_id)
+      {
+         if (!all_ok.load(std::memory_order_relaxed))
+         {
+            continue;
+         }
+
+         auto per_start = std::chrono::high_resolution_clock::now();
+         auto ctx = std::make_unique<ANNS::rabitq::RabitQSideIndex::QueryContext>();
+         ANNS::rabitq::RabitQSideIndex::InitTiming init_timing;
+         if (!_rabitq_side_index.init_query(query_storage->get_vector(query_id), *ctx, &init_timing))
+         {
+            all_ok.store(false, std::memory_order_relaxed);
+            IdxType expected = invalid_query_id;
+            first_failed_query_id.compare_exchange_strong(expected, query_id, std::memory_order_relaxed);
+            continue;
+         }
+         _rabitq_query_ctx_prepare_ms[query_id] = std::chrono::duration<double, std::milli>(
+             std::chrono::high_resolution_clock::now() - per_start
+         ).count();
+         _rabitq_query_ctx_rotate_ms[query_id] = init_timing.rotate_ms;
+         _rabitq_query_ctx_q2c_ms[query_id] = init_timing.q_to_centroids_ms;
+         _rabitq_query_ctx_wrapper_ms[query_id] = init_timing.wrapper_ms;
+         _rabitq_query_ctx_cache[query_id] = std::move(ctx);
+
+         const IdxType done = prepared_count.fetch_add(1, std::memory_order_relaxed) + 1;
+         if (done == num_queries || done % progress_step == 0)
+         {
+            const double elapsed_ms = std::chrono::duration<double, std::milli>(
+                std::chrono::high_resolution_clock::now() - prep_all_start
+            ).count();
+            const double progress = (num_queries > 0)
+                                        ? (100.0 * static_cast<double>(done) /
+                                           static_cast<double>(num_queries))
+                                        : 100.0;
+#pragma omp critical(rabitq_progress_log)
+            {
+               std::cout << "[RabitQ] Query context prepare progress: "
+                         << done << "/" << num_queries
+                         << " (" << std::fixed << std::setprecision(1)
+                         << progress << "%), elapsed="
+                         << std::setprecision(1) << elapsed_ms << " ms"
+                         << std::defaultfloat << std::endl;
+            }
+         }
+      }
+
+      if (!all_ok.load(std::memory_order_relaxed))
+      {
+         const IdxType failed_id = first_failed_query_id.load(std::memory_order_relaxed);
+         std::cerr << "[RabitQ] Failed to prepare query context for query "
+                   << failed_id << ", fallback to per-query initialization." << std::endl;
+         _rabitq_query_ctx_cache.clear();
+         _rabitq_query_ctx_prepare_ms.clear();
+         _rabitq_query_ctx_rotate_ms.clear();
+         _rabitq_query_ctx_q2c_ms.clear();
+         _rabitq_query_ctx_wrapper_ms.clear();
+         _rabitq_cached_query_storage = nullptr;
+         return;
+      }
+
+      if (all_ok.load(std::memory_order_relaxed))
+      {
+         _rabitq_cached_query_storage = query_storage.get();
+         const double total_ms = std::chrono::duration<double, std::milli>(
+             std::chrono::high_resolution_clock::now() - prep_all_start
+         ).count();
+         std::cout << "[RabitQ] Query contexts prepared in " << total_ms
+                   << " ms and will be reused across Lsearch runs." << std::endl;
+         if (!cache_file_path.empty())
+         {
+            if (_rabitq_side_index.save_query_context_cache(cache_file_path, _rabitq_query_ctx_cache))
+            {
+               std::cout << "[RabitQ] Query contexts saved to cache: " << cache_file_path << std::endl;
+            }
+            else
+            {
+               std::cerr << "[RabitQ] Failed to save query context cache: " << cache_file_path << std::endl;
+            }
+         }
+      }
+   }
 
    void UniNavGraph::build(std::shared_ptr<IStorage> base_storage, std::shared_ptr<DistanceHandler> distance_handler,
                            std::string scenario, std::string index_name, uint32_t num_threads, IdxType num_cross_edges,
@@ -150,6 +710,63 @@ namespace ANNS
                 num_threads,
                 new_cross_edge);
          }
+      }
+
+      if (_build_rabitq_side_index)
+      {
+         std::cout << "Building RabitQ side index for UNG search..." << std::endl;
+         auto rabitq_start = std::chrono::high_resolution_clock::now();
+
+         // Build RabitQ clusters by first metadata label (metadata[i][0]),
+         // instead of UNG internal group_id, to align with ACORN RabitQ grouping.
+         std::vector<IdxType> rabitq_point_to_group(_num_points, 1);
+         std::unordered_map<int64_t, IdxType> first_label_to_group;
+         IdxType next_group_id = 1;
+         for (IdxType point_id = 0; point_id < _num_points; ++point_id)
+         {
+            const auto &label_set = _base_storage->get_label_set(point_id);
+            const int64_t first_label = label_set.empty() ? -1LL : static_cast<int64_t>(label_set[0]);
+            auto it = first_label_to_group.find(first_label);
+            if (it == first_label_to_group.end())
+            {
+               first_label_to_group[first_label] = next_group_id;
+               rabitq_point_to_group[point_id] = next_group_id;
+               ++next_group_id;
+            }
+            else
+            {
+               rabitq_point_to_group[point_id] = it->second;
+            }
+         }
+         const IdxType rabitq_num_groups = next_group_id - 1;
+         std::cout << "[RabitQ] Grouping by metadata[i][0], num_groups=" << rabitq_num_groups << std::endl;
+
+         const bool ok = _rabitq_side_index.build(
+             _base_storage,
+             rabitq_point_to_group,
+             rabitq_num_groups,
+             _rabitq_total_bits
+         );
+         if (!ok)
+         {
+            _rabitq_build_time_ms = std::chrono::duration<double, std::milli>(
+                                       std::chrono::high_resolution_clock::now() - rabitq_start)
+                                       .count();
+            std::cerr << "[RabitQ] Failed to build side index. Falling back to exact distance mode." << std::endl;
+         }
+         else
+         {
+            _rabitq_build_time_ms = std::chrono::duration<double, std::milli>(
+                                       std::chrono::high_resolution_clock::now() - rabitq_start)
+                                       .count();
+            std::cout << "[RabitQ] Side index built in "
+                      << _rabitq_build_time_ms
+                      << " ms" << std::endl;
+         }
+      }
+      else
+      {
+         _rabitq_build_time_ms = 0.0;
       }
 
       // index time
@@ -243,6 +860,7 @@ namespace ANNS
                   is_min = false;
                   break;
                }
+
             }
          }
 
@@ -326,9 +944,11 @@ namespace ANNS
          min_super_set_ids.emplace_back(candidates[0]->group_id);
          return;
       }
-      bool skip_filter = stats.is_ung_loose;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      bool skip_filter = this->skip_els_filter;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      //bool skip_filter = false; //TODO
       if (skip_filter)
       {
+         // 快速路径：跳过排序和过滤，直接将候选者 group_id 加入结果
          for (const auto& candidate : candidates)
          {
             min_super_set_ids.emplace_back(candidate->group_id);
@@ -354,14 +974,13 @@ namespace ANNS
       time_sorting = std::chrono::duration<double, std::milli>(end_sort - start_sort).count();
 // #endif
 
-      auto min_size = _group_id_to_label_set[candidates[0]->group_id].size();
-
       // --- 3. 测量过滤循环的时间 ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_filter = std::chrono::high_resolution_clock::now();
 // #endif
       if (!skip_filter)
       {
+         auto min_size = _group_id_to_label_set[candidates[0]->group_id].size();
          std::vector<IdxType> filtered_ids;
          for (auto candidate : candidates)
          {
@@ -388,7 +1007,7 @@ namespace ANNS
                filtered_ids.emplace_back(cur_group_id);
             }
          }
-         // 🔥 覆盖原始结果
+         // 覆盖原始结果
          min_super_set_ids = std::move(filtered_ids);
       }
       
@@ -1144,115 +1763,81 @@ namespace ANNS
       return all_bitmaps;
    }
 
-   //非优化bitmap计算版本，保留以供性能对比
+   // fxy_add
    const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
       const std::vector<LabelType>& query_labels,
-      size_t& cand_size) const
+      size_t& cand_size,
+      bool use_optimized) const
    {
-      // 复用内存
-      static thread_local std::bitset<16000000> final_bitmap;
-      static thread_local std::bitset<16000000> temp_bitmap;
+      // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
+      static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
+      static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
+      if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
+      if (!temp_bitmap_ptr) temp_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
+      auto& final_bitmap = *final_bitmap_ptr;
+      auto& temp_bitmap = *temp_bitmap_ptr;
       
-      final_bitmap.set(); 
-      
+      // 特殊情况：空查询，退化为全集
       if (query_labels.empty()) {
+         final_bitmap.set(); 
          cand_size = _num_points;
          return final_bitmap;
       }
 
+      std::vector<const std::vector<IdxType>*> valid_vec_lists;
+      valid_vec_lists.reserve(query_labels.size()); 
+
       for (LabelType attr_label : query_labels) {
          auto it = _attr_to_id.find(attr_label);
          if (it == _attr_to_id.end()) {
-               final_bitmap.reset(); // 遇到未知标签，交集全清零
+               final_bitmap.reset(); 
                cand_size = 0;
                return final_bitmap;
          }
-         
          AtrType attr_id = it->second;
          IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
-         const auto& vec_list = _vector_attr_graph[attr_node_id];
-         
+         valid_vec_lists.push_back(&_vector_attr_graph[attr_node_id]);
+      }
+
+      if (use_optimized) {
+         // ==========================================
+         // 开启大优化：SmartRoute 系列或强制开启时走这里
+         // ==========================================
+      std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
+         [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
+               return a->size() < b->size();
+         });
+
+      final_bitmap.reset(); 
+      const auto& first_list = *valid_vec_lists[0];
+         for (IdxType vec_id : first_list) final_bitmap.set(vec_id);
+
+      for (size_t i = 1; i < valid_vec_lists.size(); ++i) {
+         if (final_bitmap.none()) {
+               cand_size = 0;
+               return final_bitmap;
+         }
+         const auto& vec_list = *valid_vec_lists[i];
          for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
          final_bitmap &= temp_bitmap;
          for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
+      }
+      } else {
+         // ==========================================
+         // 朴素 Baseline：仅测试算法基础能力
+         // ==========================================
+         final_bitmap.set(); // 慢操作：全集置1
+         for (size_t i = 0; i < valid_vec_lists.size(); ++i) {
+               const auto& vec_list = *valid_vec_lists[i];
+               temp_bitmap.reset(); // 慢操作：全体清零
+               for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
+               final_bitmap &= temp_bitmap;
+         }
       }
       
       cand_size = final_bitmap.count();
       return final_bitmap;
    }
-   // fxy_add
-   // const std::bitset<16000000>& UniNavGraph::get_exact_cand_size_and_mask(
-   //  const std::vector<LabelType>& query_labels,
-   //  size_t& cand_size) const
-   // {
-   //    // // 复用内存
-   //    // static thread_local std::bitset<16000000> final_bitmap;
-   //    // static thread_local std::bitset<16000000> temp_bitmap;
-
-   //    // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
-   //    static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
-   //    static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
-   //    if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
-   //    if (!temp_bitmap_ptr) temp_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
-   //    auto& final_bitmap = *final_bitmap_ptr;
-   //    auto& temp_bitmap = *temp_bitmap_ptr;
-      
-   //    // 特殊情况：空查询，退化为全集
-   //    if (query_labels.empty()) {
-   //       final_bitmap.set(); 
-   //       cand_size = _num_points;
-   //       return final_bitmap;
-   //    }
-
-   //    // 1. 收集所有属性对应的向量列表，并提前拦截无效查询
-   //    std::vector<const std::vector<IdxType>*> valid_vec_lists;
-   //    // 提前分配空间，避免 vector 扩容开销
-   //    valid_vec_lists.reserve(query_labels.size()); 
-      
-   //    for (LabelType attr_label : query_labels) {
-   //       auto it = _attr_to_id.find(attr_label);
-   //       if (it == _attr_to_id.end()) {
-   //             final_bitmap.reset(); // 遇到未知标签，交集必然为空
-   //             cand_size = 0;
-   //             return final_bitmap;
-   //       }
-   //       AtrType attr_id = it->second;
-   //       IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
-   //       valid_vec_lists.push_back(&_vector_attr_graph[attr_node_id]);
-   //    }
-
-   //    // 2. 核心优化：按照候选集大小从小到大排序 (指针拷贝，耗时可忽略不计)
-   //    std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
-   //       [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
-   //             return a->size() < b->size();
-   //       });
-
-   //    // 3. 核心优化：用最小的集合来初始化 final_bitmap (彻底消灭了原来的 final_bitmap.set() 慢操作)
-   //    final_bitmap.reset(); 
-   //    const auto& first_list = *valid_vec_lists[0];
-   //    for (IdxType vec_id : first_list) {
-   //       final_bitmap.set(vec_id);
-   //    }
-
-   //    // 4. 依次与其余属性的集合求交集
-   //    for (size_t i = 1; i < valid_vec_lists.size(); ++i) {
-   //       // 核心优化：提前终止。如果当前交集已经为空，直接跳出，省去后续所有计算
-   //       if (final_bitmap.none()) {
-   //             cand_size = 0;
-   //             return final_bitmap;
-   //       }
-
-   //       const auto& vec_list = *valid_vec_lists[i];
-         
-   //       // 【兜底优化】恢复旧代码的精确复位机制，确保小集合场景下纳秒级清零
-   //       for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
-   //       final_bitmap &= temp_bitmap;
-   //       for (IdxType vec_id : vec_list) temp_bitmap.reset(vec_id);
-   //    }
-      
-   //    cand_size = final_bitmap.count();
-   //    return final_bitmap;
-   // }
 
    // fxy_add
    void UniNavGraph::search_baseline_exact(
@@ -1381,6 +1966,306 @@ namespace ANNS
       size_t valid_k = top_k_heap.size();
       for (int i = valid_k - 1; i >= 0; --i) {
          results[i].first = top_k_heap.top().second; 
+         results[i].second = top_k_heap.top().first;
+         top_k_heap.pop();
+      }
+   }
+
+   bool UniNavGraph::run_milvus_knowhere_baseline(
+      IdxType query_id,
+      const char* query,
+      const std::vector<LabelType>& query_labels,
+      IdxType Lsearch,
+      IdxType K,
+      int milvus_baseline_alg,
+      SearchQueue& cur_result,
+      QueryStats& stats,
+      float& num_cmps_out) {
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+      auto search_time_start_ms = std::chrono::high_resolution_clock::now();
+      const bool use_hnsw = (milvus_baseline_alg == 10);
+      if ((!use_hnsw && !_milvus_knowhere_ready) || (use_hnsw && !_milvus_knowhere_hnsw_ready)) {
+         std::cerr << "[Milvus-IVF-Knowhere] index is not ready for query " << query_id
+                   << " (baseline_alg=" << milvus_baseline_alg << ")" << std::endl;
+         return false;
+      }
+
+      stats.query_length = query_labels.size();
+      stats.acorn_filter_type = 3;
+
+      roaring::Roaring valid_candidates;
+      bool allow_all = query_labels.empty();
+      bool valid_query = true;
+      auto filter_build_start_ms = std::chrono::high_resolution_clock::now();
+      if (!allow_all) {
+         std::vector<const roaring::Roaring*> valid_rb;
+         valid_rb.reserve(query_labels.size());
+         for (auto label : query_labels) {
+            auto it = _attr_to_id.find(label);
+            if (it == _attr_to_id.end() || static_cast<size_t>(it->second) >= _vec_attr_roaring_inv.size()) {
+               valid_query = false;
+               break;
+            }
+            valid_rb.push_back(&_vec_attr_roaring_inv[it->second]);
+         }
+         if (valid_query && !valid_rb.empty()) {
+            std::sort(valid_rb.begin(), valid_rb.end(),
+                      [](const roaring::Roaring* a, const roaring::Roaring* b) {
+                         return a->cardinality() < b->cardinality();
+                      });
+            valid_candidates = *valid_rb[0];
+            for (size_t i = 1; i < valid_rb.size(); ++i) {
+               if (valid_candidates.isEmpty()) break;
+               valid_candidates &= *valid_rb[i];
+            }
+         }
+      }
+      stats.exact_cand_size = allow_all ? _num_points : (valid_query ? valid_candidates.cardinality() : 0);
+      stats.candidate_set_size = stats.exact_cand_size;
+      stats.global_p_pass = (_num_points > 0) ? static_cast<float>(stats.candidate_set_size) / static_cast<float>(_num_points) : 0.0f;
+
+      // Milvus-style pipeline:
+      // 1) evaluate scalar predicate to obtain "valid rows";
+      // 2) convert to Knowhere bitset where bit=1 means "filtered out".
+      // We currently have no delete/time-travel bitset in this standalone baseline,
+      // so final filtered bitset is simply inverse(valid_rows).
+      std::vector<uint8_t> valid_bits((_num_points + 7) / 8, 0x00);
+      if (allow_all) {
+         std::fill(valid_bits.begin(), valid_bits.end(), 0xFF);
+      } else if (valid_query) {
+         for (uint32_t vec_id : valid_candidates) {
+            valid_bits[vec_id >> 3] |= static_cast<uint8_t>(1u << (vec_id & 7));
+         }
+      }
+      std::vector<uint8_t> filter_bits(valid_bits.size(), 0x00);
+      for (size_t i = 0; i < valid_bits.size(); ++i) {
+         filter_bits[i] = static_cast<uint8_t>(~valid_bits[i]);
+      }
+      // Clear tail bits outside [_num_points) to avoid accidental filtering noise.
+      if ((_num_points & 7U) != 0U) {
+         const uint8_t tail_mask = static_cast<uint8_t>((1u << (_num_points & 7U)) - 1u);
+         filter_bits.back() &= tail_mask;
+      }
+      stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(
+                                  std::chrono::high_resolution_clock::now() - filter_build_start_ms)
+                                  .count();
+
+      const int64_t dim = static_cast<int64_t>(_base_storage->get_dim());
+      const float* query_ptr = reinterpret_cast<const float*>(query);
+      auto query_ds = knowhere::GenDataSet(1, dim, query_ptr);
+
+      // Keep thread policy consistent: outer framework controls query-level parallelism.
+      static std::once_flag kh_search_pool_once;
+      std::call_once(kh_search_pool_once, []() {
+         knowhere::KnowhereConfig::SetSearchThreadPoolSize(1);
+      });
+
+      const int max_nprobe = std::max<int>(1, std::min<int>(_milvus_knowhere_nlist, 256));
+      const int runtime_nprobe = std::max<int>(
+          1, std::min<int>(max_nprobe, static_cast<int>(std::ceil(static_cast<double>(std::max<IdxType>(1, Lsearch)) / 16.0))));
+      // For Milvus-HNSW baseline, use Lsearch directly as ef to align with
+      // the experiment framework semantics ("candidate queue length").
+      const int runtime_ef = std::max<int>(1, static_cast<int>(Lsearch));
+
+      knowhere::Json search_json;
+      search_json[knowhere::meta::DIM] = dim;
+      search_json[knowhere::meta::TOPK] = static_cast<int64_t>(K);
+      search_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+      if (!use_hnsw && _milvus_knowhere_is_ivf) {
+         search_json[knowhere::indexparam::NPROBE] = runtime_nprobe;
+      }
+      if (use_hnsw) {
+         search_json[knowhere::indexparam::EF] = runtime_ef;
+      }
+
+      knowhere::BitsetView bitset(filter_bits.data(), _num_points);
+      auto core_search_start_ms = std::chrono::high_resolution_clock::now();
+      auto& active_index = use_hnsw ? _milvus_knowhere_hnsw_index : _milvus_knowhere_index;
+      auto kh_results = active_index.Search(query_ds, search_json, bitset);
+      if (!kh_results.has_value()) {
+         std::cerr << "[Milvus-IVF-Knowhere] search failed for query " << query_id << std::endl;
+         return false;
+      }
+
+      const auto* ids = kh_results.value()->GetIds();
+      const auto* dists = kh_results.value()->GetDistance();
+      cur_result.clear();
+      if (ids != nullptr && dists != nullptr) {
+         for (IdxType i = 0; i < K; ++i) {
+            if (ids[i] >= 0) {
+               cur_result.insert(static_cast<IdxType>(ids[i]), dists[i]);
+            }
+         }
+      }
+
+      stats.core_search_time_ms = std::chrono::duration<double, std::milli>(
+                                       std::chrono::high_resolution_clock::now() - core_search_start_ms)
+                                       .count();
+      stats.search_time_ms = std::chrono::duration<double, std::milli>(
+                                  std::chrono::high_resolution_clock::now() - search_time_start_ms)
+                                  .count();
+      stats.num_distance_calcs = 0;
+      stats.num_nodes_visited = 0;
+      stats.acorn_efs_used = use_hnsw ? runtime_ef : (_milvus_knowhere_is_ivf ? runtime_nprobe : 0);
+      num_cmps_out = 0.0f;
+      return true;
+#else
+      (void)query_id;
+      (void)query;
+      (void)query_labels;
+      (void)Lsearch;
+      (void)K;
+      (void)milvus_baseline_alg;
+      (void)cur_result;
+      (void)stats;
+      (void)num_cmps_out;
+      std::cerr << "[Milvus-IVF-Knowhere] baseline requested but binary was built without ENABLE_KNOWHERE_MILVUS_BASELINE." << std::endl;
+      return false;
+#endif
+   }
+
+   void UniNavGraph::search_baseline_rabitq(
+      const std::bitset<16000000>& final_bitmap,
+      IdxType K,
+      std::pair<IdxType, float>* results,
+      size_t& num_distance_calcs,
+      ANNS::rabitq::RabitQSideIndex::QueryContext& query_ctx,
+      QueryStats& stats,
+      bool use_optimized_bitset,
+      const ANNS::rabitq::RabitQSideIndex* side_index)
+   {
+      const ANNS::rabitq::RabitQSideIndex* active_side_index =
+          (side_index != nullptr) ? side_index : &_rabitq_side_index;
+
+      num_distance_calcs = 0;
+      for (IdxType i = 0; i < K; ++i) {
+         results[i].first = static_cast<IdxType>(-1);
+         results[i].second = std::numeric_limits<float>::max();
+      }
+
+      std::priority_queue<std::pair<float, IdxType>> top_k_heap;
+
+      auto process_candidate = [&](IdxType vec_id) {
+         float low_dist = 0.0F;
+         auto bin_start = std::chrono::high_resolution_clock::now();
+         float dist = active_side_index->estimate_bin(vec_id, query_ctx, &low_dist);
+         stats.rabitq_bin_time_ms += std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - bin_start
+         ).count();
+         stats.rabitq_bin_calls += 1;
+         num_distance_calcs += 1;
+
+         bool should_refine = false;
+         if (top_k_heap.size() >= K) {
+            should_refine = low_dist < top_k_heap.top().first;
+         }
+         if (should_refine) {
+            float refined_low = 0.0F;
+            auto full_start = std::chrono::high_resolution_clock::now();
+            dist = active_side_index->estimate_full(vec_id, query_ctx, &refined_low);
+            stats.rabitq_full_time_ms += std::chrono::duration<double, std::milli>(
+               std::chrono::high_resolution_clock::now() - full_start
+            ).count();
+            stats.rabitq_full_calls += 1;
+            num_distance_calcs += 1;
+            (void)refined_low;
+         }
+
+         if (top_k_heap.size() < K) {
+            top_k_heap.push({dist, vec_id});
+         } else if (dist < top_k_heap.top().first) {
+            top_k_heap.pop();
+            top_k_heap.push({dist, vec_id});
+         }
+      };
+
+      if (use_optimized_bitset) {
+         const uint64_t* bit_words = reinterpret_cast<const uint64_t*>(&final_bitmap);
+         size_t num_words = _num_points / 64 + (_num_points % 64 != 0 ? 1 : 0);
+         for (size_t w = 0; w < num_words; ++w) {
+            uint64_t word = bit_words[w];
+            if (word == 0) continue;
+            while (word != 0) {
+               int bit_idx = __builtin_ctzll(word);
+               IdxType vec_id = static_cast<IdxType>(w * 64 + bit_idx);
+               if (vec_id >= _num_points) break;
+               process_candidate(vec_id);
+               word &= (word - 1);
+            }
+         }
+      } else {
+         for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id) {
+            if (final_bitmap.test(vec_id)) {
+               process_candidate(vec_id);
+            }
+         }
+      }
+
+      size_t valid_k = top_k_heap.size();
+      for (int i = static_cast<int>(valid_k) - 1; i >= 0; --i) {
+         results[i].first = top_k_heap.top().second;
+         results[i].second = top_k_heap.top().first;
+         top_k_heap.pop();
+      }
+   }
+
+   void UniNavGraph::search_baseline_rabitq_roaring(
+      const roaring::Roaring& valid_bitmap,
+      IdxType K,
+      std::pair<IdxType, float>* results,
+      size_t& num_distance_calcs,
+      ANNS::rabitq::RabitQSideIndex::QueryContext& query_ctx,
+      QueryStats& stats,
+      const ANNS::rabitq::RabitQSideIndex* side_index)
+   {
+      const ANNS::rabitq::RabitQSideIndex* active_side_index =
+          (side_index != nullptr) ? side_index : &_rabitq_side_index;
+
+      num_distance_calcs = 0;
+      for (IdxType i = 0; i < K; ++i) {
+         results[i].first = static_cast<IdxType>(-1);
+         results[i].second = std::numeric_limits<float>::max();
+      }
+
+      std::priority_queue<std::pair<float, IdxType>> top_k_heap;
+
+      for (uint32_t vec_id : valid_bitmap) {
+         float low_dist = 0.0F;
+         auto bin_start = std::chrono::high_resolution_clock::now();
+         float dist = active_side_index->estimate_bin(static_cast<IdxType>(vec_id), query_ctx, &low_dist);
+         stats.rabitq_bin_time_ms += std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - bin_start
+         ).count();
+         stats.rabitq_bin_calls += 1;
+         num_distance_calcs += 1;
+
+         bool should_refine = false;
+         if (top_k_heap.size() >= K) {
+            should_refine = low_dist < top_k_heap.top().first;
+         }
+         if (should_refine) {
+            float refined_low = 0.0F;
+            auto full_start = std::chrono::high_resolution_clock::now();
+            dist = active_side_index->estimate_full(static_cast<IdxType>(vec_id), query_ctx, &refined_low);
+            stats.rabitq_full_time_ms += std::chrono::duration<double, std::milli>(
+               std::chrono::high_resolution_clock::now() - full_start
+            ).count();
+            stats.rabitq_full_calls += 1;
+            num_distance_calcs += 1;
+            (void)refined_low;
+         }
+
+         if (top_k_heap.size() < K) {
+            top_k_heap.push({dist, static_cast<IdxType>(vec_id)});
+         } else if (dist < top_k_heap.top().first) {
+            top_k_heap.pop();
+            top_k_heap.push({dist, static_cast<IdxType>(vec_id)});
+         }
+      }
+
+      size_t valid_k = top_k_heap.size();
+      for (int i = static_cast<int>(valid_k) - 1; i >= 0; --i) {
+         results[i].first = top_k_heap.top().second;
          results[i].second = top_k_heap.top().first;
          top_k_heap.pop();
       }
@@ -2002,6 +2887,7 @@ namespace ANNS
                      _my_new_edges_set.insert(edge_key);
                   }
                }
+
             }
          }
 
@@ -2642,11 +3528,11 @@ namespace ANNS
          std::cout << "- Trie Method Selector is warm." << std::endl;
       }
 
+      // 预热SmartRoute (特征数为 4)
       if (_smart_route_selector) {
          std::cout << "- Warming up Smart Route Selector..." << std::endl;
-         std::vector<float> dummy3(3, 0.0f); 
-         // 去除多线程
-         _smart_route_selector->predict(dummy3);
+         std::vector<float> dummy(4, 0.0f); // <--- 关键修改：这里的 3 改成了 4
+         _smart_route_selector->predict(dummy);
          std::cout << "- Smart Route Selector is warm." << std::endl;
       }
       
@@ -3200,7 +4086,7 @@ void UniNavGraph::calculate_query_features_only(
          if (baseline_alg == 0 || baseline_alg == 1 || baseline_alg == 8) { // 如果是 UNG 家族，算好 ELS
                bool use_nT_true = (baseline_alg == 1);
                stats.is_trie_recursive = use_nT_true; // 记录: Baseline使用的是递归还是非递归
-               stats.is_ung_loose = (baseline_alg == 8); // 记录: 是否使用了 UNG-loose
+               
                auto els_start = std::chrono::high_resolution_clock::now();
                static std::atomic<int> counter{0};
                // 注意这里传入 use_nT_true，直接覆盖全局的 is_new_trie_method
@@ -3211,94 +4097,70 @@ void UniNavGraph::calculate_query_features_only(
          return baseline_alg;
       }
 
-      // --- 模式 1: SmartRoute (使用 Bitset 算 Fpass) ---
-      if (routing_mode == 1) {
-         bool use_nT_true = false; 
-         stats.is_trie_recursive = use_nT_true;
-
-         // ELS
-         auto els_start = std::chrono::high_resolution_clock::now();
-         static std::atomic<int> counter{0};
-         get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
-         stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
-         stats.num_entry_points = entry_group_ids.size();
-
-         // Fpass: 使用 Bitset 倒排交集
+      // --- 模式 1: SmartRoute ---
+      if (routing_mode == 1 || routing_mode == 6) {
+         // 1. 新增：计算 Fpass (NumDescendants) 用于模型推理
          auto start_fpass = std::chrono::high_resolution_clock::now();
-         // static thread_local std::bitset<12000000> final_group_bitmap;
-         // static thread_local std::bitset<12000000> temp_group_bitmap;
-         // 安全堆分配
-         static thread_local std::unique_ptr<std::bitset<12000000>> final_group_bitmap_ptr;
-         static thread_local std::unique_ptr<std::bitset<12000000>> temp_group_bitmap_ptr;
-         if (!final_group_bitmap_ptr) final_group_bitmap_ptr = std::make_unique<std::bitset<12000000>>();
-         if (!temp_group_bitmap_ptr) temp_group_bitmap_ptr = std::make_unique<std::bitset<12000000>>();
-         auto& final_group_bitmap = *final_group_bitmap_ptr;
-         auto& temp_group_bitmap = *temp_group_bitmap_ptr;
-
-         size_t count2 = 0;
+         size_t num_descendants = 0;
          if (query_labels.empty()) {
-             count2 = _num_groups;
+            num_descendants = _num_groups;
          } else {
-             std::vector<const std::vector<IdxType>*> valid_lists;
-             valid_lists.reserve(query_labels.size());
-             bool is_valid = true;
-
-             if (_group_attr_adj_list.empty()) {
-                 std::cerr << "\n[FATAL ERROR] _group_attr_adj_list is empty! You forgot to call build_group_inverted_indices()!" << std::endl;
-                 exit(-1);
-             }
-
-             for (LabelType attr_label : query_labels) {
-                 auto it = _attr_to_id.find(attr_label);
-                 if (it == _attr_to_id.end()) { is_valid = false; break; }
-                 
-                 AtrType mapped_id = it->second;
-                 if (mapped_id < _group_attr_adj_list.size()) {
-                     valid_lists.push_back(&_group_attr_adj_list[mapped_id]);
-                 } else {
+            bool is_valid = true;
+            std::vector<const roaring::Roaring*> valid_rb;
+            for (auto label : query_labels) {
+                  if (_attr_to_id.count(label)) {
+                     valid_rb.push_back(&_group_attr_roaring_inv[_attr_to_id.at(label)]);
+                  } else {
                      is_valid = false; break;
-                 }
-             }
-
-             if (is_valid) {
-                 std::sort(valid_lists.begin(), valid_lists.end(),
-                     [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) { return a->size() < b->size(); });
-
-                 final_group_bitmap.reset();
-                 const auto& first_list = *valid_lists[0];
-                 for (IdxType gid : first_list) final_group_bitmap.set(gid);
-
-                 for (size_t i = 1; i < valid_lists.size(); ++i) {
-                     if (final_group_bitmap.none()) break; 
-                     const auto& vec_list = *valid_lists[i];
-                     for (IdxType gid : vec_list) temp_group_bitmap.set(gid);
-                     final_group_bitmap &= temp_group_bitmap;
-                     for (IdxType gid : vec_list) temp_group_bitmap.reset(gid);
-                 }
-                 count2 = final_group_bitmap.count();
-             }
+                  }
+            }
+            if (is_valid) {
+                  std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
+                     return a->cardinality() < b->cardinality();
+                  });
+                  if (valid_rb.size() == 1) {
+                     num_descendants = valid_rb[0]->cardinality();
+                  } else {
+                     roaring::Roaring roar_res = *valid_rb[0] & *valid_rb[1];
+                     for (size_t i = 2; i < valid_rb.size(); ++i) {
+                        if (roar_res.isEmpty()) break;
+                        roar_res &= *valid_rb[i];
+                     }
+                     num_descendants = roar_res.cardinality();
+                  }
+            }
          }
          stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
-         stats.num_lng_descendants = count2;
-
-         // 开始预测
+         stats.num_lng_descendants = num_descendants;
+         // 2. 进行模型预测
          auto pred_start = std::chrono::high_resolution_clock::now();
-         int final_alg = 0; 
+         int router_decision = 0; 
          if (_smart_route_selector) {
-               std::vector<float> features = {f_ppass, static_cast<float>(stats.num_entry_points), static_cast<float>(stats.num_lng_descendants)};
+               // 【关键修改】特征输入顺序严格对齐 Python: Ppass, Descendants, QuerySize, CandSize
+               std::vector<float> features = {f_ppass, static_cast<float>(num_descendants), f_qsize, f_cand};
                float pred_val = _smart_route_selector->predict(features);
-               int pred_class = static_cast<int>(std::round(pred_val));
-               
-               if (pred_class == 0) final_alg = 0; 
-               else if (pred_class == 1) final_alg = 5; 
-               else if (pred_class == 2) final_alg = _naive_majority_acorn_id; 
+               router_decision = static_cast<int>(std::round(pred_val));
          }
          stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
-         return final_alg;
+
+         // 3. 根据预测结果进行分流映射
+         if (router_decision == 2) 
+            return 5;
+         if (router_decision == 1) 
+            return _majority_acorn_id;
+         if (router_decision == 0) {
+               auto els_start = std::chrono::high_resolution_clock::now();
+               static std::atomic<int> counter{0};
+               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, false, is_rec_more_start, stats, false);
+               stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
+               stats.num_entry_points = entry_group_ids.size();
+               
+               return 8; // 映射到 UNG+ 算法
+         }
       }
 
       // --- 模式 2 & 3: FastSmartRoute & FastSmartRoute+ (使用 CRoaring 算 Fpass) ---
-      if (routing_mode == 2 || routing_mode == 3 || routing_mode == 5) {
+      if (routing_mode == 2 || routing_mode == 3) {
 
          // Fpass：使用CRoaring倒排索引 部分
          auto start_fpass = std::chrono::high_resolution_clock::now();
@@ -3364,10 +4226,6 @@ void UniNavGraph::calculate_query_features_only(
          }
 
          stats.is_trie_recursive = use_nT_true;
-         if (routing_mode == 5 )
-         {
-            stats.is_ung_loose = true; // loose 版本的 UNG，记录一下
-         }
          auto els_start = std::chrono::high_resolution_clock::now();
          static std::atomic<int> counter{0};
          get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
@@ -3457,14 +4315,13 @@ void UniNavGraph::calculate_query_features_only(
          return 0; 
       }
       
-      
-      
       return 0; // Fallback
    }
    
 
 // fxy_add 
-    void UniNavGraph::thread_function(std::queue<int>& Qid_595,std::shared_ptr<IStorage> &query_storage,
+   void UniNavGraph::thread_function(int id, SearchCacheList& search_cache_list,
+                                    std::shared_ptr<IStorage> &query_storage,
                                    std::shared_ptr<DistanceHandler> &distance_handler,
                                    uint32_t num_threads, IdxType Lsearch,
                                    IdxType num_entry_points, std::string scenario,
@@ -3476,54 +4333,96 @@ void UniNavGraph::calculate_query_features_only(
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
                                    int routing_mode, int baseline_alg, IdxType num_queries, faiss_navix::IndexHNSWFlat* navix_index,
-                                   const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices){
+                                    const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices,
+                                    bool optimize_standalone_prefilter)
+   {
          omp_set_num_threads(1);
-
-         lock_m.lock();
-         int id = Qid_595.front();
-         Qid_595.pop();
-         lock_m.unlock();
-
          auto &stats = query_stats[id];
          auto total_search_start_time = std::chrono::high_resolution_clock::now();
-
-         SearchCacheList search_cache_list(1, _num_points, Lsearch);
          auto search_cache = search_cache_list.get_free_cache();
          const char *query = _query_storage->get_vector(id);
          SearchQueue cur_result;
          cur_result.reserve(K);
          const auto &query_labels = _query_storage->get_label_set(id);
-      
 
          // ======================= STAGE 1: DECISION MAKING =======================
          auto decision_start_time = std::chrono::high_resolution_clock::now();
 
-         // --- 1. 提取基础特征 ---
+      // pre-filter是否使用优化模式
+      bool use_optimized = false;
+      if (routing_mode != 0) {
+         use_optimized = true; // SmartRoute 等模式强制使用大优化
+      } else {
+         use_optimized = optimize_standalone_prefilter; // 纯 Baseline 模式，听从用户指定的参数
+      }
+
+      const std::bitset<16000000>* exact_mask_ptr = nullptr;
+      const roaring::Roaring* final_roaring_ptr = nullptr;
+      roaring::Roaring roar_res; 
+      bool has_exact_mask = false;
+      stats.bitmap_time_ms = 0.0; 
+
+      std::vector<IdxType> entry_group_ids;
+      int final_algo_choice = -1;
+
+      // -----------------------------------------------------------------------
+      // 路径 A: SmartRoute+ / SmartRoute+++ (Mode 5 / 7, global choices are precomputed)
+      // -----------------------------------------------------------------------
+      if (routing_mode == 5 || routing_mode == 7) {
+            final_algo_choice = query_algo_choices[id]; // 此时传进来的已经是全局算好的 choice
+            stats.algo_choice = final_algo_choice;
+
+            auto prep_start = std::chrono::high_resolution_clock::now();
+            if (final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) {
+               static std::atomic<int> counter{0};
+               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, (final_algo_choice == 1), is_rec_more_start, stats, false);
+            } else if (final_algo_choice == 5) {
+               if (query_labels.empty()) {
+                     roar_res.addRange(0, _num_points);
+                     final_roaring_ptr = &roar_res;
+               } else {
+                     std::vector<const roaring::Roaring*> valid_rb;
+                     for (auto label : query_labels) {
+                        if (_attr_to_id.count(label)) valid_rb.push_back(&_vec_attr_roaring_inv[_attr_to_id.at(label)]);
+                     }
+                     if (!valid_rb.empty()) {
+                        std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){ return a->cardinality() < b->cardinality(); });
+                        if (valid_rb.size() == 1) {
+                           final_roaring_ptr = valid_rb[0]; // 零拷贝
+                        } else {
+                           roar_res = *valid_rb[0] & *valid_rb[1];
+                           for (size_t i = 2; i < valid_rb.size(); ++i) {
+                                 if (roar_res.isEmpty()) break;
+                                 roar_res &= *valid_rb[i];
+                           }
+                           final_roaring_ptr = &roar_res;
+                        }
+                     }
+               }
+               has_exact_mask = true;
+            }
+            double prep_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - prep_start).count();
+            
+            // 合拢总耗时
+            stats.routing_total_time_ms = stats.mask_gen_time_ms + stats.route_pred_time_ms + stats.global_sort_time_ms + prep_time;
+      } 
+      // -----------------------------------------------------------------------
+      // 路径 B: 实时推理模式 (Mode 0~4)
+      // -----------------------------------------------------------------------
+      else {
          auto feature_start = std::chrono::high_resolution_clock::now();
          stats.query_length = query_labels.size();
          stats.candidate_set_size = query_labels.empty() ? 0 : get_candidate_count_for_label(query_labels.back());
          stats.trie_total_nodes = _trie_static_metrics.total_nodes;
 
-         // GlobalPpass
-         const std::bitset<16000000>* exact_mask_ptr = nullptr;
-         std::optional<roaring::Roaring> exact_roaring_mask; 
-         bool has_exact_mask = false;
-
-         const roaring::Roaring* final_roaring_ptr = nullptr;
-         roaring::Roaring roar_res; // 用于多属性情况下的安全局部交集
-
-         stats.bitmap_time_ms = 0.0; 
-
-         if (routing_mode == 1 || routing_mode == 4 || (routing_mode == 0 && baseline_alg == 5)) {
-            // Mode 1 或 Mode 4 或原版 pre-filter：使用 Bitset
+            if (routing_mode == 4 || (routing_mode == 0 && baseline_alg == 5)) {
+               auto mask_start = std::chrono::high_resolution_clock::now(); 
+               exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size, use_optimized);
+               stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count(); 
+               stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
+               has_exact_mask = true;
+            } else if (routing_mode == 1 || routing_mode == 2 || routing_mode == 3 || routing_mode == 6) {
             auto mask_start = std::chrono::high_resolution_clock::now(); 
-            exact_mask_ptr = &get_exact_cand_size_and_mask(query_labels, stats.exact_cand_size);
-            stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count(); 
-            stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
-            has_exact_mask = true;
-         } else if (routing_mode == 2 || routing_mode == 3) {
-            auto mask_start = std::chrono::high_resolution_clock::now(); 
-            
             if (query_labels.empty()) {
                roar_res.addRange(0, _num_points);
                final_roaring_ptr = &roar_res;
@@ -3531,31 +4430,16 @@ void UniNavGraph::calculate_query_features_only(
             } else {
                bool is_valid = true;
                std::vector<const roaring::Roaring*> valid_rb;
-               
-               if (_vec_attr_roaring_inv.empty()) {
-                   std::cerr << "\n[FATAL ERROR] _vec_attr_roaring_inv is empty!" << std::endl;
-                   exit(-1); 
-               }
                for (auto label : query_labels) {
-                     if (_attr_to_id.count(label)) {
-                        valid_rb.push_back(&_vec_attr_roaring_inv[_attr_to_id.at(label)]);
-                     } else {
-                        is_valid = false; 
-                        break;
-                     }
+                        if (_attr_to_id.count(label)) { valid_rb.push_back(&_vec_attr_roaring_inv[_attr_to_id.at(label)]); } 
+                        else { is_valid = false; break; }
                }
-               
                if (is_valid) {
-                     std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
-                        return a->cardinality() < b->cardinality();
-                     });
-                     
+                        std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){ return a->cardinality() < b->cardinality(); });
                      if (valid_rb.size() == 1) {
-                        // 单一属性，零拷贝！直接获取底库的常量指针
                         final_roaring_ptr = valid_rb[0];
                         stats.exact_cand_size = final_roaring_ptr->cardinality();
                      } else {
-                        // 多个属性，强制深拷贝融合。二元 & 操作符会分配一块全新的独立内存
                         roar_res = *valid_rb[0] & *valid_rb[1]; 
                         for (size_t i = 2; i < valid_rb.size(); ++i) {
                            if (roar_res.isEmpty()) break;
@@ -3564,69 +4448,50 @@ void UniNavGraph::calculate_query_features_only(
                         final_roaring_ptr = &roar_res;
                         stats.exact_cand_size = roar_res.cardinality();
                      }
-               } else {
-                  stats.exact_cand_size = 0;
-               }
+                  } else { stats.exact_cand_size = 0; }
             }
             stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count();
             stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
             has_exact_mask = true;
-         } else {
-            stats.exact_cand_size = 0;
-            stats.global_p_pass = 0.0f;
-         }
-         double total_feature_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count();
-         stats.feature_extract_time_ms = total_feature_time - stats.bitmap_time_ms;// 特征提取时间 = 总耗时 - Bitmap构建耗时
+            }
 
-         // 调用路由策略并获取 final_algo_choice 和 entry_group_ids
-         // std::vector<IdxType> entry_group_ids;
-         // int final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         // stats.algo_choice = final_algo_choice;
-         // stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
+            stats.feature_extract_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count() - stats.bitmap_time_ms;
+
+         //  final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
+         //  stats.algo_choice = final_algo_choice;
+         //  stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
          
          // =========================================================================
          // 算法分配与强制接管 (Override)
          // =========================================================================
-         std::vector<IdxType> entry_group_ids;
-         int final_algo_choice = -1;
-
-         // 1. 检查是否需要强制分配算法
-         bool has_override = (routing_mode != 0) && (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1);
+         // 1. 检查是否需要强制分配算法 (仅当 routing_mode 为 1 或 2，且 CSV 中有对应的有效值)
+         bool has_override = (routing_mode == 1 || routing_mode == 2) && 
+                              (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1);
 
          if (!has_override) {
-            // 分支 A：没有预设 CSV 或者是 -1，走正常的实时模型预测逻辑
-            final_algo_choice = determine_routing_strategy(
-                routing_mode, baseline_alg, query_labels, stats, 
-                entry_group_ids, is_new_trie_method, is_rec_more_start
-            );
+            // 分支 A：没有预设强制选项，走正常的实时模型预测逻辑
+            final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
          } else {
-            // 分支 B：有强制的 CSV 预设，接管算法选择
+            // 分支 B：有强制的 Algo Choice，直接接管
             final_algo_choice = query_algo_choices[id];
 
-            // 2. 数据兜底：由于跳过了上面的 determine_routing_strategy，必须在这里补全后续执行所需的前置特征数据。
+            // 2. 数据兜底：由于跳过了 determine_routing_strategy，必须在这里补全后续搜索必需的前置数据
 
-            // 兜底 A: 如果强制走了 UNG 家族（0 或 1），但入口点组 entry_group_ids 没算
-            if ((final_algo_choice == 0 || final_algo_choice == 1) && entry_group_ids.empty()) {
+            // 兜底 A: 如果被强制分配到 UNG 家族（0, 1, 或 8），但入口点组还没算，需要补算 ELS
+            if ((final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) && entry_group_ids.empty()) {
                bool use_nT_true = (final_algo_choice == 1);
                stats.is_trie_recursive = use_nT_true;
-               
                auto els_start = std::chrono::high_resolution_clock::now();
                static std::atomic<int> counter{0};
-               
-               // 调用 ELS 算法求交集
-               get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, 
-                                        use_nT_true, is_rec_more_start, stats, false);
-               
+                  get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
                stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(
                    std::chrono::high_resolution_clock::now() - els_start).count();
                stats.num_entry_points = entry_group_ids.size();
             }
 
-            // 兜底 B: 如果强制走了 Pre-filter (5)，必须确保有精确的过滤掩码,CRoaring形式
+            // 兜底 B: 如果被强制分配到 Pre-filter (5)，必须确保生成了用于暴力搜索的精确掩码 (CRoaring)
             if (final_algo_choice == 5 && !has_exact_mask) {
                auto mask_start = std::chrono::high_resolution_clock::now();
-               
-               // 使用CRoaring 倒排索引计算Ppass
                if (query_labels.empty()) {
                   roar_res.addRange(0, _num_points);
                   final_roaring_ptr = &roar_res;
@@ -3634,7 +4499,6 @@ void UniNavGraph::calculate_query_features_only(
                } else {
                   bool is_valid = true;
                   std::vector<const roaring::Roaring*> valid_rb;
-                  
                   if (_vec_attr_roaring_inv.empty()) {
                       std::cerr << "\n[FATAL ERROR] _vec_attr_roaring_inv is empty!" << std::endl;
                       exit(-1); 
@@ -3647,18 +4511,14 @@ void UniNavGraph::calculate_query_features_only(
                            break;
                         }
                   }
-                  
                   if (is_valid) {
                         std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
                            return a->cardinality() < b->cardinality();
                         });
-                        
                         if (valid_rb.size() == 1) {
-                           // 单一属性，零拷贝直接获取指针
                            final_roaring_ptr = valid_rb[0];
                            stats.exact_cand_size = final_roaring_ptr->cardinality();
                         } else {
-                           // 多个属性，进行交集计算
                            roar_res = *valid_rb[0] & *valid_rb[1]; 
                            for (size_t i = 2; i < valid_rb.size(); ++i) {
                               if (roar_res.isEmpty()) break;
@@ -3671,24 +4531,22 @@ void UniNavGraph::calculate_query_features_only(
                      stats.exact_cand_size = 0;
                   }
                }
-               
-               stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(
-                   std::chrono::high_resolution_clock::now() - mask_start).count();
-               
+                  stats.bitmap_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count();
                has_exact_mask = true;
                stats.global_p_pass = static_cast<float>(stats.exact_cand_size) / _num_points;
             }
          }
 
+         // 统一下发决策结果并计算耗时
          stats.algo_choice = final_algo_choice;
          stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
-         // =========================================================================
+      }
 
 
          // ======================= STAGE 2: EXECUTION STAGE =======================
-
+         
          // Apply entry point expansion logic if needed for the UNG path
-         if (is_ung_more_entry && (final_algo_choice == 0 || final_algo_choice == 1))
+         if (is_ung_more_entry && (final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8))
          {
             IdxType true_group_id = 0;
             if (id < true_query_group_ids.size())
@@ -3705,6 +4563,34 @@ void UniNavGraph::calculate_query_features_only(
              auto search_time_start_ms = std::chrono::high_resolution_clock::now();
              size_t dist_calcs = 0;
              std::vector<std::pair<IdxType, float>> exact_results(K);
+             ANNS::rabitq::RabitQSideIndex::QueryContext local_query_ctx;
+             ANNS::rabitq::RabitQSideIndex::QueryContext *prefilter_query_ctx = nullptr;
+
+             const bool use_rabitq_prefilter = (_ung_distance_mode == UngDistanceMode::RabitQ && _rabitq_side_index.enabled());
+             if (use_rabitq_prefilter) {
+                if (id >= 0 && static_cast<size_t>(id) < _rabitq_query_ctx_cache.size()) {
+                   prefilter_query_ctx = _rabitq_query_ctx_cache[id].get();
+                   stats.rabitq_ctx_prepare_time_ms = _rabitq_query_ctx_prepare_ms[id];
+                   stats.rabitq_ctx_rotate_time_ms = _rabitq_query_ctx_rotate_ms[id];
+                   stats.rabitq_ctx_q2c_time_ms = _rabitq_query_ctx_q2c_ms[id];
+                   stats.rabitq_ctx_wrapper_time_ms = _rabitq_query_ctx_wrapper_ms[id];
+                   stats.rabitq_ctx_reused = (prefilter_query_ctx != nullptr);
+                }
+                if (prefilter_query_ctx == nullptr) {
+                   auto init_start = std::chrono::high_resolution_clock::now();
+                   ANNS::rabitq::RabitQSideIndex::InitTiming init_timing;
+                   if (_rabitq_side_index.init_query(query, local_query_ctx, &init_timing)) {
+                      prefilter_query_ctx = &local_query_ctx;
+                      stats.rabitq_ctx_prepare_time_ms += std::chrono::duration<double, std::milli>(
+                         std::chrono::high_resolution_clock::now() - init_start
+                      ).count();
+                      stats.rabitq_ctx_rotate_time_ms += init_timing.rotate_ms;
+                      stats.rabitq_ctx_q2c_time_ms += init_timing.q_to_centroids_ms;
+                      stats.rabitq_ctx_wrapper_time_ms += init_timing.wrapper_ms;
+                      stats.rabitq_ctx_reused = false;
+                   }
+                }
+             }
 
             //  if (routing_mode == 2 || routing_mode == 3) {
             //    //   search_baseline_exact_roaring(query, exact_roaring_mask.value(), K, exact_results.data(), dist_calcs);
@@ -3716,12 +4602,20 @@ void UniNavGraph::calculate_query_features_only(
 
             // 优先检查是否生成了 CRoaring 掩码（兜底B 和 模式2/3 都会生成）
              if (final_roaring_ptr != nullptr) {
-                 search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
+                 if (use_rabitq_prefilter && prefilter_query_ctx != nullptr) {
+                    search_baseline_rabitq_roaring(*final_roaring_ptr, K, exact_results.data(), dist_calcs, *prefilter_query_ctx, stats);
+                 } else {
+                    search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
+                 }
              } 
              // 否则回退到普通 Bitset 掩码（例如 Mode 1 生成的）
              else if (exact_mask_ptr != nullptr) {
-                 bool use_optimized = false; 
-                 search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
+                 bool use_optimized = false;
+                 if (use_rabitq_prefilter && prefilter_query_ctx != nullptr) {
+                    search_baseline_rabitq(*exact_mask_ptr, K, exact_results.data(), dist_calcs, *prefilter_query_ctx, stats, use_optimized);
+                 } else {
+                    search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
+                 }
              }
 
              stats.num_distance_calcs = dist_calcs;
@@ -3836,15 +4730,28 @@ void UniNavGraph::calculate_query_features_only(
              stats.num_nodes_visited = navix_stats.n1;
              stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
+         else if (final_algo_choice == 9 || final_algo_choice == 10) // Milvus baseline via Knowhere (IVF/HNSW) + bitset containment filter
+         {
+            if (!run_milvus_knowhere_baseline(
+                    id, query, query_labels, Lsearch, K, final_algo_choice, cur_result, stats, num_cmps[id])) {
+               for (auto k = 0; k < K; ++k) {
+                  results[id * K + k].first = -1;
+               }
+               return;
+            }
+         }
          else if (final_algo_choice >= 2 && final_algo_choice <= 6 && final_algo_choice != 5) // ACORN 家族 (2,3,4,6)
          {
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
             std::shared_ptr<faiss::IndexACORNFlat> selected_acorn_index = nullptr; // <--- 使用一个临时指针
+            const ANNS::rabitq::RabitQSideIndex* selected_acorn_side_index = nullptr;
 
             if (final_algo_choice == 6) {
                selected_acorn_index = _acorn_1_index;
+               selected_acorn_side_index = &_acorn_1_rabitq_side_index;
             } else { 
                selected_acorn_index = _acorn_index;
+               selected_acorn_side_index = &_acorn_rabitq_side_index;
             }
 
             // --- Execute ACORN Search ---
@@ -3890,9 +4797,23 @@ void UniNavGraph::calculate_query_features_only(
             std::vector<float> result_dists(K);
             bool has_els_groups = !entry_group_ids.empty();
             bool has_exact_mask = (exact_mask_ptr != nullptr);
-            
-            // 只有在既没有 ELS，也没有在特征提取阶段算过 exact_mask 时，才使用慢速的倒排索引
+
+            // 只有在既没有 ELS，也没有在特征提取阶段算过 exact_mask 时，才使用 ACORN 内部倒排索引
             bool use_acorn_native_filter = (!has_els_groups && !has_exact_mask);
+            bool use_acorn_rabitq =
+                (_ung_distance_mode == UngDistanceMode::RabitQ &&
+                 selected_acorn_side_index != nullptr &&
+                 selected_acorn_side_index->enabled());
+
+            // 保持 ACORN 图搜索流程一致，仅替换距离计算后端
+            faiss::SearchParametersACORN acorn_search_params;
+            acorn_search_params.efSearch = current_efs;
+            std::shared_ptr<ACORNRabitQDistanceBackend> acorn_rabitq_backend = nullptr;
+            if (use_acorn_rabitq)
+            {
+               acorn_rabitq_backend = std::make_shared<ACORNRabitQDistanceBackend>(selected_acorn_side_index);
+               acorn_search_params.distance_backend = acorn_rabitq_backend;
+            }
 
             if (use_acorn_native_filter)
             {
@@ -3904,7 +4825,7 @@ void UniNavGraph::calculate_query_features_only(
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
                selected_acorn_index->search_old_bitmap(
                    1, query_vector_float, K, result_dists.data(), result_original_ids.data(), 
-                   query_attrs_for_acorn, nullptr, nullptr, nullptr, current_baseline_alg);
+                   query_attrs_for_acorn, nullptr, nullptr, nullptr, current_baseline_alg, &acorn_search_params);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
             else
@@ -3986,7 +4907,7 @@ void UniNavGraph::calculate_query_features_only(
                auto core_search_start_time = std::chrono::high_resolution_clock::now();
                selected_acorn_index->search(
                    1, query_vector_float, K, result_dists.data(), result_original_ids.data(), 
-                   filter_map.data(), nullptr, nullptr, nullptr, current_baseline_alg);
+                   filter_map.data(), nullptr, nullptr, nullptr, current_baseline_alg, &acorn_search_params);
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
 
@@ -3999,9 +4920,22 @@ void UniNavGraph::calculate_query_features_only(
                }
             }
             num_cmps[id] = 0;
+            if (use_acorn_rabitq && acorn_rabitq_backend)
+            {
+               const auto rabitq_snapshot = acorn_rabitq_backend->snapshot();
+               stats.rabitq_ctx_prepare_time_ms += rabitq_snapshot.ctx_prepare_time_ms;
+               stats.rabitq_ctx_rotate_time_ms += rabitq_snapshot.ctx_rotate_time_ms;
+               stats.rabitq_ctx_q2c_time_ms += rabitq_snapshot.ctx_q2c_time_ms;
+               stats.rabitq_ctx_wrapper_time_ms += rabitq_snapshot.ctx_wrapper_time_ms;
+               stats.rabitq_bin_time_ms += rabitq_snapshot.bin_time_ms;
+               stats.rabitq_full_time_ms += rabitq_snapshot.full_time_ms;
+               stats.rabitq_bin_calls += rabitq_snapshot.bin_calls;
+               stats.rabitq_full_calls += rabitq_snapshot.full_calls;
+               stats.rabitq_ctx_reused = false;
+            }
             stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
-         else if (final_algo_choice == 0 || final_algo_choice == 1) // UNG 家族
+         else if (final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) // UNG 家族
          {
             // --- Execute UNG Search ---
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
@@ -4019,7 +4953,38 @@ void UniNavGraph::calculate_query_features_only(
             }
 
             auto core_search_start_time = std::chrono::high_resolution_clock::now();
-            num_cmps[id] = iterate_to_fixed_point(query, search_cache, id, entry_points, stats.num_nodes_visited);
+            if (_ung_distance_mode == UngDistanceMode::RabitQ && _rabitq_side_index.enabled())
+            {
+               ANNS::rabitq::RabitQSideIndex::QueryContext *cached_query_ctx = nullptr;
+               if (id >= 0 && static_cast<size_t>(id) < _rabitq_query_ctx_cache.size())
+               {
+                  cached_query_ctx = _rabitq_query_ctx_cache[id].get();
+                  stats.rabitq_ctx_prepare_time_ms = _rabitq_query_ctx_prepare_ms[id];
+                  stats.rabitq_ctx_rotate_time_ms = _rabitq_query_ctx_rotate_ms[id];
+                  stats.rabitq_ctx_q2c_time_ms = _rabitq_query_ctx_q2c_ms[id];
+                  stats.rabitq_ctx_wrapper_time_ms = _rabitq_query_ctx_wrapper_ms[id];
+                  stats.rabitq_ctx_reused = (cached_query_ctx != nullptr);
+               }
+               num_cmps[id] = iterate_to_fixed_point_rabitq(
+                   query,
+                   search_cache,
+                   id,
+                   entry_points,
+                   stats.num_nodes_visited,
+                   stats,
+                   cached_query_ctx
+               );
+            }
+            else
+            {
+               num_cmps[id] = iterate_to_fixed_point(
+                   query,
+                   search_cache,
+                   id,
+                   entry_points,
+                   stats.num_nodes_visited
+               );
+            }
             stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
 
             stats.num_distance_calcs = num_cmps[id];
@@ -4042,7 +5007,12 @@ void UniNavGraph::calculate_query_features_only(
             }
          }
 
-         stats.time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - total_search_start_time).count();
+      double pure_search_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - total_search_start_time).count();
+      if (routing_mode == 5 || routing_mode == 7) {
+            stats.time_ms = pure_search_time + stats.mask_gen_time_ms + stats.route_pred_time_ms + stats.global_sort_time_ms;
+      } else {
+            stats.time_ms = pure_search_time;
+      }
          search_cache_list.release_cache(search_cache);
     }
    
@@ -4058,45 +5028,262 @@ void UniNavGraph::calculate_query_features_only(
                                    bool is_ung_more_entry,
                                    int lsearch_start, int lsearch_step,
                                    int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
-                                   int routing_mode,int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index, const std::vector<IdxType> &true_query_group_ids,
-                                   const std::vector<int>& query_algo_choices)
+                                 int routing_mode,int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index, 
+                                 const std::vector<IdxType> &true_query_group_ids,
+                                 const std::vector<int>& query_algo_choices,
+                                 std::queue<int> task_queue,bool optimize_standalone_prefilter)
    {
-      // --- Initializations ---
       auto num_queries = query_storage->get_num_points();
       _query_storage = query_storage;
       _distance_handler = distance_handler;
       _scenario = scenario;
       query_stats.resize(num_queries);
 
-      if (K > Lsearch)
-      {
+      if (K > Lsearch) {
          std::cerr << "Error: K should be less than or equal to Lsearch" << std::endl;
          exit(-1);
       }
 
-      std::queue<int> Qid_595;
-      for (auto id = 0; id < num_queries; ++id)
-         {Qid_595.push(id);}
-            
-      ThreadPool pool(num_threads);
+      // 在线程池外部、主线程中预先分配好全局的 SearchCache 资源池，大小等于线程数
+      SearchCacheList global_search_cache_list(num_threads, _num_points, Lsearch);
+
+      std::queue<int> Qid_595 = std::move(task_queue); 
+
+      if (!_thread_pool) {
+         _thread_pool = std::make_unique<ThreadPool>(num_threads);
+      }
+
       std::vector<std::future<int>> tp_results;
-      for (auto id = 0; id < num_queries; ++id)
-      {
+      for (auto i = 0; i < (int)num_queries; ++i) {
+         
+         int target_id = Qid_595.front();
+         Qid_595.pop();
          tp_results.emplace_back(
-               
-                pool.enqueue([this,&Qid_595,&query_storage,&distance_handler,&num_threads,&Lsearch,&num_entry_points,&scenario,&K, results,&num_cmps,&query_stats,
-                                   &is_new_trie_method, &is_rec_more_start,&is_ung_more_entry,&lsearch_start,&lsearch_step,
-                                   &efs_start, &efs_step_slow,&efs_step_fast,&lsearch_threshold,
-                                   &routing_mode, &baseline_alg,&num_queries,  &true_query_group_ids, &query_algo_choices,navix_index] { // pass const type value j to thread; [] can be empty
-                    this->thread_function(Qid_595,query_storage,distance_handler,num_threads,Lsearch,num_entry_points,scenario,K, results,num_cmps,query_stats,
-                                   is_new_trie_method, is_rec_more_start,is_ung_more_entry,lsearch_start,lsearch_step,
-                                   efs_start, efs_step_slow,efs_step_fast,lsearch_threshold,
-                                   routing_mode, baseline_alg, num_queries, navix_index,true_query_group_ids, query_algo_choices);
-                    return 1; // return to results; the return type must be the same with results
+               _thread_pool->enqueue([this, target_id, &global_search_cache_list, &query_storage, &distance_handler, &num_threads, &Lsearch, &num_entry_points, &scenario, &K, results, &num_cmps, &query_stats,
+                                 &is_new_trie_method, &is_rec_more_start, &is_ung_more_entry, &lsearch_start, &lsearch_step,
+                                 &efs_start, &efs_step_slow, &efs_step_fast, &lsearch_threshold,
+                                 &routing_mode, &baseline_alg, &num_queries, &navix_index, &true_query_group_ids, &query_algo_choices,&optimize_standalone_prefilter] { 
+                  this->thread_function(target_id, global_search_cache_list, query_storage, distance_handler, num_threads, Lsearch, num_entry_points, scenario, K, results, num_cmps, query_stats,
+                                 is_new_trie_method, is_rec_more_start, is_ung_more_entry, lsearch_start, lsearch_step,
+                                 efs_start, efs_step_slow, efs_step_fast, lsearch_threshold,
+                                 routing_mode, baseline_alg, num_queries, navix_index, true_query_group_ids, query_algo_choices,optimize_standalone_prefilter);
+                  return 1;
                 }));   
       }
-      for (auto &&tp_result : tp_results)			
-         tp_result.get(); // result.get() makes sure this thread has been finished here;
+      for (auto &&tp_result : tp_results) tp_result.get(); 
+   }
+
+   // fxy_add
+   std::vector<int> UniNavGraph::global_predict_algo_choices(
+      std::shared_ptr<IStorage> query_storage,
+      int routing_mode,
+      const std::vector<int>& csv_choices,
+      uint32_t num_threads,
+      std::vector<QueryStats>& out_global_stats) 
+   {
+      size_t num_queries = query_storage->get_num_points();
+      std::vector<int> final_choices = csv_choices;
+      if (final_choices.size() < num_queries) final_choices.resize(num_queries, -1);
+
+      if (routing_mode != 5 && routing_mode != 7) return final_choices;
+
+      std::cout << "\n[SmartRoute" << (routing_mode == 7 ? "+++" : "+") << "] Starting Global Prediction Phase..." << std::endl;
+         
+      std::vector<int> target_ids;
+      std::vector<int> id_to_batch_idx(num_queries, -1); 
+      
+      // 找出所有需要预测的 query
+      for (int id = 0; id < (int)num_queries; ++id) {
+         if (final_choices[id] == -1) {
+               id_to_batch_idx[id] = target_ids.size();
+               target_ids.push_back(id);
+         }
+      }
+      
+      // 提前为 batch 分配好整块内存 (直接给 ONNX 用)
+      std::vector<std::vector<float>> batch_features(target_ids.size());
+
+            // -------------------------------------------------------------
+      // [阶段 1]：并行提取特征
+      // -------------------------------------------------------------
+      omp_set_num_threads(num_threads);
+      #pragma omp parallel for schedule(static)
+      for (int id = 0; id < (int)num_queries; ++id) {
+         auto &stats = out_global_stats[id];
+         const auto& query_labels = query_storage->get_label_set(id);
+
+         auto mask_start = std::chrono::high_resolution_clock::now();
+         size_t exact_cand_size = 0;
+         size_t num_descendants = 0; // 新增：Fpass 初始化
+
+         if (query_labels.empty()) {
+               exact_cand_size = _num_points;
+               num_descendants = _num_groups; // 新增：空标签覆盖全组
+         } else {
+               // 1. 计算 exact_cand_size (基于 _vec_attr_roaring_inv)
+               bool is_valid = true;
+               std::vector<const roaring::Roaring*> valid_rb;
+               valid_rb.reserve(query_labels.size()); 
+               
+               for (auto label : query_labels) {
+                  auto it = _attr_to_id.find(label);
+                  if (it != _attr_to_id.end()) {
+                     valid_rb.push_back(&_vec_attr_roaring_inv[it->second]);
+                  } else {
+                     is_valid = false; 
+                     break;            
+                  }
+               }
+               
+               if (!is_valid) {
+                  exact_cand_size = 0; 
+               } else if (!valid_rb.empty()) {
+                  std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
+                     return a->cardinality() < b->cardinality();
+                  });
+                     
+                  if (valid_rb.size() == 1) {
+                     exact_cand_size = valid_rb[0]->cardinality();
+                  } else {
+                     roaring::Roaring temp_roar = *valid_rb[0];
+                     for (size_t i = 1; i < valid_rb.size(); ++i) {
+                           if (temp_roar.isEmpty()) break;
+                           temp_roar &= *valid_rb[i];
+                     }
+                     exact_cand_size = temp_roar.cardinality();
+                  }
+               }
+
+               // 2. 计算 num_descendants (基于 _group_attr_roaring_inv)
+               bool is_valid_group = true;
+               std::vector<const roaring::Roaring*> valid_group_rb;
+               valid_group_rb.reserve(query_labels.size());
+
+               for (auto label : query_labels) {
+                  auto it = _attr_to_id.find(label);
+                  if (it != _attr_to_id.end()) {
+                     valid_group_rb.push_back(&_group_attr_roaring_inv[it->second]);
+                  } else {
+                     is_valid_group = false; break;
+                  }
+               }
+               
+               if (is_valid_group && !valid_group_rb.empty()) {
+                  std::sort(valid_group_rb.begin(), valid_group_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){
+                     return a->cardinality() < b->cardinality();
+                  });
+                  if (valid_group_rb.size() == 1) {
+                     num_descendants = valid_group_rb[0]->cardinality();
+                  } else {
+                     roaring::Roaring temp_group_roar = *valid_group_rb[0];
+                     for (size_t i = 1; i < valid_group_rb.size(); ++i) {
+                           if (temp_group_roar.isEmpty()) break;
+                           temp_group_roar &= *valid_group_rb[i];
+                     }
+                     num_descendants = temp_group_roar.cardinality();
+                  }
+               }
+         }
+         
+         stats.exact_cand_size = exact_cand_size;
+         stats.global_p_pass = static_cast<float>(exact_cand_size) / _num_points;
+         stats.num_lng_descendants = num_descendants; // 新增：将 Fpass 存入 stats
+         stats.mask_gen_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count();
+
+         // 如果是需要预测的 target，填入 batch_features 的对应槽位
+         int batch_idx = id_to_batch_idx[id];
+         if (batch_idx != -1) {
+               size_t cand_size = query_labels.empty() ? 0 : get_candidate_count_for_label(query_labels.back());
+               // 添加 num_descendants 到批次特征，严格对齐 Python 顺序
+               batch_features[batch_idx] = {
+                   stats.global_p_pass, 
+                   static_cast<float>(num_descendants), 
+                   (float)query_labels.size(), 
+                   (float)cand_size
+               };
+         }
+      }
+
+      // -------------------------------------------------------------
+      // [阶段 2]：单次调用 Batch 推理
+      // -------------------------------------------------------------
+      auto pred_start = std::chrono::high_resolution_clock::now();
+      if (!batch_features.empty()) {
+         if (_smart_route_selector) {
+            std::vector<float> batch_preds = _smart_route_selector->predict_batch(batch_features);
+
+            // 顺序与 target_ids 对应，直接回写
+            for (size_t i = 0; i < target_ids.size(); ++i) {
+                  int id = target_ids[i];
+                  int router_decision = std::round(batch_preds[i]);
+
+                  if (router_decision == 2) final_choices[id] = 5;
+                  else if (router_decision == 1) final_choices[id] = _majority_acorn_id;
+                  else final_choices[id] = 8;
+            }
+         } else if (_fast_route_single_selector) {
+            // SmartRoute 模型缺失时，回退到 FastSmartRoute 单模型，避免 algo choice 保持 -1。
+            std::vector<float> batch_preds = _fast_route_single_selector->predict_batch(batch_features);
+            for (size_t i = 0; i < target_ids.size(); ++i) {
+                  int id = target_ids[i];
+                  int router_decision = std::round(batch_preds[i]);
+
+                  if (router_decision == 2) final_choices[id] = 5;
+                  else if (router_decision == 1) final_choices[id] = _single_majority_acorn_id;
+                  else final_choices[id] = 8;
+            }
+            std::cout << "[SmartRoute+] SmartRoute model is unavailable, fallback to FastSmartRoute selector." << std::endl;
+         } else {
+            for (int id : target_ids) {
+               final_choices[id] = 8;
+            }
+            std::cout << "[SmartRoute+] No routing selector is available, fallback all unresolved queries to UNG+ (choice=8)." << std::endl;
+         }
+      }
+
+      // 保底：不允许未决策查询残留为 -1（否则后续执行阶段不会进入任何算法分支）。
+      for (int id : target_ids) {
+         if (final_choices[id] == -1) {
+            final_choices[id] = 8;
+         }
+      }
+      double total_pred_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
+         
+      // 平摊推理时间到每个 query 上
+      double avg_pred_time = num_queries > 0 ? (total_pred_time / num_queries) : 0.0;
+      for (int id = 0; id < (int)num_queries; ++id) {
+         out_global_stats[id].route_pred_time_ms = avg_pred_time;
+      }
+
+      std::cout << "[SmartRoute" << (routing_mode == 7 ? "+++" : "+") << "] Global Phase completed." << std::endl;
+      return final_choices;
+   }
+   
+   // fxy_add
+   std::vector<int> UniNavGraph::get_sorted_query_ids(
+      std::shared_ptr<IStorage> query_storage,
+      const std::vector<int>& algo_choices,
+      int routing_mode) 
+   {
+      size_t num_queries = query_storage->get_num_points();
+      std::vector<int> sorted_ids(num_queries);
+      std::iota(sorted_ids.begin(), sorted_ids.end(), 0);
+
+      if (routing_mode != 5 && routing_mode != 7) return sorted_ids;
+      
+      std::vector<size_t> query_hashes(num_queries);
+      #pragma omp parallel for
+      for (int id = 0; id < (int)num_queries; ++id) {
+         const auto& labels = query_storage->get_label_set(id);
+         query_hashes[id] = std::hash<std::string>{}(std::string((char*)labels.data(), labels.size() * sizeof(ANNS::LabelType)));
+      }
+
+      std::sort(sorted_ids.begin(), sorted_ids.end(), [&](int a, int b) {
+         if (algo_choices[a] != algo_choices[b]) return algo_choices[a] < algo_choices[b];
+         return query_hashes[a] < query_hashes[b];
+      });
+
+      return sorted_ids;
    }
 
    std::vector<IdxType> UniNavGraph::get_entry_points(const std::vector<LabelType> &query_label_set,
@@ -4187,10 +5374,11 @@ void UniNavGraph::calculate_query_features_only(
          const Candidate &cur = search_queue.get_closest_unexpanded();
 
          // iterate neighbors
-         {
-            std::lock_guard<std::mutex> lock(_graph->neighbor_locks[cur.id]);
+         // {
+         //    std::lock_guard<std::mutex> lock(_graph->neighbor_locks[cur.id]);
+         //    neighbors = _graph->neighbors[cur.id];
+         // }
             neighbors = _graph->neighbors[cur.id];
-         }
          for (auto i = 0; i < neighbors.size(); ++i)
          {
 
@@ -4209,6 +5397,123 @@ void UniNavGraph::calculate_query_features_only(
             // push to search queue
             search_queue.insert(neighbor, _distance_handler->compute(query, _base_storage->get_vector(neighbor), dim));
             num_cmps++;
+         }
+      }
+      return num_cmps;
+   }
+
+   IdxType UniNavGraph::iterate_to_fixed_point_rabitq(const char *query, std::shared_ptr<SearchCache> search_cache,
+                                                      IdxType target_id, const std::vector<IdxType> &entry_points,
+                                                      size_t &num_nodes_visited,
+                                                      QueryStats &stats,
+                                                      ANNS::rabitq::RabitQSideIndex::QueryContext *cached_query_ctx,
+                                                      bool clear_search_queue, bool clear_visited_set)
+   {
+      (void)target_id;
+      auto &search_queue = search_cache->search_queue;
+      auto &visited_set = search_cache->visited_set;
+      std::vector<IdxType> neighbors;
+
+      if (clear_search_queue)
+         search_queue.clear();
+      if (clear_visited_set)
+         visited_set.clear();
+
+      ANNS::rabitq::RabitQSideIndex::QueryContext local_query_ctx;
+      ANNS::rabitq::RabitQSideIndex::QueryContext *query_ctx = cached_query_ctx;
+      if (query_ctx == nullptr)
+      {
+         auto init_start = std::chrono::high_resolution_clock::now();
+         ANNS::rabitq::RabitQSideIndex::InitTiming init_timing;
+         if (!_rabitq_side_index.init_query(query, local_query_ctx, &init_timing))
+         {
+            return iterate_to_fixed_point(
+                query,
+                search_cache,
+                target_id,
+                entry_points,
+                num_nodes_visited,
+                false,
+                false
+            );
+         }
+         stats.rabitq_ctx_prepare_time_ms += std::chrono::duration<double, std::milli>(
+             std::chrono::high_resolution_clock::now() - init_start
+         ).count();
+         stats.rabitq_ctx_rotate_time_ms += init_timing.rotate_ms;
+         stats.rabitq_ctx_q2c_time_ms += init_timing.q_to_centroids_ms;
+         stats.rabitq_ctx_wrapper_time_ms += init_timing.wrapper_ms;
+         stats.rabitq_ctx_reused = false;
+         query_ctx = &local_query_ctx;
+      }
+
+      for (const auto &entry_point : entry_points)
+      {
+         if (visited_set.check(entry_point))
+         {
+            continue;
+         }
+         visited_set.set(entry_point);
+         float low_dist = 0.0F;
+         auto bin_start = std::chrono::high_resolution_clock::now();
+         float est_dist = _rabitq_side_index.estimate_bin(entry_point, *query_ctx, &low_dist);
+         stats.rabitq_bin_time_ms += std::chrono::duration<double, std::milli>(
+             std::chrono::high_resolution_clock::now() - bin_start
+         ).count();
+         stats.rabitq_bin_calls += 1;
+         (void)low_dist;
+         search_queue.insert(entry_point, est_dist);
+      }
+      IdxType num_cmps = static_cast<IdxType>(search_queue.size());
+
+      while (search_queue.has_unexpanded_node())
+      {
+         const Candidate &cur = search_queue.get_closest_unexpanded();
+         neighbors = _graph->neighbors[cur.id];
+
+         for (size_t i = 0; i < neighbors.size(); ++i)
+         {
+            if (i + 1 < neighbors.size() && visited_set.check(neighbors[i + 1]) == false)
+            {
+               _base_storage->prefetch_vec_by_id(neighbors[i + 1]);
+            }
+
+            auto &neighbor = neighbors[i];
+            if (visited_set.check(neighbor))
+               continue;
+            visited_set.set(neighbor);
+            num_nodes_visited++;
+
+            float low_dist = 0.0F;
+            auto bin_start = std::chrono::high_resolution_clock::now();
+            float est_dist = _rabitq_side_index.estimate_bin(neighbor, *query_ctx, &low_dist);
+            stats.rabitq_bin_time_ms += std::chrono::duration<double, std::milli>(
+                std::chrono::high_resolution_clock::now() - bin_start
+            ).count();
+            stats.rabitq_bin_calls += 1;
+            num_cmps++;
+
+            bool should_refine = false;
+            if (search_queue.size() >= search_queue.capacity() && search_queue.size() > 0)
+            {
+               should_refine = low_dist < search_queue[search_queue.size() - 1].distance;
+            }
+
+            float dist_to_insert = est_dist;
+            if (should_refine)
+            {
+               float refined_low = 0.0F;
+               auto full_start = std::chrono::high_resolution_clock::now();
+               float refined_dist = _rabitq_side_index.estimate_full(neighbor, *query_ctx, &refined_low);
+               stats.rabitq_full_time_ms += std::chrono::duration<double, std::milli>(
+                   std::chrono::high_resolution_clock::now() - full_start
+               ).count();
+               stats.rabitq_full_calls += 1;
+               (void)refined_low;
+               dist_to_insert = refined_dist;
+               num_cmps++;
+            }
+            search_queue.insert(neighbor, dist_to_insert);
          }
       }
       return num_cmps;
@@ -4299,6 +5604,15 @@ void UniNavGraph::calculate_query_features_only(
       meta_data["cross_edge_step2_acorn_time(ms)"] = std::to_string(_cross_edge_step2_acorn_time_ms);
       meta_data["cross_edge_step3_add_dist_edges_time(ms)"] = std::to_string(_cross_edge_step3_add_dist_edges_time_ms);
       meta_data["cross_edge_step4_add_hierarchy_edges_time(ms)"] = std::to_string(_cross_edge_step4_add_hierarchy_edges_time_ms);
+      meta_data["rabitq_build_requested"] = _build_rabitq_side_index ? "1" : "0";
+      meta_data["rabitq_enabled"] = _rabitq_side_index.enabled() ? "1" : "0";
+      meta_data["rabitq_total_bits"] = std::to_string(_rabitq_side_index.total_bits());
+      meta_data["rabitq_build_time(ms)"] = std::to_string(_rabitq_build_time_ms);
+      meta_data["rabitq_side_size_bytes"] = "0";
+      meta_data["index_time_without_rabitq(ms)"] = std::to_string(std::max(0.0, static_cast<double>(_index_time) - _rabitq_build_time_ms));
+      meta_data["index_time_with_rabitq(ms)"] = std::to_string(_index_time);
+      meta_data["index_size_without_rabitq(MB)"] = std::to_string(_index_size_add_rb);
+      meta_data["index_size_with_rabitq(MB)"] = std::to_string(_index_size_add_rb);
 
       // FXY_ADD: 计算并保存 Trie 静态指标
       std::cout << "Calculating and saving Trie static metrics..." << std::endl;
@@ -4336,6 +5650,7 @@ void UniNavGraph::calculate_query_features_only(
       build_time_file << "cross_edge_step2_acorn_time" << "," << _cross_edge_step2_acorn_time_ms << "\n";
       build_time_file << "cross_edge_step3_add_dist_edges_time" << "," << _cross_edge_step3_add_dist_edges_time_ms << "\n";
       build_time_file << "cross_edge_step4_add_hierarchy_edges_time" << "," << _cross_edge_step4_add_hierarchy_edges_time_ms << "\n";
+      build_time_file << "rabitq_build_time" << "," << _rabitq_build_time_ms << "\n";
       build_time_file.close();
 
       // save vectors and label sets
@@ -4416,6 +5731,24 @@ void UniNavGraph::calculate_query_features_only(
       std::string covered_sets_rb_filename = index_path_prefix + "covered_sets_rb.bin";
       save_roaring_vector(covered_sets_rb_filename, _covered_sets_rb);
 
+      if (_rabitq_side_index.enabled())
+      {
+         const std::string rabitq_side_filename = index_path_prefix + "rabitq_side.bin";
+         if (!_rabitq_side_index.save(rabitq_side_filename))
+         {
+            std::cerr << "[RabitQ] Failed to save side index to " << rabitq_side_filename << std::endl;
+         }
+         else
+         {
+            // Use an in-memory estimate (sizeof-based) instead of on-disk file size.
+            _rabitq_side_size_bytes = _rabitq_side_index.estimated_memory_bytes(false);
+         }
+      }
+      else
+      {
+         _rabitq_side_size_bytes = 0;
+      }
+
       // save acorn index
       std::cout << "\n--- Exporting reordered data for ACORN index building ---" << std::endl;
 
@@ -4473,6 +5806,19 @@ void UniNavGraph::calculate_query_features_only(
       std::cout << "--- Finished exporting reordered data ---\n"
                 << std::endl;
       // ========================== 修改部分结束 ==========================
+
+      const double rabitq_side_size_mb = static_cast<double>(_rabitq_side_size_bytes) / (1024.0 * 1024.0);
+      meta_data["rabitq_side_size_bytes"] = std::to_string(_rabitq_side_size_bytes);
+      meta_data["index_size_with_rabitq(MB)"] = std::to_string(_index_size_add_rb + rabitq_side_size_mb);
+      write_kv_file(meta_filename, meta_data);
+
+      std::ofstream build_time_append_file(build_time_filename, std::ios::app);
+      build_time_append_file << "index_time_without_rabitq" << "," << std::max(0.0, static_cast<double>(_index_time) - _rabitq_build_time_ms) << "\n";
+      build_time_append_file << "index_time_with_rabitq" << "," << _index_time << "\n";
+      build_time_append_file << "rabitq_side_size_bytes" << "," << _rabitq_side_size_bytes << "\n";
+      build_time_append_file << "index_size_without_rabitq_MB" << "," << _index_size_add_rb << "\n";
+      build_time_append_file << "index_size_with_rabitq_MB" << "," << (_index_size_add_rb + rabitq_side_size_mb) << "\n";
+      build_time_append_file.close();
 
       // print
       std::cout << "- Index saved in " << std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
@@ -4630,6 +5976,445 @@ void UniNavGraph::calculate_query_features_only(
       std::cout << " _label_nav_graph->out_neighbors.size() = " << _label_nav_graph->out_neighbors.size() << std::endl;
       std::cout << " _num_groups = " << _num_groups << std::endl;
 
+      // load vector-attribute bipartite graph and prepare vector-level inverted index for containment filtering
+      std::string vector_attr_graph_filename = index_path_prefix + "vector_attr_graph";
+      if (fs::exists(vector_attr_graph_filename))
+      {
+         load_bipartite_graph(vector_attr_graph_filename);
+         build_vector_inverted_indices();
+      }
+      else
+      {
+         std::cerr << "[Warning] vector_attr_graph not found: " << vector_attr_graph_filename
+                   << ". Containment filter acceleration may be unavailable." << std::endl;
+      }
+
+#ifdef ENABLE_KNOWHERE_MILVUS_BASELINE
+      _milvus_knowhere_ready = false;
+      _milvus_knowhere_hnsw_ready = false;
+      _milvus_knowhere_is_ivf = true;
+      if (_base_storage != nullptr && _base_storage->get_num_points() > 0)
+      {
+         try
+         {
+            // Stabilize Knowhere/Faiss runtime behavior for in-process baseline builds.
+            // We keep inner thread pools conservative and let outer experiment parallelism dominate.
+            static std::once_flag kh_pool_init_once;
+            std::call_once(kh_pool_init_once, []() {
+               knowhere::KnowhereConfig::SetBuildThreadPoolSize(1);
+               knowhere::KnowhereConfig::SetSearchThreadPoolSize(1);
+            });
+
+            const int64_t rows = static_cast<int64_t>(_base_storage->get_num_points());
+            const int64_t dim = static_cast<int64_t>(_base_storage->get_dim());
+            const float *base_ptr = reinterpret_cast<const float *>(_base_storage->get_vector(0));
+            const int kh_add_threads = std::max<int>(1, std::min<int>(64, static_cast<int>(_num_threads > 0 ? _num_threads : 32)));
+            fs::path index_files_dir(index_path_prefix);
+            while (!index_files_dir.empty() &&
+                   (index_files_dir.filename().string().empty() || index_files_dir.filename() == ".")) {
+               index_files_dir = index_files_dir.parent_path();
+            }
+            fs::path index_root_dir = index_files_dir;
+            if (index_root_dir.filename() == "index_files") {
+               index_root_dir = index_root_dir.parent_path();
+            } else {
+               index_root_dir = index_root_dir.parent_path();
+            }
+            // Keep Milvus caches under the concrete index configuration directory:
+            // .../Index/<INDEX_DIR_NAME>/Milvus-IVF and .../Milvus-HNSW
+            const std::string milvus_ivf_cache_dir = (index_root_dir / "Milvus-IVF").string() + "/";
+            const std::string milvus_hnsw_cache_dir = (index_root_dir / "Milvus-HNSW").string() + "/";
+            const std::string milvus_cache_index_file = milvus_ivf_cache_dir + "milvus_knowhere.index";
+            const std::string milvus_cache_meta_file = milvus_ivf_cache_dir + "milvus_knowhere.meta";
+            const std::string milvus_cache_hnsw_index_file = milvus_hnsw_cache_dir + "milvus_knowhere_hnsw.index";
+            const std::string milvus_cache_hnsw_meta_file = milvus_hnsw_cache_dir + "milvus_knowhere_hnsw.meta";
+            // IVF training in Knowhere/Faiss can touch shared BLAS/Faiss state during clustering.
+            // Keep centroid training deterministic and single-threaded; full-vector Add/Search still
+            // remain controlled by the outer experiment's num_threads/query-level parallelism.
+            const int kh_train_threads = 1;
+            if (base_ptr == nullptr)
+            {
+               std::cerr << "[Milvus-IVF-Knowhere] base vector pointer is null, skip index build." << std::endl;
+            }
+            else
+            {
+               MilvusKnowhereCacheMeta cache_meta;
+               if (fs::exists(milvus_cache_index_file) &&
+                   fs::exists(milvus_cache_meta_file) &&
+                   load_milvus_knowhere_meta(milvus_cache_meta_file, cache_meta) &&
+                   cache_meta.rows == rows &&
+                   cache_meta.dim == dim)
+               {
+                  const bool cache_is_ivf = (cache_meta.index_kind == "IVF_FLAT");
+                  const auto cache_index_enum = cache_is_ivf ? knowhere::IndexEnum::INDEX_FAISS_IVFFLAT
+                                                             : knowhere::IndexEnum::INDEX_FAISS_IDMAP;
+                  auto cached_expected = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(
+                      cache_index_enum,
+                      knowhere::Version::GetCurrentVersion().VersionNumber());
+                  if (cached_expected.has_value())
+                  {
+                     knowhere::Json load_json;
+                     load_json[knowhere::meta::DIM] = dim;
+                     load_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+                     if (cache_is_ivf) {
+                        load_json[knowhere::indexparam::NLIST] = std::max(1, cache_meta.nlist);
+                        load_json[knowhere::indexparam::NPROBE] = std::max(1, cache_meta.nprobe);
+                     }
+                     _milvus_knowhere_index = cached_expected.value();
+                     const auto load_status = _milvus_knowhere_index.DeserializeFromFile(milvus_cache_index_file, load_json);
+                     if (load_status == knowhere::Status::success)
+                     {
+                        _milvus_knowhere_ready = true;
+                        _milvus_knowhere_is_ivf = cache_is_ivf;
+                        _milvus_knowhere_nlist = std::max(1, cache_meta.nlist);
+                        _milvus_knowhere_nprobe = std::max(1, cache_meta.nprobe);
+                        std::cout << "[Milvus-IVF-Knowhere] loaded cached "
+                                  << (cache_is_ivf ? "IVF" : "FLAT")
+                                  << " index from " << milvus_cache_index_file << std::endl;
+                        if (cache_meta.build_time_ms >= 0.0) {
+                           std::cout << "[Milvus-IVF-Knowhere] cached build stats: total="
+                                     << cache_meta.build_time_ms << " ms";
+                           if (cache_meta.train_time_ms >= 0.0) {
+                              std::cout << ", train=" << cache_meta.train_time_ms << " ms";
+                           }
+                           if (cache_meta.add_time_ms >= 0.0) {
+                              std::cout << ", add=" << cache_meta.add_time_ms << " ms";
+                           }
+                           std::cout << std::endl;
+                        }
+                        if (cache_meta.index_sizeof_mb > 0.0 || cache_meta.serialized_index_size_mb > 0.0) {
+                           std::cout << "[Milvus-IVF-Knowhere] cached size stats: sizeof="
+                                     << cache_meta.index_sizeof_mb
+                                     << " MB, serialized="
+                                     << cache_meta.serialized_index_size_mb
+                                     << " MB" << std::endl;
+                        }
+                     }
+                     else
+                     {
+                        std::cerr << "[Milvus-IVF-Knowhere] cached index load failed, status="
+                                  << static_cast<int>(load_status)
+                                  << ". Rebuilding from base vectors." << std::endl;
+                     }
+                  }
+               }
+
+               if (!_milvus_knowhere_ready)
+               {
+                  auto idx_expected = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(
+                      knowhere::IndexEnum::INDEX_FAISS_IVFFLAT,
+                      knowhere::Version::GetCurrentVersion().VersionNumber());
+                  if (!idx_expected.has_value())
+                  {
+                     std::cerr << "[Milvus-IVF-Knowhere] failed to create INDEX_FAISS_IVFFLAT instance." << std::endl;
+                  }
+                  else
+                  {
+                     _milvus_knowhere_index = idx_expected.value();
+                     _milvus_knowhere_nlist = std::max<int>(1, std::min<int>(128, static_cast<int>(std::sqrt(static_cast<double>(rows)))));
+                     _milvus_knowhere_nprobe = std::max<int>(1, std::min<int>(16, _milvus_knowhere_nlist));
+
+                     knowhere::Json build_json;
+                     build_json[knowhere::meta::DIM] = dim;
+                     build_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+                     build_json[knowhere::indexparam::NLIST] = _milvus_knowhere_nlist;
+                     build_json[knowhere::indexparam::NPROBE] = _milvus_knowhere_nprobe;
+                     build_json["use_elkan"] = false;
+
+                     knowhere::Json train_json = build_json;
+                     train_json[knowhere::meta::NUM_BUILD_THREAD] = kh_train_threads;
+                     knowhere::Json add_json = build_json;
+                     add_json[knowhere::meta::NUM_BUILD_THREAD] = kh_add_threads;
+
+                     const int64_t train_rows = std::min<int64_t>(rows, 30000);
+                     std::unique_ptr<float[]> owned_train(new float[static_cast<size_t>(train_rows) * static_cast<size_t>(dim)]);
+                     std::memcpy(owned_train.get(), base_ptr, sizeof(float) * static_cast<size_t>(train_rows) * static_cast<size_t>(dim));
+                     auto train_ds = knowhere::GenResultDataSet(train_rows, dim, std::move(owned_train));
+                     const auto ivf_build_begin = std::chrono::high_resolution_clock::now();
+                     double ivf_train_time_ms = -1.0;
+                     double ivf_add_time_ms = -1.0;
+                     double ivf_effective_build_time_ms = -1.0;
+                     std::cout << "[Milvus-IVF-Knowhere] building IVF_FLAT index. rows=" << rows
+                               << ", dim=" << dim
+                               << ", train_rows=" << train_rows
+                               << ", nlist=" << _milvus_knowhere_nlist
+                               << ", train_threads=" << kh_train_threads
+                               << ", add_threads=" << kh_add_threads
+                               << ", use_elkan=false" << std::endl;
+                     const auto ivf_train_begin = std::chrono::high_resolution_clock::now();
+                     auto st = _milvus_knowhere_index.Train(train_ds, train_json, false);
+                     ivf_train_time_ms = std::chrono::duration<double, std::milli>(
+                         std::chrono::high_resolution_clock::now() - ivf_train_begin).count();
+                     if (st == knowhere::Status::success) {
+                        std::unique_ptr<float[]> owned_base(new float[static_cast<size_t>(rows) * static_cast<size_t>(dim)]);
+                        std::memcpy(owned_base.get(), base_ptr, sizeof(float) * static_cast<size_t>(rows) * static_cast<size_t>(dim));
+                        auto add_ds = knowhere::GenResultDataSet(rows, dim, std::move(owned_base));
+                        const auto ivf_add_begin = std::chrono::high_resolution_clock::now();
+                        st = _milvus_knowhere_index.Add(add_ds, add_json, false);
+                        ivf_add_time_ms = std::chrono::duration<double, std::milli>(
+                            std::chrono::high_resolution_clock::now() - ivf_add_begin).count();
+                     }
+                     const double ivf_build_time_ms = std::chrono::duration<double, std::milli>(
+                         std::chrono::high_resolution_clock::now() - ivf_build_begin).count();
+                     _milvus_knowhere_ready = (st == knowhere::Status::success);
+                     if (_milvus_knowhere_ready)
+                     {
+                        _milvus_knowhere_is_ivf = true;
+                        ivf_effective_build_time_ms = ivf_build_time_ms;
+                        std::cout << "[Milvus-IVF-Knowhere] IVF index built. nlist=" << _milvus_knowhere_nlist
+                                  << ", nprobe=" << _milvus_knowhere_nprobe
+                                  << ", total_build_time_ms=" << ivf_build_time_ms
+                                  << ", train_time_ms=" << ivf_train_time_ms
+                                  << ", add_time_ms=" << ivf_add_time_ms << std::endl;
+                     }
+                     else
+                     {
+                        std::cerr << "[Milvus-IVF-Knowhere] IVF build failed, status=" << static_cast<int>(st)
+                                  << ". Fallback to FLAT baseline." << std::endl;
+
+                        auto flat_expected = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(
+                            knowhere::IndexEnum::INDEX_FAISS_IDMAP,
+                            knowhere::Version::GetCurrentVersion().VersionNumber());
+                        if (flat_expected.has_value()) {
+                           _milvus_knowhere_index = flat_expected.value();
+                           knowhere::Json flat_json;
+                           flat_json[knowhere::meta::DIM] = dim;
+                           flat_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+                           flat_json[knowhere::meta::NUM_BUILD_THREAD] = kh_add_threads;
+
+                           std::unique_ptr<float[]> owned_base_flat(new float[static_cast<size_t>(rows) * static_cast<size_t>(dim)]);
+                           std::memcpy(owned_base_flat.get(), base_ptr, sizeof(float) * static_cast<size_t>(rows) * static_cast<size_t>(dim));
+                           auto flat_ds = knowhere::GenResultDataSet(rows, dim, std::move(owned_base_flat));
+                           const auto flat_build_begin = std::chrono::high_resolution_clock::now();
+                           const auto st_flat = _milvus_knowhere_index.Build(flat_ds, flat_json, false);
+                           ivf_effective_build_time_ms = std::chrono::duration<double, std::milli>(
+                               std::chrono::high_resolution_clock::now() - flat_build_begin).count();
+                           _milvus_knowhere_ready = (st_flat == knowhere::Status::success);
+                           _milvus_knowhere_is_ivf = false;
+                           _milvus_knowhere_nlist = 1;
+                           _milvus_knowhere_nprobe = 0;
+                           if (_milvus_knowhere_ready) {
+                              ivf_train_time_ms = -1.0;
+                              ivf_add_time_ms = -1.0;
+                              std::cout << "[Milvus-IVF-Knowhere] FLAT fallback built successfully. total_build_time_ms="
+                                        << ivf_effective_build_time_ms << std::endl;
+                           } else {
+                              std::cerr << "[Milvus-IVF-Knowhere] FLAT fallback build failed, status="
+                                        << static_cast<int>(st_flat) << std::endl;
+                           }
+                        } else {
+                           std::cerr << "[Milvus-IVF-Knowhere] failed to create INDEX_FAISS_FLAT fallback instance." << std::endl;
+                        }
+                     }
+
+                     if (_milvus_knowhere_ready)
+                     {
+                        if (!fs::exists(milvus_ivf_cache_dir)) {
+                           fs::create_directories(milvus_ivf_cache_dir);
+                        }
+                        const double index_sizeof_mb =
+                            static_cast<double>(sizeof(_milvus_knowhere_index)) / (1024.0 * 1024.0);
+                        const MilvusKnowhereCacheMeta built_meta{
+                            _milvus_knowhere_is_ivf ? "IVF_FLAT" : "FLAT",
+                            rows,
+                            dim,
+                            _milvus_knowhere_nlist,
+                            _milvus_knowhere_nprobe,
+                            ivf_effective_build_time_ms,
+                            ivf_train_time_ms,
+                            ivf_add_time_ms,
+                            index_sizeof_mb,
+                            0};
+                        uint64_t serialized_index_size_bytes = 0;
+                        if (save_milvus_knowhere_index_file(_milvus_knowhere_index, milvus_cache_index_file,
+                                                            &serialized_index_size_bytes))
+                        {
+                           MilvusKnowhereCacheMeta meta_to_save = built_meta;
+                           meta_to_save.serialized_index_size_mb =
+                               static_cast<double>(serialized_index_size_bytes) / (1024.0 * 1024.0);
+                           if (save_milvus_knowhere_meta(milvus_cache_meta_file, meta_to_save)) {
+                              std::cout << "[Milvus-IVF-Knowhere] cached index saved to " << milvus_cache_index_file << std::endl;
+                           } else {
+                              std::cerr << "[Milvus-IVF-Knowhere] warning: failed to save cached meta to "
+                                        << milvus_cache_meta_file << std::endl;
+                           }
+                        }
+                        else
+                        {
+                           std::cerr << "[Milvus-IVF-Knowhere] warning: failed to save cached index to "
+                                     << milvus_cache_index_file << std::endl;
+                        }
+                     }
+                  }
+               }
+
+               MilvusKnowhereCacheMeta hnsw_meta;
+               if (fs::exists(milvus_cache_hnsw_index_file) &&
+                   fs::exists(milvus_cache_hnsw_meta_file) &&
+                   load_milvus_knowhere_meta(milvus_cache_hnsw_meta_file, hnsw_meta) &&
+                   hnsw_meta.rows == rows &&
+                   hnsw_meta.dim == dim &&
+                   hnsw_meta.index_kind == "HNSW")
+               {
+                  auto hnsw_cached_expected = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(
+                      knowhere::IndexEnum::INDEX_HNSW,
+                      knowhere::Version::GetCurrentVersion().VersionNumber());
+                  if (hnsw_cached_expected.has_value())
+                  {
+                     knowhere::Json hnsw_load_json;
+                     hnsw_load_json[knowhere::meta::DIM] = dim;
+                     hnsw_load_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+                     hnsw_load_json[knowhere::indexparam::HNSW_M] = std::max(1, hnsw_meta.nlist);
+                     hnsw_load_json[knowhere::indexparam::EF] = std::max(1, hnsw_meta.nprobe);
+                     _milvus_knowhere_hnsw_index = hnsw_cached_expected.value();
+                     const auto hnsw_load_status = _milvus_knowhere_hnsw_index.DeserializeFromFile(
+                         milvus_cache_hnsw_index_file, hnsw_load_json);
+                     if (hnsw_load_status == knowhere::Status::success)
+                     {
+                        _milvus_knowhere_hnsw_ready = true;
+                        _milvus_knowhere_hnsw_m = std::max(1, hnsw_meta.nlist);
+                        _milvus_knowhere_hnsw_ef = std::max(1, hnsw_meta.nprobe);
+                        std::cout << "[Milvus-HNSW-Knowhere] loaded cached HNSW index from "
+                                  << milvus_cache_hnsw_index_file << std::endl;
+                        if (hnsw_meta.build_time_ms >= 0.0) {
+                           std::cout << "[Milvus-HNSW-Knowhere] cached build stats: total="
+                                     << hnsw_meta.build_time_ms << " ms" << std::endl;
+                        }
+                        if (hnsw_meta.index_sizeof_mb > 0.0 || hnsw_meta.serialized_index_size_mb > 0.0) {
+                           std::cout << "[Milvus-HNSW-Knowhere] cached size stats: sizeof="
+                                     << hnsw_meta.index_sizeof_mb
+                                     << " MB, serialized="
+                                     << hnsw_meta.serialized_index_size_mb
+                                     << " MB" << std::endl;
+                        }
+                     }
+                     else
+                     {
+                        std::cerr << "[Milvus-HNSW-Knowhere] cached HNSW index load failed, status="
+                                  << static_cast<int>(hnsw_load_status)
+                                  << ". Rebuilding from base vectors." << std::endl;
+                     }
+                  }
+               }
+
+               if (!_milvus_knowhere_hnsw_ready)
+               {
+                  auto hnsw_expected = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(
+                      knowhere::IndexEnum::INDEX_HNSW,
+                      knowhere::Version::GetCurrentVersion().VersionNumber());
+                  if (!hnsw_expected.has_value())
+                  {
+                     std::cerr << "[Milvus-HNSW-Knowhere] failed to create INDEX_HNSW instance." << std::endl;
+                  }
+                  else
+                  {
+                     _milvus_knowhere_hnsw_index = hnsw_expected.value();
+                     _milvus_knowhere_hnsw_m = 32;
+                     _milvus_knowhere_hnsw_efc = 200;
+                     _milvus_knowhere_hnsw_ef = 100;
+
+                     knowhere::Json hnsw_build_json;
+                     hnsw_build_json[knowhere::meta::DIM] = dim;
+                     hnsw_build_json[knowhere::meta::METRIC_TYPE] = knowhere::metric::L2;
+                     hnsw_build_json[knowhere::indexparam::HNSW_M] = _milvus_knowhere_hnsw_m;
+                     hnsw_build_json[knowhere::indexparam::EFCONSTRUCTION] = _milvus_knowhere_hnsw_efc;
+                     hnsw_build_json[knowhere::indexparam::EF] = _milvus_knowhere_hnsw_ef;
+                     hnsw_build_json[knowhere::meta::NUM_BUILD_THREAD] = kh_add_threads;
+
+                     std::unique_ptr<float[]> owned_base_hnsw(new float[static_cast<size_t>(rows) * static_cast<size_t>(dim)]);
+                     std::memcpy(owned_base_hnsw.get(), base_ptr,
+                                 sizeof(float) * static_cast<size_t>(rows) * static_cast<size_t>(dim));
+                     auto hnsw_ds = knowhere::GenResultDataSet(rows, dim, std::move(owned_base_hnsw));
+                     const auto hnsw_build_begin = std::chrono::high_resolution_clock::now();
+                     std::cout << "[Milvus-HNSW-Knowhere] building HNSW index. rows=" << rows
+                               << ", dim=" << dim
+                               << ", M=" << _milvus_knowhere_hnsw_m
+                               << ", efConstruction=" << _milvus_knowhere_hnsw_efc
+                               << ", efSearch=" << _milvus_knowhere_hnsw_ef
+                               << ", build_threads=" << kh_add_threads << std::endl;
+                     const auto st_hnsw = _milvus_knowhere_hnsw_index.Build(hnsw_ds, hnsw_build_json, false);
+                     const double hnsw_build_time_ms = std::chrono::duration<double, std::milli>(
+                         std::chrono::high_resolution_clock::now() - hnsw_build_begin).count();
+                     _milvus_knowhere_hnsw_ready = (st_hnsw == knowhere::Status::success);
+                     if (_milvus_knowhere_hnsw_ready)
+                     {
+                        std::cout << "[Milvus-HNSW-Knowhere] HNSW index built. total_build_time_ms="
+                                  << hnsw_build_time_ms << std::endl;
+                        if (!fs::exists(milvus_hnsw_cache_dir)) {
+                           fs::create_directories(milvus_hnsw_cache_dir);
+                        }
+                        const double index_sizeof_mb =
+                            static_cast<double>(sizeof(_milvus_knowhere_hnsw_index)) / (1024.0 * 1024.0);
+                        const MilvusKnowhereCacheMeta built_hnsw_meta{
+                            "HNSW",
+                            rows,
+                            dim,
+                            _milvus_knowhere_hnsw_m,
+                            _milvus_knowhere_hnsw_ef,
+                            hnsw_build_time_ms,
+                            -1.0,
+                            -1.0,
+                            index_sizeof_mb,
+                            0};
+                        uint64_t serialized_index_size_bytes = 0;
+                        if (save_milvus_knowhere_index_file(_milvus_knowhere_hnsw_index, milvus_cache_hnsw_index_file,
+                                                            &serialized_index_size_bytes))
+                        {
+                           MilvusKnowhereCacheMeta meta_to_save = built_hnsw_meta;
+                           meta_to_save.serialized_index_size_mb =
+                               static_cast<double>(serialized_index_size_bytes) / (1024.0 * 1024.0);
+                           if (save_milvus_knowhere_meta(milvus_cache_hnsw_meta_file, meta_to_save)) {
+                              std::cout << "[Milvus-HNSW-Knowhere] cached index saved to "
+                                        << milvus_cache_hnsw_index_file << std::endl;
+                           } else {
+                              std::cerr << "[Milvus-HNSW-Knowhere] warning: failed to save cached meta to "
+                                        << milvus_cache_hnsw_meta_file << std::endl;
+                           }
+                        }
+                        else
+                        {
+                           std::cerr << "[Milvus-HNSW-Knowhere] warning: failed to save cached index to "
+                                     << milvus_cache_hnsw_index_file << std::endl;
+                        }
+                     }
+                     else
+                     {
+                        std::cerr << "[Milvus-HNSW-Knowhere] HNSW build failed, status="
+                                  << static_cast<int>(st_hnsw) << std::endl;
+                     }
+                  }
+               }
+            }
+         }
+         catch (const std::exception &e)
+         {
+            std::cerr << "[Milvus-IVF-Knowhere] exception during build: " << e.what() << std::endl;
+            _milvus_knowhere_ready = false;
+         }
+      }
+#endif
+
+      _build_rabitq_side_index = false;
+      _rabitq_total_bits = 4;
+      auto rabitq_bits_it = meta_data.find("rabitq_total_bits");
+      if (rabitq_bits_it != meta_data.end())
+      {
+         _rabitq_total_bits = static_cast<size_t>(std::stoul(rabitq_bits_it->second));
+      }
+      auto rabitq_enabled_it = meta_data.find("rabitq_enabled");
+      if (rabitq_enabled_it != meta_data.end() && rabitq_enabled_it->second == "1")
+      {
+         const std::string rabitq_side_filename = index_path_prefix + "rabitq_side.bin";
+         if (_rabitq_side_index.load(rabitq_side_filename))
+         {
+            std::cout << "[RabitQ] Side index loaded from " << rabitq_side_filename << std::endl;
+         }
+         else
+         {
+            std::cerr << "[RabitQ] Failed to load side index. Exact mode remains available." << std::endl;
+         }
+      }
+
       // load idea1 selector
       std::string model_path = selector_modle_prefix + "/intelElS/idea1_selector_model_final.onnx";
       std::cout << "Loading Trie method selector model from " << model_path << " ..." << std::endl;
@@ -4652,25 +6437,25 @@ void UniNavGraph::calculate_query_features_only(
          _trie_method_selector = nullptr;
       }
 
-      // --- 加载 SmartRoute 模型 (3特征, 3分类) ---
-      std::string sr_model_path = selector_modle_prefix + "/naive_smart_route/naive_smart_route.onnx";
+      // --- 加载 SmartRoute 模型 (3特征: GlobalPpass, QuerySize, CandSize) ---
+      std::string sr_model_path = selector_modle_prefix + "/smart_route/router.onnx";
       if (fs::exists(sr_model_path)) {
          _smart_route_selector = std::make_unique<MethodSelector>(sr_model_path);
-         std::cout << "- SmartRoute Model loaded." << std::endl;
+         std::cout << "- SmartRoute Model loaded from: " << sr_model_path << std::endl;
 
-         // 加载 naive_majority_acorn_id.txt
-         std::string naive_majority_id_path = selector_modle_prefix + "/naive_smart_route/naive_majority_acorn_id.txt";
-         if (fs::exists(naive_majority_id_path)) {
-             std::ifstream infile(naive_majority_id_path);
-             if (infile >> _naive_majority_acorn_id) {
-                 std::cout << "- SmartRoute majority ACORN ID loaded: " << _naive_majority_acorn_id << std::endl;
+         // 加载 majority_acorn_id.txt
+         std::string majority_id_path = selector_modle_prefix + "/smart_route/majority_acorn_id.txt";
+         if (fs::exists(majority_id_path)) {
+             std::ifstream infile(majority_id_path);
+             if (infile >> _majority_acorn_id) {
+                 std::cout << "- SmartRoute majority ACORN ID loaded: " << _majority_acorn_id << std::endl;
              }
          } else {
-             std::cout << "- [Warning] naive_majority_acorn_id.txt not found, using default: " << _naive_majority_acorn_id << std::endl;
+             std::cout << "- [Warning] majority_acorn_id.txt not found, using default: " << _majority_acorn_id << std::endl;
          }
-
       } else {
          _smart_route_selector = nullptr;
+         std::cout << "- [Warning] SmartRoute Model not found." << std::endl;
       }
 
       // --- 加载 FastSmartRoute 单层模型 (4特征) ---
@@ -4737,6 +6522,24 @@ void UniNavGraph::calculate_query_features_only(
                _acorn_index->set_metadata(metadata);
                std::cout << "- ACORN index loaded and metadata associated successfully." << std::endl;
 
+               std::string acorn_rabitq_side_path = acorn_index_path + ".rabitq_side.bin";
+               if (fs::exists(acorn_rabitq_side_path))
+               {
+                  if (_acorn_rabitq_side_index.load(acorn_rabitq_side_path))
+                  {
+                     std::cout << "- ACORN RabitQ side index loaded from: " << acorn_rabitq_side_path << std::endl;
+                  }
+                  else
+                  {
+                     std::cerr << "  - [WARNING] Failed to load ACORN RabitQ side index from: "
+                               << acorn_rabitq_side_path << std::endl;
+                  }
+               }
+               else
+               {
+                  std::cout << "- ACORN RabitQ side index not found: " << acorn_rabitq_side_path << std::endl;
+               }
+
                std::string inverted_index_path = acorn_index_path + ".inverted_index";
                if (fs::exists(inverted_index_path))
                {
@@ -4790,6 +6593,24 @@ void UniNavGraph::calculate_query_features_only(
                }
                _acorn_1_index->set_metadata(metadata);
                std::cout << "- ACORN-1 index loaded and metadata associated successfully." << std::endl;
+
+               std::string acorn_1_rabitq_side_path = acorn_1_index_path + ".rabitq_side.bin";
+               if (fs::exists(acorn_1_rabitq_side_path))
+               {
+                  if (_acorn_1_rabitq_side_index.load(acorn_1_rabitq_side_path))
+                  {
+                     std::cout << "- ACORN-1 RabitQ side index loaded from: " << acorn_1_rabitq_side_path << std::endl;
+                  }
+                  else
+                  {
+                     std::cerr << "  - [WARNING] Failed to load ACORN-1 RabitQ side index from: "
+                               << acorn_1_rabitq_side_path << std::endl;
+                  }
+               }
+               else
+               {
+                  std::cout << "- ACORN-1 RabitQ side index not found: " << acorn_1_rabitq_side_path << std::endl;
+               }
 
                // Replace the old loading logic to reuse the inverted index.
                if (inverted_index_loaded)

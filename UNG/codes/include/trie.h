@@ -22,6 +22,10 @@ namespace ANNS
       long long bfs_nodes_processed; // 向下BFS的节点数
 
       long long redundant_upward_steps = 0; // 向上回溯过程中重复的节点
+
+      //用于记录两个阶段的耗时
+      double time_phase1_ms = 0.0;
+      double time_phase2_ms = 0.0;
    };
 
    // fxy_add:用于从方法二(递归法)中收集详细性能指标的结构体

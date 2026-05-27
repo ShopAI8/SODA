@@ -26,5 +26,5 @@ def count_empty_lines(file_path):
 
 # 示例用法
 if __name__ == '__main__':
-    file_path = '/home/fengxiaoyao/FilterVector/FilterVectorData/bigann/bigann_base_labels_ori.txt'
+    file_path = '/noraiddata/lijiakang/FilterVector/FilterVectorData/bigann/bigann_base_labels_ori.txt'
     count_empty_lines(file_path)

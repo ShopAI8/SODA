@@ -5,18 +5,21 @@
          "shared_config": {
             "data_dir": "/mnt/disk1/syh/ljk/FilterVector/FilterVectorData/Genome",
             "output_dir": "/mnt/disk1/syh/ljk/FilterVector/FilterVectorResults/",
-            "build_mode": "serial",
+            "build_mode": "ung_only",
             "max_degree": 32,
             "Lbuild": 100,
             "alpha": 1.2,
             "num_cross_edges": 6,
             "num_entry_points": 16,
-            "Lsearch_start": 10,
-            "Lsearch_end": 20000,
+            "Lsearch_start": 1000,
+            "Lsearch_end":40000,
             "Lsearch_step": 1000,
             "num_threads": 100,
             "K": 10,
             "num_repeats": 1,
+            "build_rabitq_side_index": false,
+            "rabitq_total_bits": 4,
+            "ung_distance_mode": "exact",
             "acorn_params": {
                "N": 108077,
                "M": 32,
@@ -34,7 +37,7 @@
                   "acorn_efs_step_fast":100
                },
                "algorithms": [
-                  "UNG-nTfalse"
+                  "UNG+"
                ]
             }
          ]

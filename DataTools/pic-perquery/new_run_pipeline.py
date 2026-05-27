@@ -131,16 +131,16 @@ def handle_processing_and_merge_tasks(config):
         print("  -> 正在缩短列名以便阅读 (例如: SearchTime_ms_method3 -> ST_M3)...")
         metric_map = {'SearchTime_ms': 'ST', 'Time_ms': 'T', 'Recall': 'R', 'Optimal_Lsearch': 'L'}
         algo_map = {
-            'SmartRoute': 'SR', 'FastSmartRoute': 'FSR', 'FastSmartRoute+': 'FSR+', 
+            'SmartRoute': 'SR',
             'pre-filter': 'PR', 'NaviX-ACORN': 'NX',      
             'ACORN-gamma': 'AG', 'ACORN-1': 'A1',    
             'ACORN-gamma-improved': 'AGI',   
-            'UNG-nTfalse': 'UNG', 'UNG-nTtrue': 'UNGT'
+            'UNG-nTfalse': 'UNG', 'UNG+': 'UNG+'
         }
         new_columns = []
         for col in df_merged.columns:
             if col in ['QueryID', 'QuerySize']: new_columns.append(col); continue
-            parts = col.split('_');
+            parts = col.split('_')
             if len(parts) < 2: new_columns.append(col); continue
             algo_name = parts[-1]; metric_name = '_'.join(parts[:-1])
             metric_short = metric_map.get(metric_name, metric_name); algo_short = algo_map.get(algo_name, algo_name)
@@ -245,7 +245,7 @@ def handle_qps_recall_tasks(config):
         # 2. 定义5个绘图子集
         print(f"  -> 正在根据 {len(selected_df)} 个选定查询创建 5 个绘图组...")
         
-        N_SPLIT = 500
+        N_SPLIT = 100
         
         df_all = selected_df
         
