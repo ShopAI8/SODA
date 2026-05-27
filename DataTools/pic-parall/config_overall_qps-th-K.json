@@ -215,7 +215,7 @@
          {
             "enabled": true,
             "task_name": "sub_base_Multi_K_Comparison",
-            "output_filename": "sub_base_Multi_K_Comparison.png",
+            "output_filename": "K.png",
             "main_title": "Performance Comparison Across Different K Values",
             "plot_settings": {
                     "legend_cols": 4,
@@ -231,53 +231,6 @@
                     "savefig_pad_inches": 0.01
                 },
             "datasets_to_compare": [
-               {
-                  "dataset_name": "Amazon",
-                  "auto_lsearch_start_from_k": true,
-                  "common_parameters": {
-                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
-                     "threads": 100,
-                     "lsearch_start": 10,
-                     "lsearch_end": 200,
-                     "lsearch_step": 10,
-                     "acorn_efs_start": 200,
-                     "acorn_efs_step_slow": 200,
-                     "acorn_efs_step_fast": 200,
-                     "lsearch_threshold": 5000
-                  },
-                  "k_values": [
-                     20
-                  ],
-                  "subplot_titles": [
-                     "Amazon\n$\\mathrm{K}=20$"
-                  ],
-                  "algorithms_to_compare": [
-                     {
-                        "name": "UNG",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     {
-                        "name": "UNG+",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     "SmartRoute",
-                     "SmartRoute+",
-                     "pre-filtering",
-                     "Milvus-IVF",
-                     "Milvus-HNSW",
-                     "ACORN-γ",
-                     "ACORN-1",
-                     "NaviX"
-                  ]
-               },
                {
                   "dataset_name": "Genome",
                   "auto_lsearch_start_from_k": true,
@@ -344,6 +297,53 @@
                   ],
                   "subplot_titles": [
                      "Reviews\n$\\mathrm{K}=20$"
+                  ],
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Amazon",
+                  "auto_lsearch_start_from_k": true,
+                  "common_parameters": {
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "k_values": [
+                     20
+                  ],
+                  "subplot_titles": [
+                     "Amazon\n$\\mathrm{K}=20$"
                   ],
                   "algorithms_to_compare": [
                      {
@@ -2012,47 +2012,6 @@
             ],
             "datasets_to_compare": [
                {
-                  "dataset_name": "Amazon",
-                  "query_dir_base": "query_select_200_A_B_C-sub-base-123456789_random_300",
-                  "common_parameters": {
-                     "K": 10,
-                     "threads": 100,
-                     "lsearch_start": 10,
-                     "lsearch_end": 200,
-                     "lsearch_step": 10,
-                     "acorn_efs_start": 200,
-                     "acorn_efs_step_slow": 200,
-                     "acorn_efs_step_fast": 200,
-                     "lsearch_threshold": 5000
-                  },
-                  "algorithms_to_compare": [
-                     {
-                        "name": "UNG",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     {
-                        "name": "UNG+",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     "SmartRoute",
-                     "SmartRoute+",
-                     "pre-filtering",
-                     "Milvus-IVF",
-                     "Milvus-HNSW",
-                     "ACORN-γ",
-                     "ACORN-1",
-                     "NaviX"
-                  ]
-               },
-               {
                   "dataset_name": "Genome",
                   "query_dir_base": "query_select_200_A_B_C-weighted-sub-base-123456789_random_300",
                   "common_parameters": {
@@ -2133,6 +2092,47 @@
                      "ACORN-1",
                      "NaviX"
                   ]
+               },
+               {
+                  "dataset_name": "Amazon",
+                  "query_dir_base": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                  "common_parameters": {
+                     "K": 10,
+                     "threads": 100,
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name": "UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name": "UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
                }
             ]
          }
@@ -2160,47 +2160,6 @@
                "hide_legend": true
             },
             "datasets_to_compare": [
-               {
-                  "dataset_name": "Amazon",
-                  "common_parameters": {
-                     "threads": 10,
-                     "K": 10,
-                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
-                     "lsearch_start": 10,
-                     "lsearch_end": 200,
-                     "lsearch_step": 10,
-                     "acorn_efs_start": 200,
-                     "acorn_efs_step_slow": 200,
-                     "acorn_efs_step_fast": 200,
-                     "lsearch_threshold": 5000
-                  },
-                  "algorithms_to_compare": [
-                     {
-                        "name":"UNG",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     {
-                        "name":"UNG+",
-                        "params": {
-                           "lsearch_start": 1000,
-                           "lsearch_end": 40000,
-                           "lsearch_step": 1000
-                        }
-                     },
-                     "SmartRoute",
-                     "SmartRoute+",
-                     "pre-filtering",
-                     "Milvus-IVF",
-                     "Milvus-HNSW",
-                     "ACORN-γ",
-                     "ACORN-1",
-                     "NaviX"
-                  ]
-               },
                {
                   "dataset_name": "Genome",
                   "common_parameters": {
@@ -2254,6 +2213,47 @@
                      "acorn_efs_start": 100,
                      "acorn_efs_step_slow": 100,
                      "acorn_efs_step_fast": 100,
+                     "lsearch_threshold": 5000
+                  },
+                  "algorithms_to_compare": [
+                     {
+                        "name":"UNG",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     {
+                        "name":"UNG+",
+                        "params": {
+                           "lsearch_start": 1000,
+                           "lsearch_end": 40000,
+                           "lsearch_step": 1000
+                        }
+                     },
+                     "SmartRoute",
+                     "SmartRoute+",
+                     "pre-filtering",
+                     "Milvus-IVF",
+                     "Milvus-HNSW",
+                     "ACORN-γ",
+                     "ACORN-1",
+                     "NaviX"
+                  ]
+               },
+               {
+                  "dataset_name": "Amazon",
+                  "common_parameters": {
+                     "threads": 10,
+                     "K": 10,
+                     "query_dir_name": "query_select_200_A_B_C-sub-base-123456789_random_300",
+                     "lsearch_start": 10,
+                     "lsearch_end": 200,
+                     "lsearch_step": 10,
+                     "acorn_efs_start": 200,
+                     "acorn_efs_step_slow": 200,
+                     "acorn_efs_step_fast": 200,
                      "lsearch_threshold": 5000
                   },
                   "algorithms_to_compare": [
