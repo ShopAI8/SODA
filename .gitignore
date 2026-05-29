@@ -1,9 +1,7 @@
 .vscode/
-log_th-K-split/
 /UNG/build/
 /NaviX/build/
 /ACORN/build_local/
 /knowhere/build/
 /knowhere/**/build/
-/DataTools/pic-parall/plots
-/DataTools/pic-parall/debug_csvs
+Dockerfile

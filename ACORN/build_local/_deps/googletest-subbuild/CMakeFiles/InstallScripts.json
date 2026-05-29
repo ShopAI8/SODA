@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/_deps/googletest-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

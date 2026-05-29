@@ -86,7 +86,106 @@ Run the following command to start an experiment:
 
 ---
 
-## 3. Core Parameters
+## 3. Docker Environment
+
+If you want a reproducible runtime environment for the current experiment configuration, you can use the provided `Dockerfile`.
+
+### 3.1 Build the image
+
+Run the following command in the repository root:
+
+```bash
+docker build -t filtervector:latest .
+```
+
+This image will:
+
+- install the system toolchain required by `UNG`, `ACORN`, `NaviX`, and `Knowhere`
+- create the Conda environment from `environment.yml`
+- install `conan`
+- build the local `knowhere` dependency in advance
+
+### 3.2 Start a container
+
+If your datasets and experiment outputs are stored on the host machine, it is better to mount only those directories into the container instead of copying them into the image.
+
+Do **not** mount the whole repository over `/workspace/FilterVectorCode-20260529` unless you also plan to rebuild `knowhere` inside the container, because that would hide the prebuilt library baked into the image.
+
+Example:
+
+```bash
+docker run --rm -it \
+  --name filtervector-dev \
+  -v /your_path/FilterVector/FilterVectorData:/data \
+  -v /your_path/FilterVector/FilterVectorResults:/results \
+  -w /workspace/FilterVectorCode-20260529 \
+  filtervector:latest
+```
+
+Inside the container, you can then point your JSON configuration to:
+
+- `data_dir: /data/<DatasetName>`
+- `output_dir: /results`
+
+### 3.3 Run experiments in the container
+
+After entering the container, run:
+
+```bash
+conda activate vs
+bash exp.sh experiment_json/202604-200-random-300-mix-len/experiments-Genome-200-random-300-mix-len.json
+```
+
+The image already exports:
+
+```bash
+KNOWHERE_INCLUDE_DIR=/workspace/FilterVectorCode-20260529/knowhere/include
+KNOWHERE_LIBRARY=/workspace/FilterVectorCode-20260529/knowhere/build/Release/libknowhere.so
+PROJECT_ROOT=/workspace/FilterVectorCode-20260529
+```
+
+so the default `exp.sh` / `build_hybrid.sh` path logic can continue to work.
+
+If you really need to edit code live from the host, mount the repository to another path, for example:
+
+```bash
+docker run --rm -it \
+  --name filtervector-dev \
+  -v /your_path/FilterVector/FilterVectorCode-20260529:/workspace/src \
+  -v /your_path/FilterVector/FilterVectorData:/data \
+  -v /your_path/FilterVector/FilterVectorResults:/results \
+  -w /workspace/src \
+  filtervector:latest
+```
+
+In that case, you should rebuild `knowhere` once inside the container and then export:
+
+```bash
+make -C knowhere BUILD_DIR=/workspace/src/knowhere/build
+export KNOWHERE_INCLUDE_DIR=/workspace/src/knowhere/include
+export KNOWHERE_LIBRARY=/workspace/src/knowhere/build/Release/libknowhere.so
+export PROJECT_ROOT=/workspace/src
+```
+
+### 3.4 About `perf stat` in Docker
+
+`search.sh` uses `perf stat` by default. In Docker, this often requires extra privileges from the host.
+
+The easiest way is to run the container with elevated privileges:
+
+```bash
+docker run --rm -it --privileged \
+  -v /your_path/FilterVector/FilterVectorData:/data \
+  -v /your_path/FilterVector/FilterVectorResults:/results \
+  -w /workspace/FilterVectorCode-20260529 \
+  filtervector:latest
+```
+
+If you do not want to grant that level of privilege, a practical fallback is to temporarily remove or disable the `perf stat` wrapper in `search.sh`.
+
+---
+
+## 4. Core Parameters
 
 The following parameters in the configuration files or scripts determine the behavior of the algorithms:
 
@@ -100,7 +199,7 @@ The following parameters in the configuration files or scripts determine the beh
 
 ---
 
-## 4. Model Training and Deployment
+## 5. Model Training and Deployment
 
 The decision model for intelligent routing is trained using Python scripts:
 

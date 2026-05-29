@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/demo_sift1M.dir/link.d CMakeFiles/demo_sift1M.dir/demo_sift1M.cpp.o -o demo_sift1M  -Wl,-rpath,/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/faiss ../faiss/libfaiss.so /usr/lib/x86_64-linux-gnu/libz.so

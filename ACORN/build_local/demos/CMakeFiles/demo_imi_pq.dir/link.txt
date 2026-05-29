@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/demo_imi_pq.dir/link.d CMakeFiles/demo_imi_pq.dir/demo_imi_pq.cpp.o -o demo_imi_pq  -Wl,-rpath,/home/sunyahui/ljk/FilterVector/FilterVectorCode/ACORN/build_local/faiss ../faiss/libfaiss.so /usr/lib/x86_64-linux-gnu/libz.so
