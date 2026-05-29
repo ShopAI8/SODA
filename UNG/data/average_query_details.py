@@ -9,18 +9,18 @@ def main():
     args = parser.parse_args()
 
     if not os.path.exists(args.input_csv):
-        print(f"❌ 找不到输入文件: {args.input_csv}")
+        print(f"Error: Input file not found: {args.input_csv}")
         return
 
-    # ⚠️ 你的数据是空格分隔
+    # Read query-level detail records.
     df = pd.read_csv(args.input_csv)
 
     if 'QueryID' not in df.columns:
-        print("❌ CSV 中没有 QueryID 列")
+        print("Error: CSV file does not contain a QueryID column")
         return
 
     # =========================
-    # 1️⃣ 全局平均值（不去重！！）
+    # 1. Global averages without deduplication
     # =========================
     numeric_df = df.select_dtypes(include='number')
 
@@ -30,11 +30,11 @@ def main():
     df_avg = numeric_df.mean().to_frame().T
 
     # =========================
-    # 2️⃣ Algo 占比（按 QueryID 去重）
+    # 2. Algorithm ratios after deduplicating by QueryID
     # =========================
     df_dedup = df.drop_duplicates(subset=['QueryID'], keep='first')
 
-    print(f"原始行数: {len(df)}, 去重后 Query 数: {len(df_dedup)}")
+    print(f"Original rows: {len(df)}, deduplicated queries: {len(df_dedup)}")
 
     if 'Algo_Choice' in df_dedup.columns:
         algo_ratio = df_dedup['Algo_Choice'].value_counts(normalize=True)
@@ -44,18 +44,18 @@ def main():
 
         df_result = pd.concat([df_avg, algo_ratio_df], axis=1)
     else:
-        print("⚠️ 没有 Algo_Choice 列")
+        print("Warning: Algo_Choice column not found")
         df_result = df_avg
 
     # =========================
-    # 3️⃣ 保存结果
+    # 3. Save results
     # =========================
     df_result.to_csv(args.output_csv, index=False)
 
-    print("✅ 完成：")
-    print("   - 全局平均值（未去重）")
-    print("   - Algo_Choice 占比（按 Query 去重）")
-    print(f"📁 输出: {args.output_csv}")
+    print("Completed:")
+    print("   - Global averages without deduplication")
+    print("   - Algo_Choice ratios after query-level deduplication")
+    print(f"Output: {args.output_csv}")
 
 if __name__ == "__main__":
     main()

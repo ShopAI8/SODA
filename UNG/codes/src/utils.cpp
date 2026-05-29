@@ -46,53 +46,18 @@ namespace ANNS
       std::cout << "Ground truth loaded from " << filename << std::endl;
    }
 
-   /*float calculate_recall(const std::pair<IdxType, float> *gt, const std::pair<IdxType, float> *results, uint32_t num_queries, uint32_t K)
-   {
-      float total_correct = 0;
-      for (uint32_t i = 0; i < num_queries; i++)
-      {
-
-         // prepare ground truth set, offset records the last valid gt index
-         std::set<IdxType> gt_set;
-         int32_t offset = -1;
-         for (uint32_t j = 0; j < K; j++)
-            if (gt[i * K + j].first != -1)
-            {
-               offset = j;
-               gt_set.insert(gt[i * K + j].first);
-            }
-
-         // count the correct
-         for (uint32_t j = 0; j < K; j++)
-         {
-            if (results[i * K + j].first == -1)
-               break;
-            if (offset >= 0 && results[i * K + j].second == gt[i * K + offset].second)
-            { // for ties
-               total_correct++;
-               offset--;
-            }
-            else
-            {
-               if (gt_set.find(results[i * K + j].first) != gt_set.end())
-                  total_correct++;
-            }
-         }
-      }
-      return 100.0 * total_correct / (num_queries * K);
-   }*/
    // fxy_add
    float calculate_recall(const std::pair<IdxType, float> *gt, const std::pair<IdxType, float> *results, uint32_t num_queries, uint32_t K)
    {
       float total_correct = 0;
-      float total_relevant = 0; // 新增：统计所有查询的真实相关结果总数
+      float total_relevant = 0; // Total number of true relevant results across all queries
 
       for (uint32_t i = 0; i < num_queries; i++)
       {
-         // 构建 ground truth 集合，并计算当前查询的真实相关数
+         // Build the ground-truth set and count true relevant results for the current query
          std::set<IdxType> gt_set;
          int32_t offset = -1;
-         uint32_t num_relevant = 0; // 当前查询的真实相关数
+         uint32_t num_relevant = 0; // Number of true relevant results for the current query
 
          for (uint32_t j = 0; j < K; j++)
          {
@@ -100,20 +65,20 @@ namespace ANNS
             {
                offset = j;
                gt_set.insert(gt[i * K + j].first);
-               num_relevant++; // 统计有效 GT
+               num_relevant++; // Count valid ground-truth entries
             }
          }
 
-         total_relevant += num_relevant; // 累加到总真实相关数
+         total_relevant += num_relevant; // Accumulate into the global relevant-result count
 
-         // 统计正确匹配数
+         // Count correct matches
          for (uint32_t j = 0; j < K; j++)
          {
             if (results[i * K + j].first == -1)
                break;
 
             if (offset >= 0 && results[i * K + j].second == gt[i * K + offset].second)
-            { // 并列情况
+            { // Tie case
                total_correct++;
                offset--;
             }
@@ -125,7 +90,7 @@ namespace ANNS
          }
       }
 
-      // 召回率 = 正确匹配数 / 真实相关总数
+      // Recall = correct matches / total true relevant results
       return (total_relevant > 0) ? (100.0f * total_correct / total_relevant) : 0.0f;
    }
 
@@ -137,16 +102,16 @@ namespace ANNS
                                  const std::string &output_file)
    {
       float total_correct = 0;
-      std::vector<float> query_recalls(num_queries, 0); // 存储每个查询的召回率
+      std::vector<float> query_recalls(num_queries, 0); // Recall for each query
 
       std::ofstream file(output_file);
       if (!file.is_open())
       {
          std::cerr << "Failed to open file: " << output_file << std::endl;
-         return -1; // 文件打开失败，返回错误值
+         return -1; // Return an error value if the file cannot be opened
       }
 
-      file << "Query ID,Recall (%)\n"; // 写入 CSV 头部
+      file << "Query ID,Recall (%)\n"; // Write the CSV header
 
       for (uint32_t i = 0; i < num_queries; i++)
       {
@@ -168,7 +133,7 @@ namespace ANNS
             if (results[i * K + j].first == -1)
                break;
             if (offset >= 0 && results[i * K + j].second == gt[i * K + offset].second)
-            { // 处理 cost 相等的情况
+            { // Handle equal-cost cases
                correct_count++;
                offset--;
             }
@@ -179,15 +144,15 @@ namespace ANNS
             }
          }
 
-         query_recalls[i] = correct_count / K; // 计算当前查询的 recall
+         query_recalls[i] = correct_count / K; // Compute recall for the current query
          total_correct += correct_count;
 
-         file << i << "," << query_recalls[i] << "\n"; // 写入文件
+         file << i << "," << query_recalls[i] << "\n"; // Write the record
       }
 
       file.close();
 
-      return 100.0 * total_correct / (num_queries * K); // 返回整体召回率
+      return 100.0 * total_correct / (num_queries * K); // Return the overall recall
    }
 
    // fxy_add
@@ -195,18 +160,18 @@ namespace ANNS
    {
       std::ofstream out(filename, std::ios::binary);
 
-      // 写入 vector 大小
+      // Write the vector size
       uint64_t size = rb_vec.size();
       out.write(reinterpret_cast<const char *>(&size), sizeof(size));
 
       for (const auto &rb : rb_vec)
       {
-         // 获取序列化大小
+         // Get the serialized size
          size_t serialized_size = rb.getSizeInBytes();
          char *buffer = new char[serialized_size];
-         rb.write(buffer); // 写入 buffer
+         rb.write(buffer); // Write into the buffer
 
-         // 写入大小 + 数据
+         // Write size followed by data
          out.write(reinterpret_cast<const char *>(&serialized_size), sizeof(serialized_size));
          out.write(buffer, serialized_size);
 
@@ -226,22 +191,22 @@ namespace ANNS
          return;
       }
 
-      // 读取 vector 大小
+      // Read the vector size
       uint64_t size;
       in.read(reinterpret_cast<char *>(&size), sizeof(size));
       rb_vec.resize(size);
 
       for (size_t i = 0; i < size; ++i)
       {
-         // 读取每个 roaring bitmap 的大小
+         // Read the size of each Roaring bitmap
          size_t serialized_size;
          in.read(reinterpret_cast<char *>(&serialized_size), sizeof(serialized_size));
 
-         // 分配缓冲区并读取数据
+         // Allocate the buffer and read the data
          char *buffer = new char[serialized_size];
          in.read(buffer, serialized_size);
 
-         // 构造 roaring bitmap
+         // Construct the Roaring bitmap
          rb_vec[i] = roaring::Roaring::readSafe(buffer, serialized_size);
 
          delete[] buffer;
@@ -251,7 +216,7 @@ namespace ANNS
       std::cout << "Loaded roaring vector from " << filename << ", size = " << rb_vec.size() << std::endl;
    }
 
-   // fxy_add 辅助函数：将向量数据写入 .fvecs 文件
+   // fxy_add helper: write vector data to a .fvecs file
    void write_fvecs(const std::string &filename, const std::vector<float *> &vecs, size_t dim)
    {
       std::ofstream out(filename, std::ios::binary);
@@ -266,7 +231,7 @@ namespace ANNS
       }
    }
 
-   // fxy_add辅助函数：将标签集写入 .txt 文件。格式: label1,label2,label3\n
+   // fxy_add helper: write label sets to a .txt file in label1,label2,label3 format
    void write_labels_txt(const std::string &filename, const std::vector<std::vector<ANNS::LabelType>> &labels)
    {
       std::ofstream out(filename);
@@ -285,7 +250,7 @@ namespace ANNS
    }
 
 
-   // fxxy_add: 为单个查询基于二维数组格式的倒排索引生成向量过滤掩码（Filter Map）(NaviX使用)
+   // fxxy_add: Generate a vector filter map for one query using a 2D-array inverted index, as required by NaviX
    std::vector<char> generate_single_filter_map(
       const std::vector<std::vector<ANNS::IdxType>>& inverted_index, 
       size_t N,                            
@@ -304,8 +269,8 @@ namespace ANNS
 
       bool is_possible = true;
       for (uint32_t attr : query_attrs) {
-         // 数组下标直接访问，代替 unordered_map 的 find()，速度快
-         // 需要防止查询里出现了不在底库倒排索引范围内的超大属性 ID
+         // Direct array indexing is faster than unordered_map::find()
+         // Guard against query attributes that exceed the base inverted-index range
          if (attr < inverted_index.size() && !inverted_index[attr].empty()) {
             for (ANNS::IdxType xb_idx : inverted_index[attr]) {
                if (match_counters[xb_idx] == 0) {
@@ -314,7 +279,7 @@ namespace ANNS
                match_counters[xb_idx]++;
             }
          } else {
-            // 如果查询的某个必需属性在底库中完全不存在，不可能有匹配项
+            // If a required query attribute is absent from the base set, no match is possible
             is_possible = false;
             break;
          }
@@ -327,6 +292,6 @@ namespace ANNS
             }
          }
       }
-      return filter_map; //- std::vector<char>：返回长度为 N 的过滤数组，1 表示满足所有查询条件，0 表示不满足。
+      return filter_map; // std::vector<char>: length-N filter array, where 1 means all query predicates are satisfied and 0 means they are not.
    }
 }

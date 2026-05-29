@@ -197,20 +197,20 @@ void calculate_superset_counts()
       {
          std::cout << "Starting optimized superset count pre-computation (Inverted Index)..." << std::endl;
          
-         // 1. 获取所有非空的 Trie 节点（代表唯一标签组合）
+         // 1. Collect all non-empty Trie nodes, each representing a unique label combination
          std::vector<TrieNode *> nodes = get_all_nodes_with_group_id();
          size_t num_nodes = nodes.size();
          std::cout << "Found " << num_nodes << " unique label sets. Building Inverted Index..." << std::endl;
 
          if (num_nodes == 0) return;
 
-         // 2. 构建倒排索引：Label -> List of Node Indices
-         // inverted_index[label_id] 存储了所有包含该 label 的节点下标
-         // 使用 vector 替代 map 以获得最佳性能，因为 label ID 通常是连续或密集的
+         // 2. Build the inverted index: Label -> List of Node Indices
+         // inverted_index[label_id] stores node indices for all nodes containing that label
+         // Use vector instead of map for best performance because label IDs are usually contiguous or dense
          size_t table_size = max_label_id + 1;
          std::vector<std::vector<IdxType>> inverted_index(table_size);
 
-         // 这一步是线性的 O(Total_Tokens)，非常快，无需并行
+         // This step is linear in O(Total_Tokens), very fast, and does not need parallelism
          for (IdxType i = 0; i < num_nodes; ++i)
          {
             for (auto label : nodes[i]->label_set)
@@ -224,7 +224,7 @@ void calculate_superset_counts()
          std::cout << "Index built. Calculating supersets in parallel..." << std::endl;
          std::atomic<size_t> progress_counter{0};
 
-         // 3. 并行计算每个节点的 Superset Count
+         // 3. Compute the superset count for each node in parallel
 #pragma omp parallel for schedule(dynamic)
          for (size_t i = 0; i < num_nodes; ++i)
          {
@@ -233,15 +233,15 @@ void calculate_superset_counts()
 
             if (target_labels.empty()) continue;
 
-            // 策略：先找到该节点中"最罕见"的标签（对应的倒排链最短），从它开始求交集。
-            // 这能极大地减少初始候选集的大小。
+            // Strategy: find the rarest label in this node first, i.e., the label with the shortest inverted list, and intersect from there.
+            // This greatly reduces the initial candidate set size.
             size_t best_start_idx = 0;
             size_t min_list_size = std::numeric_limits<size_t>::max();
             bool has_empty_intersection = false;
 
             for(size_t k = 0; k < target_labels.size(); ++k) {
                LabelType lbl = target_labels[k];
-               // 如果某个标签在整个库里都没出现过（理论上不可能，因为节点本身存在），则结果为0
+               // If a label never appears in the corpus, theoretically impossible because the node exists, the result is 0
                if(lbl >= table_size || inverted_index[lbl].empty()) {
                   has_empty_intersection = true;
                   break;
@@ -257,14 +257,14 @@ void calculate_superset_counts()
                continue;
             }
 
-            // 初始化候选集为最短的那个倒排链
-            // 注意：inverted_index 中的下标天然是有序的（因为我们是按 0..num_nodes 顺序插入的）
+            // Initialize candidates with the shortest inverted list
+            // Note: indices in inverted_index are naturally sorted because they are inserted in 0..num_nodes order
             std::vector<IdxType> candidates = inverted_index[target_labels[best_start_idx]];
 
-            // 4. 逐步与其他标签的倒排链求交集
+            // 4. Intersect incrementally with inverted lists for the remaining labels
             for (size_t k = 0; k < target_labels.size(); ++k)
             {
-               if (k == best_start_idx) continue; // 跳过起始列
+               if (k == best_start_idx) continue; // Skip the starting list
                
                if (candidates.empty()) break;
 
@@ -272,22 +272,22 @@ void calculate_superset_counts()
                const auto &next_list = inverted_index[lbl];
                
                std::vector<IdxType> intersection;
-               // 预分配内存以避免多次扩容
+               // Preallocate memory to avoid repeated reallocations
                intersection.reserve(std::min(candidates.size(), next_list.size()));
                
-               // 高效求交集 (两有序序列)
+               // Efficient intersection for two sorted sequences
                std::set_intersection(candidates.begin(), candidates.end(),
                                      next_list.begin(), next_list.end(),
                                      std::back_inserter(intersection));
                candidates = std::move(intersection);
             }
 
-            // 5. 统计符合长度条件的超集 (严格超集：长度必须大于当前节点)
-            // 此时 candidates 里包含的是所有"包含 target_labels" 的节点下标
+            // 5. Count supersets satisfying the length condition. Strict supersets must be longer than the current node.
+            // At this point, candidates contains indices for all nodes that contain target_labels
             IdxType valid_supersets = 0;
             for (IdxType candidate_idx : candidates)
             {
-               // 注意：候选集中可能包含节点自己，size > target 自动排除了自己
+               // Note: candidates may include the node itself; size > target automatically excludes it
                if (nodes[candidate_idx]->label_set.size() > target_labels.size())
                {
                   valid_supersets++;
@@ -295,7 +295,7 @@ void calculate_superset_counts()
             }
             target_node->superset_count = valid_supersets;
 
-            // 进度条打印
+            // Progress output
             size_t processed = ++progress_counter;
             if (processed % 5000 == 0)
             {

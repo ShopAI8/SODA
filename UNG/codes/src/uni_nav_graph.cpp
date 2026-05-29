@@ -25,7 +25,7 @@
 #include <bitset>
 #include <boost/dynamic_bitset.hpp>
 #include <iomanip>
-#include <atomic> // 引入原子操作头文件
+#include <atomic>
 #include <mutex>
 #include <ThreadPool.h>
 #include <shared_mutex>
@@ -50,22 +50,22 @@ using BitsetType = boost::dynamic_bitset<>;
 
 std::shared_timed_mutex lock_m;
 
-// 文件格式常量
+// File-format constants
 const std::string FVEC_EXT = ".fvecs";
 const std::string TXT_EXT = ".txt";
 const size_t FVEC_HEADER_SIZE = sizeof(uint32_t);
 struct QueryTask
 {
-   ANNS::IdxType vec_id;         // 向量ID
-   std::vector<uint32_t> labels; // 查询标签集
+   ANNS::IdxType vec_id;         // Vector ID
+   std::vector<uint32_t> labels; // Query label set
 };
 
 struct TreeInfo
 {
    ANNS::IdxType root_group_id;
-   ANNS::LabelType root_label_id; // 存储概念上的根标签ID
+   ANNS::LabelType root_label_id; // Conceptual root label ID
    size_t coverage_count;
-   // 用于按覆盖率降序排序
+   // Sort by coverage in descending order
    bool operator<(const TreeInfo &other) const
    {
       return coverage_count > other.coverage_count;
@@ -425,6 +425,15 @@ namespace ANNS
 
    void UniNavGraph::configure_rabitq_build(bool enable, size_t total_bits)
    {
+#if !UNG_ENABLE_RABITQ
+      if (enable)
+      {
+         std::cerr << "[RabitQ] RabitQ support is disabled at compile time. Side-index build is ignored." << std::endl;
+      }
+      _build_rabitq_side_index = false;
+      _rabitq_total_bits = total_bits;
+      return;
+#endif
       if (!enable)
       {
          _build_rabitq_side_index = false;
@@ -454,6 +463,11 @@ namespace ANNS
 
       if (lowered == "rabitq")
       {
+#if !UNG_ENABLE_RABITQ
+         std::cerr << "[RabitQ] RabitQ support is disabled at compile time. Falling back to exact distance mode." << std::endl;
+         _ung_distance_mode = UngDistanceMode::Exact;
+         return;
+#endif
          _ung_distance_mode = UngDistanceMode::RabitQ;
          if (!_rabitq_side_index.enabled() &&
              !_acorn_rabitq_side_index.enabled() &&
@@ -672,18 +686,18 @@ namespace ANNS
          build_label_nav_graph();
          get_descendants_info(); // fxy_add
          {
-            std::cout << "\n--- [分析] 正在统计 LNG 边数 ---" << std::endl;
+            std::cout << "\n--- [Analysis] Counting LNG edges ---" << std::endl;
             uint64_t total_lng_edges = 0;
-            for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)// 遍历所有组，累加它们的“出度”（即子节点/超集数量）
+            for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)// Traverse all groups and accumulate their out-degree, i.e., child/superset count
             {
                total_lng_edges += _label_nav_graph->out_neighbors[group_id].size();
             }
-            std::cout << "  - 组 (Nodes) 总数: " << _num_groups << std::endl;
-            std::cout << "  - LNG 边 (Edges) 总数: " << total_lng_edges << std::endl;
+            std::cout << "  - Total groups (nodes): " << _num_groups << std::endl;
+            std::cout << "  - Total LNG edges: " << total_lng_edges << std::endl;
             if (_num_groups > 0) {
-                 std::cout << "  - 平均出度 (边/组): " << static_cast<double>(total_lng_edges) / _num_groups << std::endl;
+                 std::cout << "  - Average out-degree (edges per group): " << static_cast<double>(total_lng_edges) / _num_groups << std::endl;
             }
-            std::cout << "--- [分析] LNG 边数统计完毕 ---\n" << std::endl;
+            std::cout << "--- [Analysis] LNG edge counting complete ---\n" << std::endl;
          }
 
          // calculate the coverage ratio
@@ -703,7 +717,7 @@ namespace ANNS
          else
          {
             _num_cross_edges = _num_cross_edges / 2;
-            finalize_intra_group_graphs(); // fxy_add:从 build_cross_group_edges中拎出转换id新旧转换的部分
+            finalize_intra_group_graphs(); // fxy_add: Extract ID conversion from build_cross_group_edges
 
             add_new_distance_oriented_edges(
                 dataset,
@@ -806,10 +820,10 @@ namespace ANNS
 
       // obtain the candidates
       std::vector<std::shared_ptr<TrieNode>> candidates;
-      _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment); // 搜索候选超集
+      _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment); // Search candidate supersets
 
       // ================= [DEBUG] =================
-      // 如果候选集数量超过1000000，说明这个组非常容易导致卡死
+      // If the candidate set exceeds 1,000,000, this group is highly likely to stall the search
       if (candidates.size() > 1000000) 
       {
          #pragma omp critical
@@ -834,7 +848,7 @@ namespace ANNS
       }
 
       // obtain the minimum size
-      // 所有candidates 按照其标签集的尺寸 label_set_size 从小到大排序
+      // Sort all candidates by label_set_size in ascending order
       std::sort(candidates.begin(), candidates.end(),
                 [](const std::shared_ptr<TrieNode> &a, const std::shared_ptr<TrieNode> &b)
                 {
@@ -877,7 +891,7 @@ namespace ANNS
                                               bool skip_group_id_check)
    {
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
-      // --- 计时器变量定义 ---
+      // --- Timer variables ---
       double time_trie_lookup = 0.0;
       double time_sorting = 0.0;
       double time_filtering_loop = 0.0;
@@ -886,12 +900,12 @@ namespace ANNS
 
       min_super_set_ids.clear();
 
-      // --- 1. 测量Trie查找候选者的时间 ---
+      // --- 1. Measure Trie candidate lookup time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_trie = std::chrono::high_resolution_clock::now();
 // #endif
 
-      // // 对应伪代码 L1-L8: 增加快速路径，首先尝试精确匹配
+      // // Corresponds to pseudocode L1-L8: add a fast path that tries exact match first
       // auto exact_match_node = _trie_index.find_exact_match(query_label_set);
       // if (exact_match_node != nullptr && exact_match_node->group_id > 0)
       // {
@@ -903,7 +917,7 @@ namespace ANNS
 
       if (is_new_trie_method)
       {
-         // --- 调用新方法 (Recursive) ---
+         // --- Invoke the new method (Recursive) ---
          TrieSearchMetricsRecursive trie_metrics_m2 = {};
          if (is_rec_more_start)
             _trie_index.get_super_set_entrances_new_more_sp_debug(query_label_set, candidates, avoid_self, need_containment, print_counter, trie_metrics_m2);
@@ -919,7 +933,7 @@ namespace ANNS
       }
       else
       {
-         // --- 调用旧方法 (Shortcut) ---
+         // --- Invoke the old method (Shortcut) ---
          TrieMethod1Metrics trie_metrics_m1 = {};
          _trie_index.get_super_set_entrances_debug(query_label_set, candidates, avoid_self, need_containment, print_counter, trie_metrics_m1, skip_group_id_check);
          stats.successful_checks = trie_metrics_m1.successful_checks;
@@ -936,7 +950,7 @@ namespace ANNS
       time_trie_lookup = std::chrono::duration<double, std::milli>(end_trie - start_trie).count();
 // #endif
 
-      // 特殊情况处理
+      // Special-case handling
       if (candidates.empty())
          return;
       if (candidates.size() == 1)
@@ -944,11 +958,11 @@ namespace ANNS
          min_super_set_ids.emplace_back(candidates[0]->group_id);
          return;
       }
-      bool skip_filter = this->skip_els_filter;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      bool skip_filter = this->skip_els_filter;  // Control switch: if true, skip filtering and return all candidate group IDs directly
       //bool skip_filter = false; //TODO
       if (skip_filter)
       {
-         // 快速路径：跳过排序和过滤，直接将候选者 group_id 加入结果
+         // Fast path: skip sorting and filtering, then append candidate group IDs directly
          for (const auto& candidate : candidates)
          {
             min_super_set_ids.emplace_back(candidate->group_id);
@@ -956,7 +970,7 @@ namespace ANNS
       }
       
       
-      // --- 2. 测量排序时间 ---
+      // --- 2. Measure sorting time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_sort = std::chrono::high_resolution_clock::now();
 // #endif
@@ -974,7 +988,7 @@ namespace ANNS
       time_sorting = std::chrono::duration<double, std::milli>(end_sort - start_sort).count();
 // #endif
 
-      // --- 3. 测量过滤循环的时间 ---
+      // --- 3. Measure filtering-loop time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_filter = std::chrono::high_resolution_clock::now();
 // #endif
@@ -1007,7 +1021,7 @@ namespace ANNS
                filtered_ids.emplace_back(cur_group_id);
             }
          }
-         // 覆盖原始结果
+         // Override the original result
          min_super_set_ids = std::move(filtered_ids);
       }
       
@@ -1017,7 +1031,7 @@ namespace ANNS
 
       auto function_total_time = std::chrono::duration<double, std::milli>(end_filter - function_start_time).count();
 
-      // ljk_add 将时间记录到 stats 中
+      // ljk_add: record timings into stats
       stats.els_trie_time = time_trie_lookup;
       stats.els_sort_time = time_sorting;
       stats.els_filter_time = time_filtering_loop;
@@ -1025,16 +1039,16 @@ namespace ANNS
 // #endif
    }
 
-   // 为了方便排序，定义一个结构体来存储候选组及其评分
+   // Define a struct that stores candidate groups and scores for sorting
    struct ScoredCandidate
    {
       double score;
       ANNS::IdxType group_id;
 
-      // 重载小于运算符，方便使用 std::sort 进行降序排序
+      // Overload operator< for descending std::sort order
       bool operator<(const ScoredCandidate &other) const
       {
-         return score > other.score; // score 越大越靠前
+         return score > other.score; // Higher scores sort first
       }
    };
 
@@ -1057,13 +1071,13 @@ namespace ANNS
          return {};
       }
 
-      // --- 步骤 1: 运行BFS，并收集所有可达的候选节点 ---
+      // --- Step 1: Run BFS and collect all reachable candidate nodes ---
       std::queue<ANNS::IdxType> q;
       std::vector<int> lng_distance(_num_groups + 1, -1);
 
-      // === 核心优化 1: 创建一个容器，仅用于存储BFS访问过的、距离大于0的节点 ===
+      // === Core optimization 1: store only BFS-visited nodes with distance greater than 0 ===
       std::vector<ANNS::IdxType> reachable_nodes;
-      reachable_nodes.reserve(_num_groups / 10); // 预分配一些内存，避免多次重分配
+      reachable_nodes.reserve(_num_groups / 10); // Preallocate memory to reduce reallocations
 
       for (const auto &group_id : minimum_entry_sets)
       {
@@ -1088,17 +1102,17 @@ namespace ANNS
             {
                lng_distance[child_group] = lng_distance[current_group] + 1;
                q.push(child_group);
-               // === 核心优化 2: 将新发现的候选节点存入列表 ===
+               // === Core optimization 2: store newly discovered candidate nodes in the list ===
                reachable_nodes.push_back(child_group);
             }
          }
       }
 
-      // --- 步骤 2: 仅对可达节点进行评分 ---
+      // --- Step 2: Score only reachable nodes ---
       std::vector<ANNS::ScoredCandidate> candidates;
       candidates.reserve(reachable_nodes.size());
 
-      // === 核心优化 3: 直接遍历数量少得多的 reachable_nodes 列表 ===
+      // === Core optimization 3: iterate directly over the much smaller reachable_nodes list ===
       for (const auto group_id : reachable_nodes)
       {
          const double group_size = static_cast<double>(_group_id_to_vec_ids[group_id].size());
@@ -1110,14 +1124,14 @@ namespace ANNS
          else
          { // SizeAndDistance with new formula
             const int dist = lng_distance[group_id];
-            // 新评分公式: 深度优先，大小作为次要排序依据
+            // New scoring formula: prioritize depth, with size as a secondary criterion
             score = static_cast<double>(dist) * static_cast<double>(_num_points) + group_size;
          }
          candidates.push_back({score, group_id});
       }
 
-      // --- 步骤 3: 部分排序并选择 ---
-      size_t num_to_sort = std::min(candidates.size(), top_k + 5); // +5 作为安全缓冲
+      // --- Step 3: Partially sort and select ---
+      size_t num_to_sort = std::min(candidates.size(), top_k + 5); // +5 safety buffer
       if (num_to_sort > 0)
       {
          std::partial_sort(candidates.begin(),
@@ -1159,7 +1173,7 @@ namespace ANNS
          }
       }
 
-      // --- 精简后的日志输出 ---
+      // --- Condensed logging output ---
       if (verbose)
       {
          if (oracle_injected)
@@ -1270,7 +1284,7 @@ namespace ANNS
       std::cout << "\r- Finished in " << _build_graph_time << " ms" << std::endl;
    }
 
-   // fxy_add：构建全局Vamana图
+   // fxy_add: Build the global Vamana graph
    void UniNavGraph::build_global_vamana_graph()
    {
       std::cout << "Building global Vamana graph..." << std::endl;
@@ -1287,19 +1301,19 @@ namespace ANNS
 
       std::cout << "- Global Vamana graph built in " << build_time << " ms" << std::endl;
    }
-   //=====================================begin 数据预处理：构建向量-属性二分图=========================================
-   // fxy_add: 构建向量-属性二分图
+   //===================================== begin data preprocessing: build vector-attribute bipartite graph =========================================
+   // fxy_add: Build the vector-attribute bipartite graph
    void UniNavGraph::build_vector_and_attr_graph()
    {
       std::cout << "Building vector-attribute bipartite graph..." << std::endl;
       auto start_time = std::chrono::high_resolution_clock::now();
 
-      // 初始化属性到ID的映射和反向映射
+      // Initialize the attribute-to-ID mapping and reverse mapping
       _attr_to_id.clear();
       _id_to_attr.clear();
       _vector_attr_graph.clear();
 
-      // 第一遍：收集所有唯一属性并分配ID
+      // First pass: collect all unique attributes and assign IDs
       AtrType attr_id = 0;
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id)
       {
@@ -1315,10 +1329,10 @@ namespace ANNS
          }
       }
 
-      // 初始化图结构（向量节点 + 属性节点）
+      // Initialize the graph structure: vector nodes plus attribute nodes
       _vector_attr_graph.resize(_num_points + static_cast<size_t>(attr_id));
 
-      // 第二遍：构建图结构
+      // Second pass: build the graph structure
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id)
       {
          const auto &label_set = _base_storage->get_label_set(vec_id);
@@ -1326,15 +1340,15 @@ namespace ANNS
          {
             AtrType a_id = _attr_to_id[label];
 
-            // 添加双向边
-            // 向量节点ID范围: [0, _num_points-1]
-            // 属性节点ID范围: [_num_points, _num_points+attr_id-1]
+            // Add bidirectional edges
+            // Vector node ID range: [0, _num_points - 1]
+            // Attribute node ID range: [_num_points, _num_points + attr_id - 1]
             _vector_attr_graph[vec_id].push_back(_num_points + static_cast<IdxType>(a_id));
             _vector_attr_graph[_num_points + static_cast<IdxType>(a_id)].push_back(vec_id);
          }
       }
 
-      // 统计信息
+      // Statistics
       _num_attributes = attr_id;
       _build_vector_attr_graph_time = std::chrono::duration<double, std::milli>(
                                           std::chrono::high_resolution_clock::now() - start_time)
@@ -1342,11 +1356,11 @@ namespace ANNS
       std::cout << "- Finish in " << _build_vector_attr_graph_time << " ms" << std::endl;
       std::cout << "- Total edges: " << count_graph_edges() << std::endl;
 
-      // 可选：保存图结构供调试
+      // Optional: save the graph structure for debugging
       // save_bipartite_graph_info();
    }
 
-   // fxy_add: 计算向量-属性二分图的边数
+   // fxy_add: Count edges in the vector-attribute bipartite graph
    size_t UniNavGraph::count_graph_edges() const
    {
       size_t total_edges = 0;
@@ -1354,10 +1368,10 @@ namespace ANNS
       {
          total_edges += neighbors.size();
       }
-      return total_edges / 2; // 因为是双向边，实际边数是总数的一半
+      return total_edges / 2; // Because edges are bidirectional, the actual edge count is half the total
    }
 
-   // fxy_add: 保存二分图信息到txt文件调试用
+   // fxy_add: Save bipartite-graph information to a txt file for debugging
    void UniNavGraph::save_bipartite_graph_info() const
    {
       std::ofstream outfile("bipartite_graph_info.txt");
@@ -1373,7 +1387,7 @@ namespace ANNS
       outfile << "Total attributes: " << _num_attributes << "\n";
       outfile << "Total edges: " << count_graph_edges() << "\n\n";
 
-      // 输出属性映射
+      // Output attribute mappings
       outfile << "Attribute to ID Mapping:\n";
       for (const auto &pair : _attr_to_id)
       {
@@ -1381,7 +1395,7 @@ namespace ANNS
       }
       outfile << "\n";
 
-      // 输出部分图结构示例
+      // Output a sample of the graph structure
       outfile << "Sample Graph Connections (first 10 vectors and attributes):\n";
       outfile << "Vector connections:\n";
       for (IdxType i = 0; i < std::min(_num_points, static_cast<IdxType>(10)); ++i)
@@ -1412,7 +1426,7 @@ namespace ANNS
 
    uint32_t UniNavGraph::compute_checksum() const
    {
-      // 简单的校验和计算示例
+      // Simple checksum example
       uint32_t sum = 0;
       for (const auto &neighbors : _vector_attr_graph)
       {
@@ -1424,7 +1438,7 @@ namespace ANNS
       return sum;
    }
 
-   // fxy_add: 保存二分图到文件
+   // fxy_add: Save the bipartite graph to file
    void UniNavGraph::save_bipartite_graph(const std::string &filename)
    {
       std::ofstream out(filename, std::ios::binary);
@@ -1433,39 +1447,39 @@ namespace ANNS
          throw std::runtime_error("Cannot open file for writing: " + filename);
       }
 
-      // 1. 写入文件头标识和版本
+      // 1. Write file header identifier and version
       const char header[8] = {'B', 'I', 'P', 'G', 'R', 'P', 'H', '1'};
       out.write(header, 8);
 
-      // 2. 写入基本元数据
+      // 2. Write basic metadata
       out.write(reinterpret_cast<const char *>(&_num_points), sizeof(IdxType));
       out.write(reinterpret_cast<const char *>(&_num_attributes), sizeof(AtrType));
 
-      // 3. 写入属性映射表
-      // 3.1 先写入条目数量
+      // 3. Write the attribute mapping table
+      // 3.1 Write the entry count first
       uint64_t map_size = _attr_to_id.size();
       out.write(reinterpret_cast<const char *>(&map_size), sizeof(uint64_t));
 
-      // 3.2 写入每个映射条目（LabelType是uint16_t，直接存储）
+      // 3.2 Write each mapping entry. LabelType is uint16_t and is stored directly.
       for (const auto &[label, id] : _attr_to_id)
       {
          out.write(reinterpret_cast<const char *>(&label), sizeof(LabelType));
          out.write(reinterpret_cast<const char *>(&id), sizeof(AtrType));
       }
 
-      // 4. 写入邻接表数据
-      // 4.1 先写入节点总数
+      // 4. Write adjacency-list data
+      // 4.1 Write the total number of nodes first
       uint64_t total_nodes = _vector_attr_graph.size();
       out.write(reinterpret_cast<const char *>(&total_nodes), sizeof(uint64_t));
 
-      // 4.2 写入每个节点的邻居列表
+      // 4.2 Write the neighbor list for each node
       for (const auto &neighbors : _vector_attr_graph)
       {
-         // 先写入邻居数量
+         // Write the neighbor count first
          uint32_t neighbor_count = neighbors.size();
          out.write(reinterpret_cast<const char *>(&neighbor_count), sizeof(uint32_t));
 
-         // 写入邻居ID列表
+         // Write the neighbor ID list
          if (!neighbors.empty())
          {
             out.write(reinterpret_cast<const char *>(neighbors.data()),
@@ -1473,7 +1487,7 @@ namespace ANNS
          }
       }
 
-      // 5. 写入文件尾校验和
+      // 5. Write the file-tail checksum
       uint32_t checksum = compute_checksum();
       out.write(reinterpret_cast<const char *>(&checksum), sizeof(uint32_t));
 
@@ -1481,7 +1495,7 @@ namespace ANNS
                 << " (" << out.tellp() << " bytes)" << std::endl;
    }
 
-   // fxy_add: 读取二分图
+   // fxy_add: Load the bipartite graph
    void UniNavGraph::load_bipartite_graph(const std::string &filename)
    {
       std::cout << "Loading bipartite graph from " << filename << std::endl;
@@ -1492,7 +1506,7 @@ namespace ANNS
          throw std::runtime_error("Cannot open file for reading: " + filename);
       }
 
-      // 1. 验证文件头
+      // 1. Validate the file header
       char header[8];
       in.read(header, 8);
       if (std::string(header, 8) != "BIPGRPH1")
@@ -1500,19 +1514,19 @@ namespace ANNS
          throw std::runtime_error("Invalid file format");
       }
 
-      // 2. 读取基本元数据
+      // 2. Read basic metadata
       in.read(reinterpret_cast<char *>(&_num_points), sizeof(IdxType));
       in.read(reinterpret_cast<char *>(&_num_attributes), sizeof(AtrType));
 
-      // 3. 读取属性映射表
+      // 3. Read the attribute mapping table
       _attr_to_id.clear();
       _id_to_attr.clear();
 
-      // 3.1 读取条目数量
+      // 3.1 Read the entry count
       uint64_t map_size;
       in.read(reinterpret_cast<char *>(&map_size), sizeof(uint64_t));
 
-      // 3.2 读取每个映射条目
+      // 3.2 Read each mapping entry
       for (uint64_t i = 0; i < map_size; ++i)
       {
          LabelType label;
@@ -1525,15 +1539,15 @@ namespace ANNS
          _id_to_attr[id] = label;
       }
 
-      // 4. 读取邻接表数据
+      // 4. Read adjacency-list data
       _vector_attr_graph.clear();
 
-      // 4.1 读取节点总数
+      // 4.1 Read the total number of nodes
       uint64_t total_nodes;
       in.read(reinterpret_cast<char *>(&total_nodes), sizeof(uint64_t));
       _vector_attr_graph.resize(total_nodes);
 
-      // 4.2 读取每个节点的邻居列表
+      // 4.2 Read the neighbor list for each node
       for (uint64_t i = 0; i < total_nodes; ++i)
       {
          uint32_t neighbor_count;
@@ -1547,7 +1561,7 @@ namespace ANNS
          }
       }
 
-      // 5. 验证校验和
+      // 5. Validate the checksum
       uint32_t stored_checksum;
       in.read(reinterpret_cast<char *>(&stored_checksum), sizeof(uint32_t));
 
@@ -1565,10 +1579,10 @@ namespace ANNS
                 << " ms" << std::endl;
    }
 
-   // fxy_add: 比较两个向量-属性二分图
+   // fxy_add: Compare two vector-attribute bipartite graphs
    bool UniNavGraph::compare_graphs(const ANNS::UniNavGraph &g1, const ANNS::UniNavGraph &g2)
    {
-      // 1. 验证基本属性
+      // 1. Validate basic properties
       if (g1._num_points != g2._num_points)
       {
          std::cerr << "Mismatch in _num_points: "
@@ -1583,7 +1597,7 @@ namespace ANNS
          return false;
       }
 
-      // 2. 验证属性映射
+      // 2. Validate attribute mappings
       if (g1._attr_to_id.size() != g2._attr_to_id.size())
       {
          std::cerr << "Mismatch in _attr_to_id size" << std::endl;
@@ -1606,7 +1620,7 @@ namespace ANNS
          }
       }
 
-      // 3. 验证反向属性映射
+      // 3. Validate reverse attribute mappings
       for (const auto &[id, label] : g1._id_to_attr)
       {
          auto it = g2._id_to_attr.find(id);
@@ -1623,7 +1637,7 @@ namespace ANNS
          }
       }
 
-      // 4. 验证邻接表
+      // 4. Validate adjacency lists
       if (g1._vector_attr_graph.size() != g2._vector_attr_graph.size())
       {
          std::cerr << "Mismatch in graph size" << std::endl;
@@ -1656,43 +1670,43 @@ namespace ANNS
 
       return true;
    }
-   //=====================================end 数据预处理：构建向量-属性二分图=========================================
+   //===================================== end data preprocessing: build vector-attribute bipartite graph =========================================
 
-   //=====================================begein 查询过程：计算bitmap=========================================
+   //===================================== begin query processing: compute bitmap =========================================
 
-   // fxy_add: 构建bitmap
+   // fxy_add: Build bitmap
    std::pair<std::bitset<10000001>, double> UniNavGraph::compute_attribute_bitmap(const std::vector<LabelType> &query_attributes) const
    {
-      // 1. 初始化全true的bitmap（表示开始时所有点都满足条件）
+      // 1. Initialize an all-true bitmap, meaning every point initially satisfies the predicates
       std::bitset<10000001> bitmap;
-      bitmap.set(); // 设置所有位为1
+      bitmap.set(); // Set all bits to 1
       double per_query_bitmap_time = 0.0;
 
-      // 2. 处理每个查询属性
+      // 2. Process each query attribute
       for (LabelType attr_label : query_attributes)
       {
-         //  2.1 查找属性ID
+         // 2.1 Look up the attribute ID
          auto it = _attr_to_id.find(attr_label);
          if (it == _attr_to_id.end())
          {
-            // 属性不存在，没有任何点能满足所有条件
+            // If the attribute does not exist, no point can satisfy all predicates
             return {std::bitset<10000001>(), 0.0};
          }
 
-         // 2.2 获取属性节点ID
+         // 2.2 Get the attribute node ID
          AtrType attr_id = it->second;
          IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
 
-         // 2.3 创建临时bitmap记录当前属性的满足情况
+         // 2.3 Create a temporary bitmap for points satisfying the current attribute
          std::bitset<10000001> temp_bitmap;
          auto start_time = std::chrono::high_resolution_clock::now();
          for (IdxType vec_id : _vector_attr_graph[attr_node_id])
          {
-            temp_bitmap.set(vec_id); // 使用set()方法设置对应的位为1
+            temp_bitmap.set(vec_id); // Set the corresponding bit to 1
          }
 
-         // 2.4 与主bitmap进行AND操作
-         bitmap &= temp_bitmap; // 使用&=操作符进行位与操作
+         // 2.4 Apply AND with the main bitmap
+         bitmap &= temp_bitmap; // Bitwise AND via operator&=
 
          per_query_bitmap_time += std::chrono::duration<double, std::milli>(
                                       std::chrono::high_resolution_clock::now() - start_time)
@@ -1702,23 +1716,23 @@ namespace ANNS
       return {bitmap, per_query_bitmap_time};
    }
 
-   // fxy_add: 通过分组ID计算bitmap
+   // fxy_add: Compute bitmap from group IDs
    roaring::Roaring UniNavGraph::compute_bitmap_from_groups(const std::vector<IdxType> &group_ids) const
    {
       roaring::Roaring final_bitmap;
       for (IdxType group_id : group_ids)
       {
-         // 确保group_id有效
+         // Ensure group_id is valid
          if (group_id > 0 && group_id <= _num_groups)
          {
-            // 对每个分组的覆盖集（_covered_sets_rb）执行并集操作
+            // Union the coverage set (_covered_sets_rb) for each group
             final_bitmap |= _covered_sets_rb[group_id];
          }
       }
       return final_bitmap;
    }
 
-   // fxy_add: 批量计算UNG过滤的bitmaps
+   // fxy_add: Batch-compute UNG filter bitmaps
    std::vector<roaring::Roaring> UniNavGraph::batch_compute_ung_bitmaps(
        const ANNS::UniNavGraph &index,
        const std::shared_ptr<ANNS::IStorage> &query_storage,
@@ -1732,31 +1746,31 @@ namespace ANNS
 // omp_set_num_threads(num_threads);
 #pragma omp parallel
       {
-         // 为每个线程创建一个独立的原子计数器，避免在循环中重复创建. static 确保了多线程环境下只有一个实例
+         // Create one atomic counter per thread to avoid repeated allocation in the loop. static ensures a single instance in multithreaded execution.
          static std::atomic<int> trie_debug_print_counter{0};
 
 #pragma omp for
          for (int id = 0; id < num_queries; ++id)
          {
-            // 1. 获取当前查询的标签
+            // 1. Get labels for the current query
             const auto &query_labels = query_storage->get_label_set(id);
 
-            // 2. 获取最小超集分组
+            // 2. Get minimum superset groups
             std::vector<ANNS::IdxType> entry_group_ids;
 
-            // 为 get_min_super_sets_debug 创建一个临时的、仅在此作用域有效的 stats 对象
+            // Create a temporary stats object scoped only to this get_min_super_sets_debug call
             ANNS::QueryStats dummy_stats;
 
             const_cast<ANNS::UniNavGraph &>(index).get_min_super_sets_debug(
                 query_labels,
                 entry_group_ids,
-                false, true, // avoid_self=false, need_containment=true 是通常的默认值
+                false, true, // avoid_self=false and need_containment=true are the usual defaults
                 trie_debug_print_counter,
                 is_new_trie_method,
                 is_rec_more_start,
                 dummy_stats,false);
 
-            // 3. 利用分组ID高效计算bitmap
+            // 3. Efficiently compute bitmap from group IDs
             all_bitmaps[id] = index.compute_bitmap_from_groups(entry_group_ids);
          }
       }
@@ -1769,7 +1783,7 @@ namespace ANNS
       size_t& cand_size,
       bool use_optimized) const
    {
-      // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
+      // Reuse memory and move it to the heap via smart pointers to avoid oversized thread_local stack usage
       static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
       static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
       if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
@@ -1777,7 +1791,7 @@ namespace ANNS
       auto& final_bitmap = *final_bitmap_ptr;
       auto& temp_bitmap = *temp_bitmap_ptr;
       
-      // 特殊情况：空查询，退化为全集
+      // Special case: empty query degenerates to the full set
       if (query_labels.empty()) {
          final_bitmap.set(); 
          cand_size = _num_points;
@@ -1801,7 +1815,7 @@ namespace ANNS
 
       if (use_optimized) {
          // ==========================================
-         // 开启大优化：SmartRoute 系列或强制开启时走这里
+         // Enable the full optimization path for SmartRoute variants or when forced
          // ==========================================
       std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
          [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
@@ -1824,12 +1838,12 @@ namespace ANNS
       }
       } else {
          // ==========================================
-         // 朴素 Baseline：仅测试算法基础能力
+         // Naive baseline: test only the core algorithm capability
          // ==========================================
-         final_bitmap.set(); // 慢操作：全集置1
+         final_bitmap.set(); // Slow operation: set the full universe to 1
          for (size_t i = 0; i < valid_vec_lists.size(); ++i) {
                const auto& vec_list = *valid_vec_lists[i];
-               temp_bitmap.reset(); // 慢操作：全体清零
+               temp_bitmap.reset(); // Slow operation: reset all bits to 0
                for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
                final_bitmap &= temp_bitmap;
          }
@@ -1858,17 +1872,17 @@ namespace ANNS
 
       if (use_optimized_bitset) {
          // =======================================================
-         // 【优化版】 FastSmartRoute 使用：字块级跳过 + 硬件指令加速
+         // Optimized version for FastSmartRoute: word-level skipping plus hardware-instruction acceleration
          // =======================================================
          const uint64_t* bit_words = reinterpret_cast<const uint64_t*>(&final_bitmap);
          size_t num_words = _num_points / 64 + (_num_points % 64 != 0 ? 1 : 0);
 
          for (size_t w = 0; w < num_words; ++w) {
                uint64_t word = bit_words[w];
-               if (word == 0) continue; // 直接跳过全0的64个向量
+               if (word == 0) continue; // Skip all-zero blocks covering 64 vectors
 
                while (word != 0) {
-                  // 硬件指令极速定位为1的bit位
+                  // Use hardware instructions to locate set bits quickly
                   int bit_idx = __builtin_ctzll(word);
                   IdxType vec_id = w * 64 + bit_idx;
                   
@@ -1884,15 +1898,15 @@ namespace ANNS
                      top_k_heap.push({dist, vec_id});
                   }
                   
-                  word &= (word - 1); // 清除已处理的最低位的 1
+                  word &= (word - 1); // Clear the lowest set bit that was already processed
                }
          }
       } else {
          // =======================================================
-         // 【原始版】 单独跑 pre-filter baseline 使用：逐位判断
+         // Original version for standalone pre-filter baseline: bit-by-bit check
          // =======================================================
          for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id) {
-               if (final_bitmap.test(vec_id)) { // 保留带有边界检查的原始写法
+               if (final_bitmap.test(vec_id)) { // Preserve the original bounds-checked form
                   float dist = _distance_handler->compute(query, _base_storage->get_vector(vec_id), dim);
                   num_distance_calcs++;
 
@@ -1906,7 +1920,7 @@ namespace ANNS
          }
       }
 
-      // 将堆中结果倒序写入
+      // Write heap results in reverse order
       size_t valid_k = top_k_heap.size();
       for (int i = valid_k - 1; i >= 0; --i) {
          results[i].first = top_k_heap.top().second; 
@@ -1950,7 +1964,7 @@ namespace ANNS
       std::priority_queue<std::pair<float, IdxType>> top_k_heap; 
       auto dim = _base_storage->get_dim();
 
-      // CRoaring 直接支持对有效位进行极速迭代
+      // CRoaring directly supports fast iteration over set bits
       for (uint32_t vec_id : valid_bitmap) {
           float dist = _distance_handler->compute(query, _base_storage->get_vector(vec_id), dim);
           num_distance_calcs++;
@@ -2271,7 +2285,7 @@ namespace ANNS
       }
    }
 
-   //====================================end 查询过程：计算bitmap=========================================
+   //==================================== end query processing: compute bitmap =========================================
    void UniNavGraph::build_complete_graph(std::shared_ptr<Graph> graph, IdxType num_points)
    {
       for (auto i = 0; i < num_points; ++i)
@@ -2280,29 +2294,29 @@ namespace ANNS
                graph->neighbors[i].emplace_back(j);
    }
 
-   //=====================================begin LNG中每个f覆盖率计算=========================================
-   // fxy_add: 递归打印孩子节点及其覆盖率
+   //===================================== begin coverage computation for each f in LNG =========================================
+   // fxy_add: Recursively print child nodes and their coverage
    void print_children_recursive(const std::shared_ptr<ANNS::LabelNavGraph> graph, IdxType group_id, std::ofstream &outfile, int indent_level)
    {
-      // 根据缩进级别生成前缀空格
-      std::string indent(indent_level * 4, ' '); // 每一层缩进4个空格
+      // Generate prefix spaces according to indentation level
+      std::string indent(indent_level * 4, ' '); // Four spaces per indentation level
 
-      // 打印当前节点
+      // Print the current node
       outfile << "\n"
               << indent << "[" << group_id << "] (" << graph->coverage_ratio[group_id] << ")";
 
-      // 如果有子节点，递归打印子节点
+      // Recursively print child nodes if present
       if (!graph->out_neighbors[group_id].empty())
       {
          for (size_t i = 0; i < graph->out_neighbors[group_id].size(); ++i)
          {
             auto child_group_id = graph->out_neighbors[group_id][i];
-            print_children_recursive(graph, child_group_id, outfile, indent_level + 1); // 增加缩进级别
+            print_children_recursive(graph, child_group_id, outfile, indent_level + 1); // Increase indentation level
          }
       }
    }
 
-   // fxy_add: 输出覆盖率及孩子节点,调用print_children_recursive
+   // fxy_add: Output coverage and child nodes by calling print_children_recursive
    void output_coverage_ratio(const std::shared_ptr<ANNS::LabelNavGraph> _label_nav_graph, IdxType _num_groups, std::ofstream &outfile)
    {
       outfile << "Coverage Ratio for each group\n";
@@ -2312,35 +2326,35 @@ namespace ANNS
 
       for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
       {
-         // 打印当前组的覆盖率
+         // Print the current group's coverage
          outfile << "[" << group_id << "] -> " << _label_nav_graph->coverage_ratio[group_id];
 
-         // 打印孩子节点
+         // Print child nodes
          if (!_label_nav_graph->out_neighbors[group_id].empty())
          {
             outfile << " ->";
             for (size_t i = 0; i < _label_nav_graph->out_neighbors[group_id].size(); ++i)
             {
                auto child_group_id = _label_nav_graph->out_neighbors[group_id][i];
-               print_children_recursive(_label_nav_graph, child_group_id, outfile, 1); // 第一层子节点缩进为1
+               print_children_recursive(_label_nav_graph, child_group_id, outfile, 1); // First-level child nodes use indentation level 1
             }
          }
          outfile << "\n";
       }
    }
 
-   // fxy_add：计算每个label set的向量覆盖比率
+   // fxy_add: Compute vector coverage ratio for each label set
    void UniNavGraph::cal_f_coverage_ratio()
    {
       std::cout << "Calculating coverage ratio..." << std::endl;
       auto start_time = std::chrono::high_resolution_clock::now();
 
-      // Step 0: 初始化covered_sets
+      // Step 0: Initialize covered_sets
       _label_nav_graph->coverage_ratio.clear();
       _label_nav_graph->covered_sets.clear();
       _label_nav_graph->covered_sets.resize(_num_groups + 1);
 
-      // Step 1: 初始化每个 group 的覆盖集合
+      // Step 1: Initialize the coverage set for each group
       for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
       {
          const auto &vec_ids = _group_id_to_vec_ids[group_id];
@@ -2350,9 +2364,9 @@ namespace ANNS
          _label_nav_graph->covered_sets[group_id].insert(vec_ids.begin(), vec_ids.end());
       }
 
-      // Step 2: 找出所有叶子节点（出度为 0）
+      // Step 2: Find all leaf nodes with out-degree 0
       std::queue<IdxType> q;
-      std::vector<int> out_degree(_num_groups + 1, 0); // 复制一份出度用于拓扑传播
+      std::vector<int> out_degree(_num_groups + 1, 0); // Copy out-degree values for topological propagation
 
       for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
       {
@@ -2362,7 +2376,7 @@ namespace ANNS
       }
       std::cout << "- Number of leaf nodes: " << q.size() << std::endl;
 
-      // Step 3: 自底向上合并集合
+      // Step 3: Merge sets bottom-up
       while (!q.empty())
       {
          IdxType current = q.front();
@@ -2370,12 +2384,12 @@ namespace ANNS
 
          for (auto parent : _label_nav_graph->in_neighbors[current])
          {
-            // 将当前节点的集合合并到父节点中
+            // Merge the current node's set into its parent
             _label_nav_graph->covered_sets[parent].insert(
                 _label_nav_graph->covered_sets[current].begin(),
                 _label_nav_graph->covered_sets[current].end());
 
-            // 减少父节点剩余未处理的子节点数
+            // Decrease the parent's remaining unprocessed child count
             out_degree[parent]--;
             if (out_degree[parent] == 0)
             {
@@ -2384,7 +2398,7 @@ namespace ANNS
          }
       }
 
-      // Step 4: 计算最终覆盖率
+      // Step 4: Compute final coverage
       _label_nav_graph->coverage_ratio.resize(_num_groups + 1, 0.0);
       for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
       {
@@ -2392,16 +2406,16 @@ namespace ANNS
          _label_nav_graph->coverage_ratio[group_id] = static_cast<double>(covered_count) / _num_points;
       }
 
-      // Step 5: 输出时间
+      // Step 5: Output timing
       _cal_coverage_ratio_time = std::chrono::duration<double, std::milli>(
                                      std::chrono::high_resolution_clock::now() - start_time)
                                      .count();
       std::cout << "- Finish in " << _cal_coverage_ratio_time << " ms" << std::endl;
    }
-   // =====================================end LNG中每个f覆盖率计算=========================================
+   // ===================================== end coverage computation for each f in LNG =========================================
 
-   // =====================================begin 计算LNG中后代的个数=========================================
-   // fxy_add：使用广度优先搜索（BFS）来确保所有后代都被找到
+   // ===================================== begin descendant-count computation in LNG =========================================
+   // fxy_add: Use breadth-first search (BFS) to ensure all descendants are found
    void UniNavGraph::get_descendants_info()
    {
       std::cout << "Calculating descendants info (using corrected BFS method)..." << std::endl;
@@ -2441,11 +2455,11 @@ namespace ANNS
          descendants_set[group_id] = std::move(temp_set);
       }
 
-      // 单线程写入类成员变量
+      // Write class member variables from a single thread
       _label_nav_graph->_lng_descendants_num = std::move(descendants_num);
       _label_nav_graph->_lng_descendants = std::move(descendants_set);
 
-      // 计算平均后代个数
+      // Compute the average descendant count
       double total_descendants = 0;
       for (const auto &pair : _label_nav_graph->_lng_descendants_num)
       {
@@ -2460,9 +2474,9 @@ namespace ANNS
       std::cout << "- Average number of descendants per group: " << _label_nav_graph->avg_descendants << std::endl;
    }
 
-   // =====================================end 计算LNG中后代的个数=========================================
+   // ===================================== end descendant-count computation in LNG =========================================
 
-   // =====================================begin 添加新的跨组边=========================================
+   // ===================================== begin adding new cross-group edges =========================================
    void UniNavGraph::finalize_intra_group_graphs()
    {
       std::cout << "Finalizing intra-group graphs by converting neighbor IDs to global..." << std::endl;
@@ -2475,24 +2489,24 @@ namespace ANNS
    void UniNavGraph::add_new_distance_oriented_edges(
        const std::string &dataset,
        uint32_t num_threads,
-       ANNS::AcornInUng new_cross_edge) // MODIFIED: 参数类型改为 const std::string&
+       ANNS::AcornInUng new_cross_edge) // MODIFIED: parameter type changed to const std::string&
    {
-      // 防御性断言
+      // Defensive assertions
       assert(_base_storage != nullptr && "Error: _base_storage is not initialized!");
       assert(_label_nav_graph != nullptr && "Error: _label_nav_graph is not initialized! Did you call build_label_nav_graph()?");
       assert(!_vamana_instances.empty() && "Error: _vamana_instances is empty! Did you call build_graph_for_all_groups()?");
       assert(_vamana_instances.size() == _num_groups + 1 && "Error: _vamana_instances has incorrect size!");
 
-      // 根据传入的字符串策略决定执行哪些步骤
+      // Decide which steps to execute according to the provided string policy
       bool add_acorn_edges = (new_cross_edge.new_edge_policy == "acorn_and_guarantee" || new_cross_edge.new_edge_policy == "just_acorn");
       bool add_guarantee_edges = (new_cross_edge.new_edge_policy == "acorn_and_guarantee" || new_cross_edge.new_edge_policy == "just_guarantee");
       auto all_start_time = std::chrono::high_resolution_clock::now();
 
-      // 提前清空新边集合，无论执行哪个分支都需要
+      // Clear the new-edge collection up front for all branches
       _my_new_edges_set.clear();
 
       // ==========================================================================================
-      // PART 1 - ACORN 边构建逻辑 (Steps 1-3)
+      // PART 1 - ACORN edge construction logic (Steps 1-3)
       // ==========================================================================================
       if (add_acorn_edges)
       {
@@ -2504,11 +2518,11 @@ namespace ANNS
          const size_t MAX_ID_SAMPLES = 15;
          const size_t SAMPLING_THRESHOLD = 100000;
 
-         // FXY_ADD: Step 1 (识别、采样) 计时开始
+         // FXY_ADD: Step 1 timing starts: identification and sampling
          std::cout << "\n--- [Cross-Edge Sub-step 1: Identifying & Sampling Query Vectors] ---" << std::endl;
          auto step1_start_time = std::chrono::high_resolution_clock::now();
 
-         // --- Step 0: 构建反向ID映射 ---
+         // --- Step 0: Build reverse ID mapping ---
          std::cout << "[Step 0] Building reverse ID map for safe lookup..." << std::endl;
          std::unordered_map<IdxType, IdxType> old_to_new_map;
          old_to_new_map.reserve(_num_points);
@@ -2518,7 +2532,7 @@ namespace ANNS
          }
          std::cout << "  - Reverse ID map built successfully." << std::endl;
 
-         // --- Step 1.1: 识别“概念根属性” ---
+         // --- Step 1.1: Identify concept-root attributes ---
          std::cout << "[Step 1.1] Discovering conceptual root attributes via global coverage..." << std::endl;
          std::unordered_map<LabelType, size_t> attribute_counts;
          for (IdxType i = 0; i < _num_points; ++i)
@@ -2550,7 +2564,7 @@ namespace ANNS
          }
          std::cout << "}" << std::endl;
 
-         // --- Step 1.2: 根据层级比例识别候选组 ---
+         // --- Step 1.2: Identify candidate groups according to the hierarchy ratio ---
          std::cout << "[Step 1.2] Precisely identifying candidate groups using layer depth ratio..." << std::endl;
          size_t max_observed_depth = 0;
          for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
@@ -2598,7 +2612,7 @@ namespace ANNS
          std::cout << "  - Identified " << candidate_groups.size() << " total candidate groups within target depth." << std::endl;
          std::cout << "  - Identified " << topmost_group_ids.size() << " true topmost groups among them." << std::endl;
 
-         // --- 步骤 1.3: 将向量分入两个桶 ---
+         // --- Step 1.3: Split vectors into two buckets ---
          std::cout << "[Step 1.3] Separating vectors into 'topmost' and 'subsequent' buckets..." << std::endl;
          std::vector<IdxType> topmost_vec_ids, subsequent_vec_ids;
          std::vector<float *> topmost_vec_data, subsequent_vec_data;
@@ -2629,7 +2643,7 @@ namespace ANNS
          std::cout << "  - Topmost-layer bucket size: " << topmost_vec_ids.size() << " vectors." << std::endl;
          std::cout << "  - Subsequent-layer bucket size: " << subsequent_vec_ids.size() << " vectors." << std::endl;
 
-         // --- 步骤 1.4: 应用分层抽样逻辑 ---
+         // --- Step 1.4: Apply hierarchical sampling logic ---
          std::cout << "[Step 1.4] Applying stratified sampling logic..." << std::endl;
          std::vector<IdxType> final_query_vec_ids;
          std::vector<float *> final_query_vec_data;
@@ -2682,14 +2696,14 @@ namespace ANNS
             return;
          }
 
-         // FXY_ADD: Step 1 计时结束
+         // FXY_ADD: Step 1 timing ends
          _cross_edge_step1_time_ms = std::chrono::duration<double, std::milli>(
                                          std::chrono::high_resolution_clock::now() - step1_start_time)
                                          .count();
          std::cout << "--- [Finished Sub-step 1 in " << _cross_edge_step1_time_ms << " ms] ---" << std::endl;
 
-         // --- 步骤 1.5: 执行 ACORN ---
-         // FXY_ADD: Step 2 (执行ACORN) 计时开始
+         // --- Step 1.5: Execute ACORN ---
+         // FXY_ADD: Step 2 timing starts: ACORN execution
          std::cout << "\n--- [Cross-Edge Sub-step 2: Executing ACORN Script] ---" << std::endl;
          auto step2_start_time = std::chrono::high_resolution_clock::now();
          std::cout << "[Step 1.5] Preparing input files and executing ACORN script..." << std::endl;
@@ -2714,14 +2728,14 @@ namespace ANNS
          }
          std::cout << "  - ACORN script finished successfully." << std::endl;
 
-         // FXY_ADD: Step 2 计时结束
+         // FXY_ADD: Step 2 timing ends
          _cross_edge_step2_acorn_time_ms = std::chrono::duration<double, std::milli>(
                                                std::chrono::high_resolution_clock::now() - step2_start_time)
                                                .count();
          std::cout << "--- [Finished Sub-step 2 in " << _cross_edge_step2_acorn_time_ms << " ms] ---" << std::endl;
 
-         // --- 步骤 1.6 & 2: 解析、过滤并添加距离驱动边 ---
-         // FXY_ADD: Step 3 (添加距离驱动边) 计时开始
+         // --- Steps 1.6 and 2: Parse, filter, and add distance-oriented edges ---
+         // FXY_ADD: Step 3 timing starts: adding distance-oriented edges
          std::cout << "\n--- [Cross-Edge Sub-step 3: Adding Distance-Oriented Edges] ---" << std::endl;
          auto step3_start_time = std::chrono::high_resolution_clock::now();
 
@@ -2780,11 +2794,11 @@ namespace ANNS
          std::cout << "  - Skipped " << intra_group_edges_skipped << " potential edges because they were intra-group." << std::endl;
 
          // ============================================================================================
-         // FXY_FIX: 这是策略一的最终修复版本
+         // FXY_FIX: Final corrected version of Strategy 1
          // ============================================================================================
          std::cout << "[Step 2] Adding new edges with smart selection logic and in-degree control (M=" << new_cross_edge.M_in_add_new_edge << ")..." << std::endl;
 
-         // 1. 按“查询点”对所有候选邻居进行分组
+         // 1. Group all candidate neighbors by query point
          std::unordered_map<IdxType, std::vector<NewEdgeCandidate>> query_to_candidates;
          for (const auto &cand : candidates)
          {
@@ -2793,14 +2807,14 @@ namespace ANNS
 
          _num_distance_oriented_edges = 0;
 
-         // FXY_FIX: 1. 重新引入全局的入度计数器
+         // FXY_FIX: 1. Reintroduce the global in-degree counter
          std::vector<std::atomic<IdxType>> new_edge_in_degree(_num_points);
          for (size_t i = 0; i < _num_points; ++i)
          {
             new_edge_in_degree[i] = 0;
          }
 
-         // 2. 遍历每个查询点，独立地为其选择最佳出边
+         // 2. Traverse each query point and independently select its best outgoing edges
          for (auto const &[query_id, cand_list] : query_to_candidates)
          {
             std::vector<NewEdgeCandidate> hierarchical_candidates;
@@ -2808,7 +2822,7 @@ namespace ANNS
 
             IdxType from_group = _new_vec_id_to_group_id[query_id];
 
-            // 3. 将候选邻居分为“层级邻居”和“普通邻居”两个桶
+            // 3. Split candidate neighbors into hierarchy and regular buckets
             for (const auto &cand : cand_list)
             {
                IdxType to_group = _new_vec_id_to_group_id[cand.to];
@@ -2832,7 +2846,7 @@ namespace ANNS
                }
             }
 
-            // 4. 对两个桶内的候选者分别按距离排序
+            // 4. Sort candidates in both buckets by distance
             std::sort(hierarchical_candidates.begin(), hierarchical_candidates.end(),
                       [](const auto &a, const auto &b)
                       { return a.distance < b.distance; });
@@ -2840,18 +2854,18 @@ namespace ANNS
                       [](const auto &a, const auto &b)
                       { return a.distance < b.distance; });
 
-            // 5. 智能添加边：同时考虑出度、入度限制
+            // 5. Add edges while respecting both out-degree and in-degree constraints
             size_t edges_added_for_this_query = 0;
             const size_t max_out_degree = new_cross_edge.M_in_add_new_edge;
-            const size_t max_in_degree = new_cross_edge.M_in_add_new_edge; // 通常入度和出度限制相同
+            const size_t max_in_degree = new_cross_edge.M_in_add_new_edge; // In-degree and out-degree limits are usually identical
 
-            // 5.1. 优先添加层级邻居
+            // 5.1. Prefer hierarchy neighbors
             for (const auto &cand : hierarchical_candidates)
             {
                if (edges_added_for_this_query >= max_out_degree)
                   break;
 
-               // FXY_FIX: 2. 在添加边时检查目标节点的入度
+               // FXY_FIX: 2. Check the target node's in-degree when adding an edge
                if (new_edge_in_degree[cand.to].load() < max_in_degree)
                {
                   uint64_t edge_key = (uint64_t)cand.from << 32 | cand.to;
@@ -2860,20 +2874,20 @@ namespace ANNS
                      _graph->neighbors[cand.from].push_back(cand.to);
                      _num_distance_oriented_edges++;
                      edges_added_for_this_query++;
-                     // FXY_FIX: 3. 成功添加后，才增加目标节点的入度计数
+                     // FXY_FIX: 3. Increment the target node's in-degree only after the edge is added successfully
                      new_edge_in_degree[cand.to]++;
                      _my_new_edges_set.insert(edge_key);
                   }
                }
             }
 
-            // 5.2. 如果出度名额还有剩余，用普通邻居来填充
+            // 5.2. Fill remaining out-degree slots with regular neighbors
             for (const auto &cand : non_hierarchical_candidates)
             {
                if (edges_added_for_this_query >= max_out_degree)
                   break;
 
-               // FXY_FIX: 2. 同样检查目标节点的入度
+               // FXY_FIX: 2. Also check the target node's in-degree
                if (new_edge_in_degree[cand.to].load() < max_in_degree)
                {
                   uint64_t edge_key = (uint64_t)cand.from << 32 | cand.to;
@@ -2882,7 +2896,7 @@ namespace ANNS
                      _graph->neighbors[cand.from].push_back(cand.to);
                      _num_distance_oriented_edges++;
                      edges_added_for_this_query++;
-                     // FXY_FIX: 3. 成功添加后，才增加目标节点的入度计数
+                     // FXY_FIX: 3. Increment the target node's in-degree only after the edge is added successfully
                      new_edge_in_degree[cand.to]++;
                      _my_new_edges_set.insert(edge_key);
                   }
@@ -2893,7 +2907,7 @@ namespace ANNS
 
          std::cout << "  - Added a total of " << _num_distance_oriented_edges << " new distance-oriented edges to the graph with smart selection and in-degree control." << std::endl;
 
-         // 诊断分析部分
+         // Diagnostic analysis section
          std::set<std::pair<IdxType, IdxType>> acorn_connected_group_pairs;
          for (const auto &edge_key : _my_new_edges_set)
          {
@@ -2903,7 +2917,7 @@ namespace ANNS
          }
 
          std::cout << "\n--- [Cross-Edge Sub-step 3.5: ACORN Edge Connectivity Analysis] ---" << std::endl;
-         // ... (诊断分析的 cout 代码完全不变) ...
+         // ... (diagnostic cout code remains unchanged) ...
          size_t total_required_hierarchical_links = 0;
          for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
          {
@@ -2938,27 +2952,27 @@ namespace ANNS
          std::cout << "--- [Finished ACORN Edge Analysis] ---\n"
                    << std::endl;
 
-         // FXY_ADD: Step 3 计时结束
+         // FXY_ADD: Step 3 timing ends
          _cross_edge_step3_add_dist_edges_time_ms = std::chrono::duration<double, std::milli>(
                                                         std::chrono::high_resolution_clock::now() - step3_start_time)
                                                         .count();
          std::cout << "--- [Finished Sub-step 3 in " << _cross_edge_step3_add_dist_edges_time_ms << " ms] ---" << std::endl;
 
-         // 计算并保存总的跨组边构建时间
+         // Compute and save total cross-group edge construction time
          _build_cross_edges_time = std::chrono::duration<double, std::milli>(
                                        std::chrono::high_resolution_clock::now() - acorn_part_start_time)
                                        .count();
       }
 
       // ==========================================================================================
-      // PART 2 - 层级保障边修复逻辑 (Step 4)
+      // PART 2 - Hierarchy safeguard edge repair logic (Step 4)
       // ==========================================================================================
       if (add_guarantee_edges)
       {
          std::cout << "\n--- [Cross-Edge Sub-step 4: Adding Targeted Edges for Unconnected Children] ---" << std::endl;
          auto step4_start_time = std::chrono::high_resolution_clock::now();
 
-         // 1. 初始化，注意SearchCacheList仅用于获取临时的搜索队列
+         // 1. Initialize. SearchCacheList is only used to obtain a temporary search queue.
          size_t max_group_size = 0;
          if (_num_groups > 0)
          {
@@ -2967,10 +2981,10 @@ namespace ANNS
          }
          SearchCacheList search_cache_list(1, max_group_size, _Lbuild);
 
-         // 2. 准备容器存储补充边
+         // 2. Prepare containers for supplemental edges
          std::vector<std::vector<std::pair<IdxType, IdxType>>> additional_edges_hierarchical(_num_groups + 1);
 
-         // 3. 以单线程模式遍历所有组
+         // 3. Traverse all groups in single-threaded mode
          std::cout << "  - Checking for and repairing broken parent->child links (in single-thread mode)..." << std::endl;
          for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
          {
@@ -2996,7 +3010,7 @@ namespace ANNS
                   if (child_group_size == 0)
                      continue;
                   if (child_group_size <= _max_degree)
-                  { // 小规模组逻辑（蛮力）
+                  { // Small-group logic: brute force
                      IdxType query_vec_id = _group_entry_points[group_id];
                      const char *query = _base_storage->get_vector(query_vec_id);
                      float min_dist = std::numeric_limits<float>::max();
@@ -3016,7 +3030,7 @@ namespace ANNS
                      }
                   }
                   else
-                  { // 大规模组逻辑：使用手动图搜索，并配合正确的“已访问”集合
+                  { // Large-group logic: manual graph search with the correct visited set
                      IdxType cnt = 0;
                      for (auto vec_id = cur_range.first; vec_id < cur_range.second && cnt < _num_cross_edges; ++vec_id)
                      {
@@ -3054,26 +3068,12 @@ namespace ANNS
                      }
                   }
 
-                  // // 不再区分大小组，总是执行以下逻辑
-                  // IdxType query_vec_id = _group_entry_points[group_id];
-                  // const char* query = _base_storage->get_vector(query_vec_id);
-                  // float min_dist = std::numeric_limits<float>::max();
-                  // IdxType best_neighbor_id = -1;
-
-                  // for (IdxType i = out_range.first; i < out_range.second; ++i) {
-                  //    float dist = _distance_handler->compute(query, _base_storage->get_vector(i), _base_storage->get_dim());
-                  //    if (dist < min_dist) { min_dist = dist; best_neighbor_id = i; }
-                  // }
-
-                  // if (best_neighbor_id != -1) {
-                  //    additional_edges_hierarchical[group_id].emplace_back(query_vec_id, best_neighbor_id);
-                  // }
                }
             }
          }
          std::cout << std::endl;
 
-         // 4. 单线程合并所有补充边...
+         // 4. Merge all supplemental edges in a single thread
          std::cout << "  - Merging newly created fill-in edges..." << std::endl;
          size_t num_added_hierarchical_edges = 0;
          for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
@@ -3102,38 +3102,7 @@ namespace ANNS
       std::cout << "========================================================" << std::endl;
    }
 
-   // =====================================begin 添加新的跨组边=========================================
-
-//    void UniNavGraph::build_label_nav_graph()
-//    {
-//       std::cout << "Building label navigation graph... " << std::endl;
-//       auto start_time = std::chrono::high_resolution_clock::now();
-//       _label_nav_graph = std::make_shared<LabelNavGraph>(_num_groups + 1);
-//       omp_set_num_threads(_num_threads);
-
-// // obtain out-neighbors
-// #pragma omp parallel for schedule(dynamic, 256)
-//       for (auto group_id = 1; group_id <= _num_groups; ++group_id)
-//       {
-//          // if (group_id % 100 == 0)
-//          //    std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;
-//          std::vector<IdxType> min_super_set_ids;
-//          get_min_super_sets(_group_id_to_label_set[group_id], min_super_set_ids, true);
-//          _label_nav_graph->out_neighbors[group_id] = min_super_set_ids;
-//       }
-
-//       // obtain in-neighbors
-//       for (auto group_id = 1; group_id <= _num_groups; ++group_id)
-//          for (auto each : _label_nav_graph->out_neighbors[group_id])
-//             _label_nav_graph->in_neighbors[each].emplace_back(group_id);
-
-//       _build_LNG_time = std::chrono::duration<double, std::milli>(
-//                             std::chrono::high_resolution_clock::now() - start_time)
-//                             .count();
-//       std::cout << "\r- Finished in " << _build_LNG_time << " ms" << std::endl;
-//    }
-
-   // fxy_add : 打印信息的build_label_nav_graph
+   // fxy_add: build_label_nav_graph with progress output
    void UniNavGraph::build_label_nav_graph()
    {
       std::cout << "Building label navigation graph... " << std::endl;
@@ -3141,29 +3110,29 @@ namespace ANNS
       _label_nav_graph = std::make_shared<LabelNavGraph>(_num_groups + 1);
       omp_set_num_threads(_num_threads);
 
-      // 监控变量
+      // Monitoring variables
       std::atomic<size_t> processed_count{0};
       size_t total_groups = _num_groups;
       size_t log_interval = 100000; 
 
       // ===========================================================
-      // Phase 1: Obtain Out-Neighbors (并行)
+      // Phase 1: Obtain out-neighbors in parallel
       // ===========================================================
       std::cout << "--- Phase 1: Calculating Out-Neighbors (Parallel) ---" << std::endl;
 #pragma omp parallel for schedule(dynamic, 256)
       for (auto group_id = 1; group_id <= _num_groups; ++group_id)
       {
          std::vector<IdxType> min_super_set_ids;
-         // 核心计算
+         // Core computation
          get_min_super_sets(_group_id_to_label_set[group_id], min_super_set_ids, true);
          _label_nav_graph->out_neighbors[group_id] = min_super_set_ids;
 
-         // 进度监控
+         // Progress monitoring
          size_t current = ++processed_count;
          
-         // 逻辑：
-         // 1. 正常阶段：每 10 万打印一次
-         // 2. 冲刺阶段（最后 1% 或 最后 10万）：每 1000 个打印一次，看到它在动
+         // Logic:
+         // 1. Normal phase: print once every 100,000 items.
+         // 2. Final phase, last 1% or last 100,000 items: print once every 1,000 items.
          bool normal_log = (current % log_interval == 0);
          bool final_sprint = (current > total_groups - 100000) && (current % 1000 == 0); 
 
@@ -3173,14 +3142,14 @@ namespace ANNS
             {
                double percentage = (double)current / total_groups * 100.0;
                std::cout << "[Phase 1] Processed " << current << " / " << total_groups 
-                         << " (" << std::fixed << std::setprecision(4) << percentage << "%)" // 精度提高到4位
+                         << " (" << std::fixed << std::setprecision(4) << percentage << "%)" // Increase precision to four decimal places
                          << std::endl;
             }
          }
       }
 
       // ===========================================================
-      // Phase 2: Obtain In-Neighbors (串行)
+      // Phase 2: Obtain in-neighbors serially
       // ===========================================================
       std::cout << "--- Phase 2: Calculating In-Neighbors (Serial) ---" << std::endl;
       
@@ -3207,7 +3176,7 @@ namespace ANNS
    }
 
 
-   // fxy_add:初始化求flag的几个数据结构
+   // fxy_add: Initialize data structures used for flag computation
    void UniNavGraph::initialize_lng_descendants_coverage_bitsets()
    {
       std::cout << "Initializing LNG descendants and coverage bitsets..." << std::endl;
@@ -3218,18 +3187,18 @@ namespace ANNS
 
       for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)
       {
-         // 初始化大小
+         // Initialize sizes
          _lng_descendants_bits[group_id].resize(_num_groups);
          _covered_sets_bits[group_id].resize(_num_points);
 
-         // 填充后代的group的集合
+         // Populate descendant group sets
          const auto &descendants = _label_nav_graph->_lng_descendants[group_id];
          for (auto id : descendants)
          {
             _lng_descendants_bits[group_id].set(id);
          }
 
-         // 填充覆盖的向量的集合
+         // Populate covered vector sets
          const auto &coverage = _label_nav_graph->covered_sets[group_id];
          for (auto id : coverage)
          {
@@ -3238,25 +3207,25 @@ namespace ANNS
       }
    }
 
-   // fxy_add:初始化求flag的几个数据结构
+   // fxy_add: Initialize data structures used for flag computation
    void UniNavGraph::initialize_roaring_bitsets()
    {
       std::cout << "enter initialize_roaring_bitsets" << std::endl;
 
-      // 打印 _num_groups 的值，确保它是一个预期的、合理的值
+      // Print _num_groups to verify that it has the expected reasonable value
       std::cout << "_num_groups = " << _num_groups << std::endl;
 
-      // 检查指针是否为空
+      // Check whether the pointer is null
       if (!_label_nav_graph)
       {
          std::cerr << "Error: _label_nav_graph is a null pointer!" << std::endl;
-         return; // 或者抛出异常
+         return; // Alternatively, throw an exception
       }
 
       _lng_descendants_rb.resize(_num_groups + 1);
       _covered_sets_rb.resize(_num_groups + 1);
 
-      // 关键诊断：打印所有容器的大小
+      // Key diagnostic: print sizes of all containers
       std::cout << "_lng_descendants_rb.size() = " << _lng_descendants_rb.size() << std::endl;
       std::cout << "_covered_sets_rb.size() = " << _covered_sets_rb.size() << std::endl;
       std::cout << "_label_nav_graph->_lng_descendants.size() = " << _label_nav_graph->_lng_descendants.size() << std::endl;
@@ -3270,13 +3239,13 @@ namespace ANNS
          const auto &descendants = _label_nav_graph->_lng_descendants[group_id];
          const auto &coverage = _label_nav_graph->covered_sets[group_id];
 
-         // 初始化后代 bitset
+         // Initialize descendant bitset
          for (auto id : descendants)
          {
             _lng_descendants_rb[group_id].add(id);
          }
 
-         // 初始化覆盖 bitset
+         // Initialize coverage bitset
          for (auto id : coverage)
          {
             _covered_sets_rb[group_id].add(id);
@@ -3286,7 +3255,7 @@ namespace ANNS
       std::cout << "Roaring bitsets initialized." << std::endl;
    }
 
-   // 将分组内的局部索引转换为全局索引
+   // Convert local indices within each group to global indices
    void UniNavGraph::add_offset_for_uni_nav_graph()
    {
       omp_set_num_threads(_num_threads);
@@ -3319,7 +3288,7 @@ namespace ANNS
       {
          if (group_id % 10000 == 0 || group_id == _num_groups)
          {
-            std::cout << "- [进度] 已处理子组 " << group_id << " / " << _num_groups << std::endl;
+            std::cout << "- [Progress] Processed subgroup " << group_id << " / " << _num_groups << std::endl;
          }
          if (_label_nav_graph->in_neighbors[group_id].size() > 0)
          {
@@ -3518,34 +3487,34 @@ namespace ANNS
    //fxy_add
    void UniNavGraph::warmup_selectors(uint32_t num_threads)
    {
-      // 预热 Idea1 的 Trie 方法选择器 (3个特征)
+      // Warm up the Idea1 Trie method selector with three features
       if (_trie_method_selector != nullptr)
       {
          std::cout << "- Warming up Trie Method Selector (Idea1)..." << std::endl;
          std::vector<float> dummy_features1(3, 0.0f);
-         // 去除多线程，仅由单线程执行 1 次即可完成预热
+         // Disable multithreading; one single-threaded run is enough for warm-up
          _trie_method_selector->predict(dummy_features1);
          std::cout << "- Trie Method Selector is warm." << std::endl;
       }
 
-      // 预热SmartRoute (特征数为 4)
+      // Warm up SmartRoute with four features
       if (_smart_route_selector) {
          std::cout << "- Warming up Smart Route Selector..." << std::endl;
-         std::vector<float> dummy(4, 0.0f); // <--- 关键修改：这里的 3 改成了 4
+         std::vector<float> dummy(4, 0.0f); // Key change: this value was changed from 3 to 4
          _smart_route_selector->predict(dummy);
          std::cout << "- Smart Route Selector is warm." << std::endl;
       }
       
-      // --- 预热单层 Fast Route Selector (4个特征) ---
+      // --- Warm up the single-layer Fast Route selector with four features ---
       if (_fast_route_single_selector) {
          std::cout << "- Warming up Fast Route Single Selector..." << std::endl;
          std::vector<float> dummy4(4, 0.0f);
-         // 去除多线程
+         // Disable multithreading
          _fast_route_single_selector->predict(dummy4);
          std::cout << "- Fast Route Single Selector is warm." << std::endl;
       }
 
-      // --- 预热 Smartroute-revised 路由 (2个特征) ---
+      // --- Warm up Smartroute-revised routing with two features ---
       if (_fast_route_revised_selector) {
          std::cout << "- Warming up Smartroute-revised Selector..." << std::endl;
          std::vector<float> dummy2(2, 0.0f);
@@ -3574,10 +3543,10 @@ void UniNavGraph::calculate_query_features_only(
     auto num_queries = query_storage->get_num_points();
     std::vector<QueryStats> query_stats(num_queries);
 
-    // 设置慢查询监控阈值
+    // Set the slow-query monitoring threshold
     const double SLOW_QUERY_THRESHOLD_MS = 500000.0; 
 
-    // 设置进度打印间隔
+    // Set the progress-print interval
     size_t log_interval = std::max((size_t)1, (size_t)(num_queries * 0.05)); 
     std::atomic<size_t> processed_count{0}; 
 
@@ -3588,7 +3557,7 @@ void UniNavGraph::calculate_query_features_only(
         auto &stats = query_stats[id];
         const auto &query_labels = query_storage->get_label_set(id);
 
-        // --- 计算 Idea1 特征 ---
+        // --- Compute Idea1 features ---
         stats.query_length = query_labels.size(); 
         if (!query_labels.empty())
         {
@@ -3600,17 +3569,17 @@ void UniNavGraph::calculate_query_features_only(
         stats.trie_avg_path_length = trie_metrics.avg_path_length;
         stats.trie_avg_branching_factor = trie_metrics.avg_branching_factor;
 
-        // --- 计算 Idea2 特征 (带实时监控) ---
+        // --- Compute Idea2 features with live monitoring ---
         std::vector<IdxType> entry_group_ids;
         static std::atomic<int> temp_counter{0}; 
 
-        // 1. 启动异步计算
+        // 1. Start asynchronous computation
         auto future_result = std::async(std::launch::async, [&]() {
             get_min_super_sets_debug(query_labels, entry_group_ids, false, true, 
                                      temp_counter, is_new_trie_method, is_rec_more_start, stats, false);
         });
 
-        // 2. 监控超时打印
+        // 2. Monitor timeout logging
         std::future_status status = future_result.wait_for(std::chrono::milliseconds((long long)SLOW_QUERY_THRESHOLD_MS));
         if (status == std::future_status::timeout)
         {
@@ -3631,17 +3600,17 @@ void UniNavGraph::calculate_query_features_only(
             }
         }
 
-        // 3. 等待任务彻底完成
+        // 3. Wait for the task to fully complete
         future_result.get(); 
 
         // ============================================================
-        // 特定标签 (Label 1) 完成时的监控打印
+        // Monitoring output when the specific label, Label 1, completes
         // ============================================================
         if (query_labels.size() == 1 && query_labels[0] == 1)
         {
             #pragma omp critical
             {
-                 // 获取当前时间
+                 // Get the current time
                 auto now = std::chrono::system_clock::now();
                 std::time_t now_c = std::chrono::system_clock::to_time_t(now);
                 
@@ -3653,7 +3622,7 @@ void UniNavGraph::calculate_query_features_only(
         }
         // ============================================================
 
-        // --- 后续 Bitmap 计算 ---
+        // --- Subsequent bitmap computation ---
         if (!entry_group_ids.empty())
         {
             stats.num_entry_points = entry_group_ids.size();
@@ -3682,7 +3651,7 @@ void UniNavGraph::calculate_query_features_only(
             stats.entry_group_total_coverage = 0.0f;
         }
 
-        // 进度打印
+        // Progress output
         size_t current_processed = processed_count.fetch_add(1, std::memory_order_relaxed) + 1;
         if (current_processed % log_interval == 0 || current_processed == num_queries)
         {
@@ -3702,7 +3671,7 @@ void UniNavGraph::calculate_query_features_only(
     std::cout << "In-memory feature calculation finished for " << num_queries << " queries." << std::endl;
 
     // =================================================================
-    // 阶段二: 写入 CSV
+    // Phase 2: write CSV
     // =================================================================
     std::cout << "Now writing all features to CSV file: " << output_csv_path << std::endl;
     std::ofstream outfile(output_csv_path);
@@ -3735,7 +3704,7 @@ void UniNavGraph::calculate_query_features_only(
 }
 
 
-   //fxy_add: 在idea2之前，看看入口组个数，决定是否强制执行acorn
+   // fxy_add: Check the number of entry groups before Idea2 to decide whether ACORN should be forced
    std::optional<bool> UniNavGraph::check_idea2_heuristic_override(const std::string& dataset_name, size_t num_entry_groups) const
    {
       size_t entry_max= 1000;
@@ -3743,18 +3712,18 @@ void UniNavGraph::calculate_query_features_only(
          
       if (num_entry_groups > entry_max)
          {
-               return true; // 返回 true = 强制使用 ACORN
+               return true; // true means ACORN is forced
          }
       return std::nullopt; 
    }
 
-   //fxy_add:决定是否跳过 Entry Group 计算和 idea 决策
+   // fxy_add: Decide whether to skip entry-group computation and idea-level decision making
    std::optional<bool> UniNavGraph::check_pre_trie_heuristic(const std::string& dataset_name, size_t query_length, size_t candidate_set_size) const
    {
 
       if (query_length <= 1)
       {
-         return true; // 强制使用 ACORN
+         return true; // Force ACORN
       }
 
       if (dataset_name == "Russian" && query_length <=2)
@@ -3762,21 +3731,21 @@ void UniNavGraph::calculate_query_features_only(
           return true; 
       }
       
-      return std::nullopt; // 没有命中任何规则，返回空，让 AI 来决策
+      return std::nullopt; // No rule matched; return empty and let the model decide
    }
 
    size_t UniNavGraph::get_candidate_count_for_label(LabelType label) const
    {
-      // 步骤1: 检查标签ID是否在 _label_to_nodes 向量的有效范围内
+      // Step 1: Check whether the label ID is within the valid _label_to_nodes range
       if (label >= _trie_index._label_to_nodes.size())
       {
-         return 0; // 标签越界，不可能有对应的候选集
+         return 0; // Out-of-range labels cannot have candidate sets
       }
-      // 步骤2: 直接通过索引访问并返回内部向量的大小
+      // Step 2: Access by index directly and return the internal vector size
       return _trie_index._label_to_nodes[label].size();
    }
 
-// =======================begin: 计算Fpass======================
+// ======================= begin: compute Fpass ======================
    // fxy_add
    void UniNavGraph::build_group_inverted_indices() {
       std::cout << "\n--- Building Group-level Inverted Indices for Fpass Benchmark ---" << std::endl;
@@ -3815,14 +3784,14 @@ void UniNavGraph::calculate_query_features_only(
          return;
       }
       
-      // 写入 CSV 表头
+      // Write CSV header
       outfile << "QueryID,QuerySize,M1_Enum,M2_BitsetInv,M3_RoaringInv,M4_ELS_Insert,M5_ELS_Roaring,"
                << "M1_Enum_T,M2_BitsetInv_T,M3_RoaringInv_T,"
                << "ELS_Search_T,"
                << "M4_InsertOnly_T,M4_Total_T,"
                << "M5_RoaringUnionOnly_T,M5_Total_T\n";
 
-      // 统计总耗时
+      // Track total time
       double total_t1 = 0.0;
       double total_t2 = 0.0;
       double total_t3 = 0.0;
@@ -3834,7 +3803,7 @@ void UniNavGraph::calculate_query_features_only(
       // static thread_local std::bitset<12000000> final_group_bitmap;
       // static thread_local std::bitset<12000000> temp_group_bitmap;
 
-      // 安全堆分配
+      // Safe heap allocation
       static thread_local std::unique_ptr<std::bitset<12000000>> final_group_bitmap_ptr;
       static thread_local std::unique_ptr<std::bitset<12000000>> temp_group_bitmap_ptr;
       if (!final_group_bitmap_ptr) final_group_bitmap_ptr = std::make_unique<std::bitset<12000000>>();
@@ -3846,7 +3815,7 @@ void UniNavGraph::calculate_query_features_only(
          const auto& query_labels = query_storage->get_label_set(id);
 
          // ==========================================
-         // 1. 挨个枚举计算 Fpass
+         // 1. Enumerate candidates one by one to compute Fpass
          // ==========================================
          auto start1 = std::chrono::high_resolution_clock::now();
          size_t count1 = 0;
@@ -3868,7 +3837,7 @@ void UniNavGraph::calculate_query_features_only(
          total_t1 += t1;
 
          // ==========================================
-         // 2. Bitset 位运算倒排交集 (类似 Ppass)
+         // 2. Bitset inverted-index intersection, similar to Ppass
          // ==========================================
          auto start2 = std::chrono::high_resolution_clock::now();
          size_t count2 = 0;
@@ -3909,7 +3878,7 @@ void UniNavGraph::calculate_query_features_only(
          total_t2 += t2;
 
          // ==========================================
-         // 3. CRoaring 倒排交集 (完全不用 ELS)
+         // 3. CRoaring inverted-index intersection without ELS
          // ==========================================
          auto start3 = std::chrono::high_resolution_clock::now();
          size_t count3 = 0;
@@ -3931,7 +3900,7 @@ void UniNavGraph::calculate_query_features_only(
          total_t3 += t3;
 
          // ==========================================
-         // --- 共享的前置步骤: ELS 搜索 ---
+         // --- Shared prerequisite step: ELS search ---
          // ==========================================
          auto start_els = std::chrono::high_resolution_clock::now();
          std::vector<IdxType> entry_groups;
@@ -3942,7 +3911,7 @@ void UniNavGraph::calculate_query_features_only(
          total_els += t_els;
 
          // ==========================================
-         // 4. 利用 ELS + unordered_set insert 计算 Fpass
+         // 4. Compute Fpass with ELS plus unordered_set insertion
          // ==========================================
          auto start4 = std::chrono::high_resolution_clock::now();
          std::unordered_set<IdxType> naive_desc;
@@ -3958,7 +3927,7 @@ void UniNavGraph::calculate_query_features_only(
          total_t4_insert += t4_insert;
 
          // ==========================================
-         // 5. 利用 ELS + CRoaring |= 并集 计算 Fpass
+         // 5. Compute Fpass with ELS plus CRoaring union via |=
          // ==========================================
          auto start5 = std::chrono::high_resolution_clock::now();
          roaring::Roaring desc_rb;
@@ -3971,7 +3940,7 @@ void UniNavGraph::calculate_query_features_only(
          double t5_union = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start5).count();
          total_t5_union += t5_union;
 
-         // 写入 CSV
+         // Write CSV
          outfile << id << "," << query_labels.size() << ","
                   << count1 << "," << count2 << "," << count3 << "," << count4 << "," << count5 << ","
                   << std::fixed << std::setprecision(4) 
@@ -3980,15 +3949,15 @@ void UniNavGraph::calculate_query_features_only(
                   << t4_insert << "," << (t_els + t4_insert) << ","
                   << t5_union << "," << (t_els + t5_union) << "\n";
 
-         // 一致性校验 (以方法 2 为基准，验证 3, 4, 5)
-         // 注意：4 和 5 依赖 Trie，若构建非完美覆盖可能与精确倒排存在极小偏差
+         // Consistency check: use Method 2 as the baseline to validate Methods 3, 4, and 5
+         // Note: Methods 4 and 5 depend on Trie and may have tiny deviations from exact inversion if coverage is imperfect.
          if (count2 != count3 || count2 != count4 || count2 != count5) {
                mismatch_count++;
          }
       }
       outfile.close();
 
-      // 打印总体报告
+      // Print the overall report
       std::cout << "\n========================================================" << std::endl;
       std::cout << "--- Fpass Benchmark Summary Report ---" << std::endl;
       std::cout << "Total Queries Processed: " << num_queries << std::endl;
@@ -4016,7 +3985,7 @@ void UniNavGraph::calculate_query_features_only(
    }
 
 
-// ======================end: 计算Fpass======================
+// ====================== end: compute Fpass ======================
 
    //fxy_add
    std::vector<int> UniNavGraph::load_query_algo_choices_from_csv(
@@ -4077,19 +4046,19 @@ void UniNavGraph::calculate_query_features_only(
       float f_cand  = static_cast<float>(stats.candidate_set_size);
       float f_ppass = stats.global_p_pass;
 
-      // --- 默认初始化指标 ---
+      // --- Default metric initialization ---
       stats.is_intel_els_used = false; 
       stats.is_trie_recursive = false; 
 
-      // --- 模式 0: Baseline ---
+      // --- Mode 0: Baseline ---
       if (routing_mode == 0) {
-         if (baseline_alg == 0 || baseline_alg == 1 || baseline_alg == 8) { // 如果是 UNG 家族，算好 ELS
+         if (baseline_alg == 0 || baseline_alg == 1 || baseline_alg == 8) { // If this is the UNG family, compute ELS
                bool use_nT_true = (baseline_alg == 1);
-               stats.is_trie_recursive = use_nT_true; // 记录: Baseline使用的是递归还是非递归
-               
+               stats.is_trie_recursive = use_nT_true; // Record whether the baseline used recursive or non-recursive search
+
                auto els_start = std::chrono::high_resolution_clock::now();
                static std::atomic<int> counter{0};
-               // 注意这里传入 use_nT_true，直接覆盖全局的 is_new_trie_method
+               // Pass use_nT_true here to directly override the global is_new_trie_method
                get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, use_nT_true, is_rec_more_start, stats, false);
                stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
                stats.num_entry_points = entry_group_ids.size();
@@ -4097,9 +4066,9 @@ void UniNavGraph::calculate_query_features_only(
          return baseline_alg;
       }
 
-      // --- 模式 1: SmartRoute ---
+      // --- Mode 1: SmartRoute ---
       if (routing_mode == 1 || routing_mode == 6) {
-         // 1. 新增：计算 Fpass (NumDescendants) 用于模型推理
+         // 1. Compute Fpass (NumDescendants) for model inference
          auto start_fpass = std::chrono::high_resolution_clock::now();
          size_t num_descendants = 0;
          if (query_labels.empty()) {
@@ -4132,18 +4101,18 @@ void UniNavGraph::calculate_query_features_only(
          }
          stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
          stats.num_lng_descendants = num_descendants;
-         // 2. 进行模型预测
+         // 2. Run model prediction
          auto pred_start = std::chrono::high_resolution_clock::now();
          int router_decision = 0; 
          if (_smart_route_selector) {
-               // 【关键修改】特征输入顺序严格对齐 Python: Ppass, Descendants, QuerySize, CandSize
+               // Key change: feature input order strictly matches Python: Ppass, Descendants, QuerySize, CandSize
                std::vector<float> features = {f_ppass, static_cast<float>(num_descendants), f_qsize, f_cand};
                float pred_val = _smart_route_selector->predict(features);
                router_decision = static_cast<int>(std::round(pred_val));
          }
          stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
 
-         // 3. 根据预测结果进行分流映射
+         // 3. Map routing branches according to the prediction
          if (router_decision == 2) 
             return 5;
          if (router_decision == 1) 
@@ -4155,14 +4124,14 @@ void UniNavGraph::calculate_query_features_only(
                stats.get_min_super_sets_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - els_start).count();
                stats.num_entry_points = entry_group_ids.size();
                
-               return 8; // 映射到 UNG+ 算法
+               return 8; // Map to the UNG+ algorithm
          }
       }
 
-      // --- 模式 2 & 3: FastSmartRoute & FastSmartRoute+ (使用 CRoaring 算 Fpass) ---
+      // --- Modes 2 and 3: FastSmartRoute and FastSmartRoute+ using CRoaring for Fpass ---
       if (routing_mode == 2 || routing_mode == 3) {
 
-         // Fpass：使用CRoaring倒排索引 部分
+         // Fpass: CRoaring inverted-index path
          auto start_fpass = std::chrono::high_resolution_clock::now();
          size_t num_descendants = 0;
          
@@ -4187,10 +4156,10 @@ void UniNavGraph::calculate_query_features_only(
                   });
                   
                   if (valid_rb.size() == 1) {
-                     // 零拷贝直接读取大小
+                    // Read size directly without copying
                      num_descendants = valid_rb[0]->cardinality();
                   } else {
-                     // 二元 & 强制深拷贝并计算第一步交集
+                    // Binary &: force a deep copy and compute the first intersection
                      roaring::Roaring roar_res = *valid_rb[0] & *valid_rb[1];
                      for (size_t i = 2; i < valid_rb.size(); ++i) {
                         if (roar_res.isEmpty()) break;
@@ -4203,7 +4172,7 @@ void UniNavGraph::calculate_query_features_only(
          stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
          stats.num_lng_descendants = num_descendants;
 
-         // 开始预测
+         // Start prediction
          auto pred_start = std::chrono::high_resolution_clock::now();
          int router_decision = 0; 
          if (_fast_route_single_selector) {
@@ -4235,11 +4204,11 @@ void UniNavGraph::calculate_query_features_only(
          return use_nT_true ? 1 : 0; 
       }
       
-      // --- 模式 4: Smartroute-revised (2特征, 延迟计算 ELS) ---
+      // --- Mode 4: Smartroute-revised with two features and delayed ELS computation ---
       if (routing_mode == 4) {
          stats.is_trie_recursive = false;
 
-         // 1. Fpass: 像 SmartRoute 一样使用 Bitset 计算 Descendants
+         // 1. Fpass: compute Descendants with Bitset, as in SmartRoute
          auto start_fpass = std::chrono::high_resolution_clock::now();
          static thread_local std::unique_ptr<std::bitset<12000000>> final_group_bitmap_ptr;
          static thread_local std::unique_ptr<std::bitset<12000000>> temp_group_bitmap_ptr;
@@ -4291,7 +4260,7 @@ void UniNavGraph::calculate_query_features_only(
          stats.fpass_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_fpass).count();
          stats.num_lng_descendants = count2;
 
-         // 2. 开始预测 (仅输入 f_ppass 和 num_descendants)
+         // 2. Start prediction with only f_ppass and num_descendants
          auto pred_start = std::chrono::high_resolution_clock::now();
          int router_decision = 0; 
          if (_fast_route_revised_selector) {
@@ -4301,11 +4270,11 @@ void UniNavGraph::calculate_query_features_only(
          }
          stats.route_pred_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
 
-         // 3. Early Return: 非 UNG 类直接短路返回，不计算 ELS
-         if (router_decision == 2) return 5; // 走向 pre-filter
-         if (router_decision == 1) return _revised_majority_acorn_id; // 走向 ACORN 多数派
+         // 3. Early return: non-UNG classes short-circuit without computing ELS
+         if (router_decision == 2) return 5; // Route to pre-filter
+         if (router_decision == 1) return _revised_majority_acorn_id; // Route to the ACORN majority class
 
-         // 4. 如果预测为 0 (UNG_family)，再计算 ELS。默认使用 nTfalse
+         // 4. If prediction is 0 (UNG_family), compute ELS. nTfalse is used by default.
          auto els_start = std::chrono::high_resolution_clock::now();
          static std::atomic<int> counter{0};
          get_min_super_sets_debug(query_labels, entry_group_ids, false, true, counter, false, is_rec_more_start, stats, false);
@@ -4348,12 +4317,12 @@ void UniNavGraph::calculate_query_features_only(
          // ======================= STAGE 1: DECISION MAKING =======================
          auto decision_start_time = std::chrono::high_resolution_clock::now();
 
-      // pre-filter是否使用优化模式
+      // Whether pre-filter uses optimized mode
       bool use_optimized = false;
       if (routing_mode != 0) {
-         use_optimized = true; // SmartRoute 等模式强制使用大优化
+         use_optimized = true; // SmartRoute-style modes force the full optimization path
       } else {
-         use_optimized = optimize_standalone_prefilter; // 纯 Baseline 模式，听从用户指定的参数
+         use_optimized = optimize_standalone_prefilter; // Pure baseline mode follows the user-specified parameter
       }
 
       const std::bitset<16000000>* exact_mask_ptr = nullptr;
@@ -4366,10 +4335,10 @@ void UniNavGraph::calculate_query_features_only(
       int final_algo_choice = -1;
 
       // -----------------------------------------------------------------------
-      // 路径 A: SmartRoute+ / SmartRoute+++ (Mode 5 / 7, global choices are precomputed)
+      // Path A: SmartRoute+ / SmartRoute+++ (Modes 5 and 7, with precomputed global choices)
       // -----------------------------------------------------------------------
       if (routing_mode == 5 || routing_mode == 7) {
-            final_algo_choice = query_algo_choices[id]; // 此时传进来的已经是全局算好的 choice
+            final_algo_choice = query_algo_choices[id]; // The incoming choice has already been computed globally
             stats.algo_choice = final_algo_choice;
 
             auto prep_start = std::chrono::high_resolution_clock::now();
@@ -4388,7 +4357,7 @@ void UniNavGraph::calculate_query_features_only(
                      if (!valid_rb.empty()) {
                         std::sort(valid_rb.begin(), valid_rb.end(), [](const roaring::Roaring* a, const roaring::Roaring* b){ return a->cardinality() < b->cardinality(); });
                         if (valid_rb.size() == 1) {
-                           final_roaring_ptr = valid_rb[0]; // 零拷贝
+                           final_roaring_ptr = valid_rb[0]; // Zero-copy
                         } else {
                            roar_res = *valid_rb[0] & *valid_rb[1];
                            for (size_t i = 2; i < valid_rb.size(); ++i) {
@@ -4403,11 +4372,11 @@ void UniNavGraph::calculate_query_features_only(
             }
             double prep_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - prep_start).count();
             
-            // 合拢总耗时
+            // Aggregate total time
             stats.routing_total_time_ms = stats.mask_gen_time_ms + stats.route_pred_time_ms + stats.global_sort_time_ms + prep_time;
       } 
       // -----------------------------------------------------------------------
-      // 路径 B: 实时推理模式 (Mode 0~4)
+      // Path B: online inference modes (Modes 0-4)
       // -----------------------------------------------------------------------
       else {
          auto feature_start = std::chrono::high_resolution_clock::now();
@@ -4457,27 +4426,23 @@ void UniNavGraph::calculate_query_features_only(
 
             stats.feature_extract_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - feature_start).count() - stats.bitmap_time_ms;
 
-         //  final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
-         //  stats.algo_choice = final_algo_choice;
-         //  stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
-         
          // =========================================================================
-         // 算法分配与强制接管 (Override)
+         // Algorithm assignment and forced override
          // =========================================================================
-         // 1. 检查是否需要强制分配算法 (仅当 routing_mode 为 1 或 2，且 CSV 中有对应的有效值)
+         // 1. Check whether algorithm assignment should be forced, only when routing_mode is 1 or 2 and CSV contains a valid value
          bool has_override = (routing_mode == 1 || routing_mode == 2) && 
                               (id >= 0 && static_cast<size_t>(id) < query_algo_choices.size() && query_algo_choices[id] != -1);
 
          if (!has_override) {
-            // 分支 A：没有预设强制选项，走正常的实时模型预测逻辑
+            // Branch A: no preset forced option; use normal online model prediction
             final_algo_choice = determine_routing_strategy(routing_mode, baseline_alg, query_labels, stats, entry_group_ids, is_new_trie_method, is_rec_more_start);
          } else {
-            // 分支 B：有强制的 Algo Choice，直接接管
+            // Branch B: forced Algo Choice is present; override directly
             final_algo_choice = query_algo_choices[id];
 
-            // 2. 数据兜底：由于跳过了 determine_routing_strategy，必须在这里补全后续搜索必需的前置数据
+            // 2. Data fallback: because determine_routing_strategy was skipped, fill prerequisite data required by the later search stage
 
-            // 兜底 A: 如果被强制分配到 UNG 家族（0, 1, 或 8），但入口点组还没算，需要补算 ELS
+            // Fallback A: if forced to the UNG family (0, 1, or 8) and entry groups are missing, compute ELS
             if ((final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) && entry_group_ids.empty()) {
                bool use_nT_true = (final_algo_choice == 1);
                stats.is_trie_recursive = use_nT_true;
@@ -4489,7 +4454,7 @@ void UniNavGraph::calculate_query_features_only(
                stats.num_entry_points = entry_group_ids.size();
             }
 
-            // 兜底 B: 如果被强制分配到 Pre-filter (5)，必须确保生成了用于暴力搜索的精确掩码 (CRoaring)
+            // Fallback B: if forced to Pre-filter (5), ensure the exact CRoaring mask for brute-force search is available
             if (final_algo_choice == 5 && !has_exact_mask) {
                auto mask_start = std::chrono::high_resolution_clock::now();
                if (query_labels.empty()) {
@@ -4537,7 +4502,7 @@ void UniNavGraph::calculate_query_features_only(
             }
          }
 
-         // 统一下发决策结果并计算耗时
+         // Dispatch the decision uniformly and compute timing
          stats.algo_choice = final_algo_choice;
          stats.routing_total_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - decision_start_time).count();
       }
@@ -4591,16 +4556,7 @@ void UniNavGraph::calculate_query_features_only(
                    }
                 }
              }
-
-            //  if (routing_mode == 2 || routing_mode == 3) {
-            //    //   search_baseline_exact_roaring(query, exact_roaring_mask.value(), K, exact_results.data(), dist_calcs);
-            //      search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
-            //  } else {
-            //      bool use_optimized = false; // Mode 1 依然走普通 bitset 
-            //      search_baseline_exact(query, *exact_mask_ptr, K, exact_results.data(), dist_calcs, use_optimized);
-            //  }
-
-            // 优先检查是否生成了 CRoaring 掩码（兜底B 和 模式2/3 都会生成）
+            // Prefer a generated CRoaring mask, which is produced by Fallback B and Modes 2/3
              if (final_roaring_ptr != nullptr) {
                  if (use_rabitq_prefilter && prefilter_query_ctx != nullptr) {
                     search_baseline_rabitq_roaring(*final_roaring_ptr, K, exact_results.data(), dist_calcs, *prefilter_query_ctx, stats);
@@ -4608,7 +4564,7 @@ void UniNavGraph::calculate_query_features_only(
                     search_baseline_exact_roaring(query, *final_roaring_ptr, K, exact_results.data(), dist_calcs);
                  }
              } 
-             // 否则回退到普通 Bitset 掩码（例如 Mode 1 生成的）
+             // Otherwise fall back to a regular Bitset mask, for example from Mode 1
              else if (exact_mask_ptr != nullptr) {
                  bool use_optimized = false;
                  if (use_rabitq_prefilter && prefilter_query_ctx != nullptr) {
@@ -4637,7 +4593,7 @@ void UniNavGraph::calculate_query_features_only(
              search_cache_list.release_cache(search_cache);
              return; 
          }
-         else if (final_algo_choice == 7) // NaviX(先不看，在NaviX索引)
+         else if (final_algo_choice == 7) // NaviX path
          {
              auto search_time_start_ms = std::chrono::high_resolution_clock::now();
              
@@ -4647,7 +4603,7 @@ void UniNavGraph::calculate_query_features_only(
                  return;
              }
 
-             // --- 动态对齐 efSearch 参数 ---
+             // --- Dynamically align efSearch parameters ---
              int current_efs;
              if (Lsearch <= lsearch_threshold) {
                  current_efs = efs_start + ((Lsearch - lsearch_start) / lsearch_step) * efs_step_slow;
@@ -4662,7 +4618,7 @@ void UniNavGraph::calculate_query_features_only(
              navix_index->hnsw.efSearch = current_efs;
 
              // =========================================================================
-             // 1. 将查询标签映射为二分图中的“属性节点 ID”，并生成 Old ID 掩码
+             // 1. Map query labels to attribute-node IDs in the bipartite graph and generate the old-ID mask
              // =========================================================================
              auto bitmap_start_time = std::chrono::high_resolution_clock::now();
 
@@ -4671,7 +4627,7 @@ void UniNavGraph::calculate_query_features_only(
              for (auto label : query_labels) {
                  auto it = _attr_to_id.find(label);
                  if (it == _attr_to_id.end()) {
-                     is_possible = false; // 查询了底库中根本不存在的属性
+                    is_possible = false; // The query contains an attribute absent from the base set
                      break;
                  }
                  mapped_query_attrs.push_back(_num_points + static_cast<ANNS::IdxType>(it->second));
@@ -4679,16 +4635,16 @@ void UniNavGraph::calculate_query_features_only(
 
              std::vector<char> navix_mask_vec;
              if (!is_possible) {
-                 navix_mask_vec.assign(_num_points, 0); // 存在无效属性，掩码全 0
+                navix_mask_vec.assign(_num_points, 0); // Invalid attribute exists; set the mask to all zeros
              } else {
                  navix_mask_vec = generate_single_filter_map(this->_vector_attr_graph, _num_points, mapped_query_attrs);
              }
 
-             // 将 = 改为 +=
+             // Use += instead of =
             stats.bitmap_time_ms += std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - bitmap_start_time).count();
 
              // =========================================================================
-             // 2. 准备 NaviX 要求的查询容器
+             // 2. Prepare query containers required by NaviX
              // =========================================================================
              const float* query_ptr = reinterpret_cast<const float*>(query); 
              
@@ -4701,7 +4657,7 @@ void UniNavGraph::calculate_query_features_only(
              auto core_search_start_time = std::chrono::high_resolution_clock::now();
 
              // =========================================================================
-             // 3. 执行 NaviX 检索 (直接传入 Old ID 掩码)
+             // 3. Execute NaviX retrieval, passing the old-ID mask directly
              // =========================================================================
              navix_index->navix_single_search(
                  query_ptr, 
@@ -4716,7 +4672,7 @@ void UniNavGraph::calculate_query_features_only(
              stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
 
              // =========================================================================
-             // 4. 提取结果回填至 UNG 框架
+             // 4. Extract results and write them back into the UNG framework
              // =========================================================================
              cur_result.clear();
              for (int i = 0; i < K; ++i) {
@@ -4725,7 +4681,7 @@ void UniNavGraph::calculate_query_features_only(
                  }
              }
 
-             // 5. 记录统计指标
+             // 5. Record statistics
              stats.num_distance_calcs = navix_stats.ndis;
              stats.num_nodes_visited = navix_stats.n1;
              stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
@@ -4740,10 +4696,10 @@ void UniNavGraph::calculate_query_features_only(
                return;
             }
          }
-         else if (final_algo_choice >= 2 && final_algo_choice <= 6 && final_algo_choice != 5) // ACORN 家族 (2,3,4,6)
+         else if (final_algo_choice >= 2 && final_algo_choice <= 6 && final_algo_choice != 5) // ACORN family (2, 3, 4, 6)
          {
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
-            std::shared_ptr<faiss::IndexACORNFlat> selected_acorn_index = nullptr; // <--- 使用一个临时指针
+            std::shared_ptr<faiss::IndexACORNFlat> selected_acorn_index = nullptr; // Temporary pointer
             const ANNS::rabitq::RabitQSideIndex* selected_acorn_side_index = nullptr;
 
             if (final_algo_choice == 6) {
@@ -4762,17 +4718,17 @@ void UniNavGraph::calculate_query_features_only(
                return;
             }
 
-            // efs变化过程（可以不看）
+            // efs evolution
             int current_efs;
             if (Lsearch <= lsearch_threshold)
                current_efs = efs_start + ((Lsearch - lsearch_start) / lsearch_step) * efs_step_slow;
             else
             {
-               // Part A: 先计算出在阈值点时的 efs 值
+               // Part A: compute the efs value at the threshold point
                int num_steps_in_slow_zone = (lsearch_threshold - lsearch_start) / lsearch_step;
                int efs_at_threshold = efs_start + num_steps_in_slow_zone * efs_step_slow;
                
-               // Part B: 在阈值 efs 的基础上，加上快速增长的部分
+               // Part B: add the fast-growth portion on top of the threshold efs
                int num_steps_in_fast_zone = (Lsearch - lsearch_threshold) / lsearch_step;
                current_efs = efs_at_threshold + num_steps_in_fast_zone * efs_step_fast;
             }
@@ -4782,10 +4738,10 @@ void UniNavGraph::calculate_query_features_only(
 
             
 
-            // 确定当前使用哪种 ACORN 内部搜索策略 (0: ACORN, 1: Imp, 2: NaviX)
+            // Determine the ACORN internal search strategy: 0=ACORN, 1=Imp, 2=NaviX
             int current_baseline_alg = 0;
             if (final_algo_choice == 2 || final_algo_choice == 6) {
-                current_baseline_alg = 0; // ACORN-gamma / ACORN-1 使用基础原版
+                current_baseline_alg = 0; // ACORN-gamma / ACORN-1 use the original baseline
             } else if (final_algo_choice == 3) {
                 current_baseline_alg = 1; // ACORN-improved
             } else if (final_algo_choice == 4) {
@@ -4798,14 +4754,14 @@ void UniNavGraph::calculate_query_features_only(
             bool has_els_groups = !entry_group_ids.empty();
             bool has_exact_mask = (exact_mask_ptr != nullptr);
 
-            // 只有在既没有 ELS，也没有在特征提取阶段算过 exact_mask 时，才使用 ACORN 内部倒排索引
+            // Use ACORN's internal inverted index only when neither ELS nor an exact_mask from feature extraction is available
             bool use_acorn_native_filter = (!has_els_groups && !has_exact_mask);
             bool use_acorn_rabitq =
                 (_ung_distance_mode == UngDistanceMode::RabitQ &&
                  selected_acorn_side_index != nullptr &&
                  selected_acorn_side_index->enabled());
 
-            // 保持 ACORN 图搜索流程一致，仅替换距离计算后端
+            // Keep the ACORN graph-search flow unchanged and only replace the distance-computation backend
             faiss::SearchParametersACORN acorn_search_params;
             acorn_search_params.efSearch = current_efs;
             std::shared_ptr<ACORNRabitQDistanceBackend> acorn_rabitq_backend = nullptr;
@@ -4817,8 +4773,8 @@ void UniNavGraph::calculate_query_features_only(
 
             if (use_acorn_native_filter)
             {
-               stats.acorn_filter_type = 3; // 记录使用倒排索引
-               // 分支 1：Baseline 模式下的 ACORN 家族 (没有任何前置掩码可用)
+               stats.acorn_filter_type = 3; // Record inverted-index usage
+               // Branch 1: ACORN family in baseline mode with no precomputed mask available
                std::vector<std::vector<int>> query_attrs_for_acorn(1);
                query_attrs_for_acorn[0].assign(query_labels.begin(), query_labels.end());
 
@@ -4829,41 +4785,11 @@ void UniNavGraph::calculate_query_features_only(
                stats.core_search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - core_search_start_time).count();
             }
             else
-            {          
-               // // 分支 2 & 3：复用前置计算好的掩码 (ELS Group 或 Exact Mask)
-               // std::vector<char> filter_map(_num_points, 0);
-               // auto bitmap_start_time = std::chrono::high_resolution_clock::now();
-               // // 只要 exact_mask_ptr 不为空 (SmartRoute/FastSmartRoute天然满足)，就直接用，无视 ELS 是否存在
-               // if (has_exact_mask) 
-               // {
-               //     stats.acorn_filter_type = 2; // 标记使用了 Exact Mask
-               //     for (size_t pt_id = 0; pt_id < _num_points; ++pt_id) 
-               //     {
-               //         if (exact_mask_ptr->test(pt_id)) 
-               //         {
-               //             filter_map[pt_id] = 1; 
-               //         }
-               //     }
-               // }
-               // // 如果没有 exact_mask (比如普通的 Baseline UNG 算法走到这一步)，再兜底使用 ELS
-               // else if (has_els_groups) 
-               // {
-               //     stats.acorn_filter_type = 1; // 标记使用了 ELS
-               //     roaring::Roaring current_roaring_bitmap = compute_bitmap_from_groups(entry_group_ids);
-               //     for (uint32_t original_id : current_roaring_bitmap)
-               //     {
-               //        if (original_id < _num_points)
-               //        {
-               //           IdxType new_id = _old_to_new_vec_ids[original_id];
-               //           filter_map[new_id] = 1;
-               //        }
-               //     }
-               // }
+            {
 
+               // Branches 2 and 3: reuse a precomputed mask, either ELS Group or Exact Mask
 
-               // 分支 2 & 3：复用前置计算好的掩码 (ELS Group 或 Exact Mask)
-               
-               // 使用 thread_local 避免每次查询都在堆上分配十几MB的内存
+               // Use thread_local to avoid allocating tens of MB on the heap for every query
                static thread_local std::vector<char> filter_map;
                if (filter_map.size() < _num_points) {
                    filter_map.resize(_num_points);
@@ -4874,23 +4800,23 @@ void UniNavGraph::calculate_query_features_only(
 
                if (has_exact_mask) 
                {
-                   stats.acorn_filter_type = 2; // 标记使用了 Exact Mask
+                   stats.acorn_filter_type = 2; // Mark Exact Mask usage
                    if (exact_mask_ptr) {
-                       // 解析 Bitset
+                       // Parse Bitset
                        for (size_t pt_id = 0; pt_id < _num_points; ++pt_id) {
                            if ((*exact_mask_ptr)[pt_id]) filter_map[pt_id] = 1; 
                        }
                    } else if (final_roaring_ptr != nullptr) {
-                       // 解析 CRoaring
+                       // Parse CRoaring
                        for (uint32_t pt_id : *final_roaring_ptr) {
                           filter_map[pt_id] = 1;
                      }
                    }
                }
-               // 如果没有 exact_mask (比如普通的 Baseline UNG 算法走到这一步)，再兜底使用 ELS
+               // If exact_mask is unavailable, for example in the baseline UNG path, fall back to ELS
                else if (has_els_groups) 
                {
-                   stats.acorn_filter_type = 1; // 标记使用了 ELS
+                   stats.acorn_filter_type = 1; // Mark ELS usage
                    roaring::Roaring current_roaring_bitmap = compute_bitmap_from_groups(entry_group_ids);
                    for (uint32_t original_id : current_roaring_bitmap)
                    {
@@ -4935,7 +4861,7 @@ void UniNavGraph::calculate_query_features_only(
             }
             stats.search_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - search_time_start_ms).count();
          }
-         else if (final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) // UNG 家族
+         else if (final_algo_choice == 0 || final_algo_choice == 1 || final_algo_choice == 8) // UNG family
          {
             // --- Execute UNG Search ---
             auto search_time_start_ms = std::chrono::high_resolution_clock::now();
@@ -4997,7 +4923,7 @@ void UniNavGraph::calculate_query_features_only(
          {
             if (k < cur_result.size())
             {
-               // cur_result[k].id 无论来源是ACORN还是UNG，都统一是 "新ID".在这里一次性、正确地转换为 "原始ID"
+               // cur_result[k].id is a new ID regardless of whether it came from ACORN or UNG; convert it to the original ID here.
                results[id * K + k].first = _new_to_old_vec_ids[cur_result[k].id];
                results[id * K + k].second = cur_result[k].distance;
             }
@@ -5044,7 +4970,7 @@ void UniNavGraph::calculate_query_features_only(
          exit(-1);
       }
 
-      // 在线程池外部、主线程中预先分配好全局的 SearchCache 资源池，大小等于线程数
+      // Preallocate the global SearchCache pool on the main thread outside the thread pool, with size equal to the thread count
       SearchCacheList global_search_cache_list(num_threads, _num_points, Lsearch);
 
       std::queue<int> Qid_595 = std::move(task_queue); 
@@ -5092,7 +5018,7 @@ void UniNavGraph::calculate_query_features_only(
       std::vector<int> target_ids;
       std::vector<int> id_to_batch_idx(num_queries, -1); 
       
-      // 找出所有需要预测的 query
+      // Identify all queries that require prediction
       for (int id = 0; id < (int)num_queries; ++id) {
          if (final_choices[id] == -1) {
                id_to_batch_idx[id] = target_ids.size();
@@ -5100,11 +5026,11 @@ void UniNavGraph::calculate_query_features_only(
          }
       }
       
-      // 提前为 batch 分配好整块内存 (直接给 ONNX 用)
+      // Preallocate contiguous batch memory for ONNX
       std::vector<std::vector<float>> batch_features(target_ids.size());
 
             // -------------------------------------------------------------
-      // [阶段 1]：并行提取特征
+      // [Phase 1]: parallel feature extraction
       // -------------------------------------------------------------
       omp_set_num_threads(num_threads);
       #pragma omp parallel for schedule(static)
@@ -5114,13 +5040,13 @@ void UniNavGraph::calculate_query_features_only(
 
          auto mask_start = std::chrono::high_resolution_clock::now();
          size_t exact_cand_size = 0;
-         size_t num_descendants = 0; // 新增：Fpass 初始化
+         size_t num_descendants = 0; // Fpass initialization
 
          if (query_labels.empty()) {
                exact_cand_size = _num_points;
-               num_descendants = _num_groups; // 新增：空标签覆盖全组
+               num_descendants = _num_groups; // Empty labels cover all groups
          } else {
-               // 1. 计算 exact_cand_size (基于 _vec_attr_roaring_inv)
+               // 1. Compute exact_cand_size using _vec_attr_roaring_inv
                bool is_valid = true;
                std::vector<const roaring::Roaring*> valid_rb;
                valid_rb.reserve(query_labels.size()); 
@@ -5154,7 +5080,7 @@ void UniNavGraph::calculate_query_features_only(
                   }
                }
 
-               // 2. 计算 num_descendants (基于 _group_attr_roaring_inv)
+               // 2. Compute num_descendants using _group_attr_roaring_inv
                bool is_valid_group = true;
                std::vector<const roaring::Roaring*> valid_group_rb;
                valid_group_rb.reserve(query_labels.size());
@@ -5187,14 +5113,14 @@ void UniNavGraph::calculate_query_features_only(
          
          stats.exact_cand_size = exact_cand_size;
          stats.global_p_pass = static_cast<float>(exact_cand_size) / _num_points;
-         stats.num_lng_descendants = num_descendants; // 新增：将 Fpass 存入 stats
+         stats.num_lng_descendants = num_descendants; // Store Fpass in stats
          stats.mask_gen_time_ms = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mask_start).count();
 
-         // 如果是需要预测的 target，填入 batch_features 的对应槽位
+         // If this is a target requiring prediction, fill the corresponding batch_features slot
          int batch_idx = id_to_batch_idx[id];
          if (batch_idx != -1) {
                size_t cand_size = query_labels.empty() ? 0 : get_candidate_count_for_label(query_labels.back());
-               // 添加 num_descendants 到批次特征，严格对齐 Python 顺序
+               // Add num_descendants to the batch features, strictly matching the Python feature order
                batch_features[batch_idx] = {
                    stats.global_p_pass, 
                    static_cast<float>(num_descendants), 
@@ -5205,14 +5131,14 @@ void UniNavGraph::calculate_query_features_only(
       }
 
       // -------------------------------------------------------------
-      // [阶段 2]：单次调用 Batch 推理
+      // [Phase 2]: single batch-inference call
       // -------------------------------------------------------------
       auto pred_start = std::chrono::high_resolution_clock::now();
       if (!batch_features.empty()) {
          if (_smart_route_selector) {
             std::vector<float> batch_preds = _smart_route_selector->predict_batch(batch_features);
 
-            // 顺序与 target_ids 对应，直接回写
+            // The order matches target_ids, so write back directly
             for (size_t i = 0; i < target_ids.size(); ++i) {
                   int id = target_ids[i];
                   int router_decision = std::round(batch_preds[i]);
@@ -5222,7 +5148,7 @@ void UniNavGraph::calculate_query_features_only(
                   else final_choices[id] = 8;
             }
          } else if (_fast_route_single_selector) {
-            // SmartRoute 模型缺失时，回退到 FastSmartRoute 单模型，避免 algo choice 保持 -1。
+            // If the SmartRoute model is missing, fall back to the FastSmartRoute single model to avoid leaving algo choice at -1.
             std::vector<float> batch_preds = _fast_route_single_selector->predict_batch(batch_features);
             for (size_t i = 0; i < target_ids.size(); ++i) {
                   int id = target_ids[i];
@@ -5241,7 +5167,7 @@ void UniNavGraph::calculate_query_features_only(
          }
       }
 
-      // 保底：不允许未决策查询残留为 -1（否则后续执行阶段不会进入任何算法分支）。
+      // Final fallback: do not allow undecided queries to remain -1, otherwise later execution will not enter any algorithm branch.
       for (int id : target_ids) {
          if (final_choices[id] == -1) {
             final_choices[id] = 8;
@@ -5249,7 +5175,7 @@ void UniNavGraph::calculate_query_features_only(
       }
       double total_pred_time = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - pred_start).count();
          
-      // 平摊推理时间到每个 query 上
+      // Amortize inference time across queries
       double avg_pred_time = num_queries > 0 ? (total_pred_time / num_queries) : 0.0;
       for (int id = 0; id < (int)num_queries; ++id) {
          out_global_stats[id].route_pred_time_ms = avg_pred_time;
@@ -5392,7 +5318,7 @@ void UniNavGraph::calculate_query_features_only(
                continue;
             visited_set.set(neighbor);
 
-            num_nodes_visited++; // search过程中遍历的点的个数
+            num_nodes_visited++; // Number of points visited during search
 
             // push to search queue
             search_queue.insert(neighbor, _distance_handler->compute(query, _base_storage->get_vector(neighbor), dim));
@@ -5599,7 +5525,7 @@ void UniNavGraph::calculate_query_features_only(
       meta_data["cal_coverage_ratio_time(ms)"] = std::to_string(_cal_coverage_ratio_time);
       meta_data["build_LNG_time(ms)"] = std::to_string(_build_LNG_time);
       meta_data["build_cross_edges_time(ms)"] = std::to_string(_build_cross_edges_time);
-      // FXY_ADD: 保存详细的跨组边构建时间到 meta 文件
+      // FXY_ADD: Save detailed cross-group edge construction timing to the meta file
       meta_data["cross_edge_step1_time(ms)"] = std::to_string(_cross_edge_step1_time_ms);
       meta_data["cross_edge_step2_acorn_time(ms)"] = std::to_string(_cross_edge_step2_acorn_time_ms);
       meta_data["cross_edge_step3_add_dist_edges_time(ms)"] = std::to_string(_cross_edge_step3_add_dist_edges_time_ms);
@@ -5614,7 +5540,7 @@ void UniNavGraph::calculate_query_features_only(
       meta_data["index_size_without_rabitq(MB)"] = std::to_string(_index_size_add_rb);
       meta_data["index_size_with_rabitq(MB)"] = std::to_string(_index_size_add_rb);
 
-      // FXY_ADD: 计算并保存 Trie 静态指标
+      // FXY_ADD: Compute and save static Trie metrics
       std::cout << "Calculating and saving Trie static metrics..." << std::endl;
       TrieStaticMetrics trie_metrics = _trie_index.calculate_static_metrics();
       meta_data["trie_label_cardinality"] = std::to_string(trie_metrics.label_cardinality);
@@ -5645,7 +5571,7 @@ void UniNavGraph::calculate_query_features_only(
       build_time_file << "cal_coverage_ratio_time" << "," << _cal_coverage_ratio_time << "\n";
       build_time_file << "build_LNG_time" << "," << _build_LNG_time << "\n";
       build_time_file << "build_cross_edges_time" << "," << _build_cross_edges_time << "\n";
-      // FXY_ADD: 保存详细的跨组边构建时间到 CSV 文件
+      // FXY_ADD: Save detailed cross-group edge construction timing to a CSV file
       build_time_file << "cross_edge_step1_time" << "," << _cross_edge_step1_time_ms << "\n";
       build_time_file << "cross_edge_step2_acorn_time" << "," << _cross_edge_step2_acorn_time_ms << "\n";
       build_time_file << "cross_edge_step3_add_dist_edges_time" << "," << _cross_edge_step3_add_dist_edges_time_ms << "\n";
@@ -5710,10 +5636,10 @@ void UniNavGraph::calculate_query_features_only(
       std::string lng_descendants_filename = index_path_prefix + "lng_descendants";
       write_2d_vectors(lng_descendants_filename, _label_nav_graph->_lng_descendants);
 
-      // 保存 LNG 的核心图结构 (邻接表)
+      // Save the core LNG graph structure: adjacency lists
       std::string lng_out_neighbors_filename = index_path_prefix + "lng_out_neighbors.dat";
       write_2d_vectors(lng_out_neighbors_filename, _label_nav_graph->out_neighbors);
-      std::cout << "LNG out_neighbors saved." << std::endl; // 增加一个打印，确认保存成功
+      std::cout << "LNG out_neighbors saved." << std::endl; // Confirm successful save
 
       // save vector attr graph data
       std::string vector_attr_graph_filename = index_path_prefix + "vector_attr_graph";
@@ -5752,7 +5678,7 @@ void UniNavGraph::calculate_query_features_only(
       // save acorn index
       std::cout << "\n--- Exporting reordered data for ACORN index building ---" << std::endl;
 
-      // 1. 导出重排后的向量
+      // 1. Export reordered vectors
       std::string reordered_vec_path = index_path_prefix + "reordered_vecs.fvecs";
       std::cout << "- Saving reordered vectors to: " << reordered_vec_path << std::endl;
       try
@@ -5764,13 +5690,13 @@ void UniNavGraph::calculate_query_features_only(
             throw std::runtime_error("Cannot open file for writing: " + reordered_vec_path);
          }
 
-         // 遍历所有已重排的向量并按 .fvecs 格式写入
+         // Iterate over all reordered vectors and write them in .fvecs format
          for (ANNS::IdxType new_id = 0; new_id < _num_points; ++new_id)
          {
             const float *vec_data = reinterpret_cast<const float *>(_base_storage->get_vector(new_id));
-            // 先写入维度
+            // Write dimension first
             out.write(reinterpret_cast<const char *>(&dim), sizeof(uint32_t));
-            // 再写入向量数据
+            // Then write vector data
             out.write(reinterpret_cast<const char *>(vec_data), dim * sizeof(float));
          }
          out.close();
@@ -5781,7 +5707,7 @@ void UniNavGraph::calculate_query_features_only(
          std::cerr << "Error while saving reordered vectors: " << e.what() << std::endl;
       }
 
-      // 2. 导出与重排后向量顺序完全一致的标签
+      // 2. Export labels in exactly the same order as the reordered vectors
       std::string reordered_label_path = index_path_prefix + "reordered_labels.txt";
       std::ofstream reordered_label_file(reordered_label_path);
       if (!reordered_label_file.is_open())
@@ -5790,7 +5716,7 @@ void UniNavGraph::calculate_query_features_only(
       }
       else
       {
-         // 直接按新顺序 (0 to _num_points-1) 遍历已重排的 _base_storage
+         // Traverse reordered _base_storage directly in the new order, from 0 to _num_points - 1
          for (ANNS::IdxType new_id = 0; new_id < _num_points; ++new_id)
          {
             const auto &label_set = _base_storage->get_label_set(new_id);
@@ -5805,7 +5731,7 @@ void UniNavGraph::calculate_query_features_only(
       }
       std::cout << "--- Finished exporting reordered data ---\n"
                 << std::endl;
-      // ========================== 修改部分结束 ==========================
+      // ========================== End of modified section ==========================
 
       const double rabitq_side_size_mb = static_cast<double>(_rabitq_side_size_bytes) / (1024.0 * 1024.0);
       meta_data["rabitq_side_size_bytes"] = std::to_string(_rabitq_side_size_bytes);
@@ -5835,12 +5761,12 @@ void UniNavGraph::calculate_query_features_only(
 
       std::unordered_map<int, std::vector<int>> inverted_index;
 
-      // 读取文件头：属性总数
+      // Read file header: total number of attributes
       uint64_t map_size;
       in.read(reinterpret_cast<char *>(&map_size), sizeof(map_size));
       inverted_index.reserve(map_size);
 
-      // 依次读取每个属性及其向量列表
+      // Read each attribute and its vector list in sequence
       for (uint64_t i = 0; i < map_size; ++i)
       {
          int attr_id;
@@ -5914,7 +5840,7 @@ void UniNavGraph::calculate_query_features_only(
       // load trie index
       std::string trie_filename = index_path_prefix + "trie";
       _trie_index.load(trie_filename);
-      // --- 预计算并缓存 Trie 静态指标 ---
+      // --- Precompute and cache static Trie metrics ---
       std::cout << "Pre-calculating and caching Trie static metrics..." << std::endl;
       _trie_static_metrics = _trie_index.calculate_static_metrics();
       std::cout << "- Caching complete." << std::endl;
@@ -6437,13 +6363,13 @@ void UniNavGraph::calculate_query_features_only(
          _trie_method_selector = nullptr;
       }
 
-      // --- 加载 SmartRoute 模型 (3特征: GlobalPpass, QuerySize, CandSize) ---
+      // --- Load the SmartRoute model with three features: GlobalPpass, QuerySize, CandSize ---
       std::string sr_model_path = selector_modle_prefix + "/smart_route/router.onnx";
       if (fs::exists(sr_model_path)) {
          _smart_route_selector = std::make_unique<MethodSelector>(sr_model_path);
          std::cout << "- SmartRoute Model loaded from: " << sr_model_path << std::endl;
 
-         // 加载 majority_acorn_id.txt
+         // Load majority_acorn_id.txt
          std::string majority_id_path = selector_modle_prefix + "/smart_route/majority_acorn_id.txt";
          if (fs::exists(majority_id_path)) {
              std::ifstream infile(majority_id_path);
@@ -6458,7 +6384,7 @@ void UniNavGraph::calculate_query_features_only(
          std::cout << "- [Warning] SmartRoute Model not found." << std::endl;
       }
 
-      // --- 加载 FastSmartRoute 单层模型 (4特征) ---
+      // --- Load the single-layer FastSmartRoute model with four features ---
       std::string fsr_single_model_path = selector_modle_prefix + "/fast_smart_route/router.onnx";
       if (fs::exists(fsr_single_model_path)) {
          _fast_route_single_selector = std::make_unique<MethodSelector>(fsr_single_model_path);
@@ -6477,7 +6403,7 @@ void UniNavGraph::calculate_query_features_only(
          _fast_route_single_selector = nullptr;
       }
 
-      // --- 加载 Smartroute-revised 模型 (2特征) ---
+      // --- Load the Smartroute-revised model with two features ---
       std::string fsr_revised_model_path = selector_modle_prefix + "/fast_smart_revised_route/router.onnx";
       if (fs::exists(fsr_revised_model_path)) {
          _fast_route_revised_selector = std::make_unique<MethodSelector>(fsr_revised_model_path);
@@ -6645,50 +6571,6 @@ void UniNavGraph::calculate_query_features_only(
       std::cout << "- Index loaded in " << std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
    }
 
-   /*void UniNavGraph::statistics()
-   {
-      // number of edges in the unified navigating graph
-      _graph_num_edges = 0;
-      for (IdxType i = 0; i < _num_points; ++i)
-         _graph_num_edges += _graph->neighbors[i].size();
-
-      // number of edges in the label navigating graph
-      _LNG_num_edges = 0;
-      if (_label_nav_graph != nullptr)
-         for (IdxType i = 1; i <= _num_groups; ++i)
-            _LNG_num_edges += _label_nav_graph->out_neighbors[i].size();
-
-      // index size
-      _index_size = 0;
-      for (IdxType i = 1; i <= _num_groups; ++i)
-         _index_size += _group_id_to_label_set[i].size() * sizeof(LabelType);
-      _index_size += _group_id_to_range.size() * sizeof(IdxType) * 2;
-      _index_size += _group_entry_points.size() * sizeof(IdxType);
-      _index_size += _new_to_old_vec_ids.size() * sizeof(IdxType);
-      _index_size += _trie_index.get_index_size();
-      _index_size += _graph->get_index_size();
-
-      _index_size_add_rb = _index_size; // 记录不含 Roaring Bitmap 部分的索引大小
-      // fxy_add:计算为混合搜索策略预处理的 Roaring Bitmaps 的大小
-      if (!_lng_descendants_rb.empty())
-      {
-         for (const auto &rb : _lng_descendants_rb)
-         {
-            _index_size_add_rb += rb.getSizeInBytes();
-         }
-      }
-      if (!_covered_sets_rb.empty())
-      {
-         for (const auto &rb : _covered_sets_rb)
-         {
-            _index_size_add_rb += rb.getSizeInBytes();
-         }
-      }
-
-      // return as MB
-      _index_size /= 1024 * 1024;
-      _index_size_add_rb /= 1024 * 1024;
-   }*/
    void UniNavGraph::statistics()
    {
       // number of edges in the unified navigating graph
@@ -6712,16 +6594,16 @@ void UniNavGraph::calculate_query_features_only(
       _index_size += _trie_index.get_index_size();
       _index_size += _graph->get_index_size();
 
-      // --- 统计 _label_nav_graph (LNG) 的大小 ---
+      // --- Measure the size of _label_nav_graph (LNG) ---
       size_t lng_graph_size = 0;
       if (_label_nav_graph != nullptr)
       {
-         // 1. 统计 out_neighbors (基于 .size())
+         // 1. Count out_neighbors based on .size()
          for (const auto &neighbors : _label_nav_graph->out_neighbors)
          {
                lng_graph_size += neighbors.size() * sizeof(ANNS::IdxType);
          }
-         // 2. 统计 in_neighbors (基于 .size())
+         // 2. Count in_neighbors based on .size()
          for (const auto &neighbors : _label_nav_graph->in_neighbors)
          {
                lng_graph_size += neighbors.size() * sizeof(ANNS::IdxType);
@@ -6729,7 +6611,7 @@ void UniNavGraph::calculate_query_features_only(
       }
       _index_size += lng_graph_size;
 
-      // --- 统计 _group_id_to_vec_ids 的大小 ---
+      // --- Measure the size of _group_id_to_vec_ids ---
       size_t group_to_vec_size = 0;
       for (const auto &vec_ids : _group_id_to_vec_ids)
       {
@@ -6737,7 +6619,7 @@ void UniNavGraph::calculate_query_features_only(
       }
       _index_size += group_to_vec_size;
 
-      // fxy_add:计算为混合搜索策略预处理的 Roaring Bitmaps 的大小
+      // fxy_add: Compute the size of Roaring Bitmaps preprocessed for the hybrid search strategy
       _index_size_add_rb = _index_size; 
       
       if (!_lng_descendants_rb.empty())

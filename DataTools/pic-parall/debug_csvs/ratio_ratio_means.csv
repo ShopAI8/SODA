@@ -1,9 +1,0 @@
-summary_group,SmartRoute+/ACORN-gamma,SmartRoute+/UNG,SmartRoute+/NaviX,UNG+/UNG,SmartRoute+/pre-filtering,SmartRoute/UNG+,SmartRoute+/Milvus-HNSW,SmartRoute+/UNG+,SmartRoute+/Milvus-IVF,SmartRoute+/SmartRoute
-K=20,inf,24.1852,inf,4.0775,17.3547,2.6822,81.6057,6.8589,130.0150,2.4289
-Large Length,inf,11.9625,inf,1.7452,28.2799,2.6341,219.1661,7.1390,149.5809,2.6299
-Large p_pass,inf,34.2188,inf,5.5479,16.5549,3.0666,76.3417,6.7460,119.6357,2.2219
-Mixed,inf,23.9482,inf,3.7062,20.2161,2.9941,91.5180,7.0571,90.7686,2.2984
-Small Length,inf,34.3186,inf,5.5153,17.5083,2.8894,77.4311,6.1701,116.7969,2.1237
-Small p_pass,inf,15.4916,inf,1.6801,23.5602,2.6118,221.7467,8.6802,164.1158,3.3373
-th=10,inf,44.8229,inf,5.3248,13.8375,4.2893,40.4077,7.9787,inf,1.9377
-Overall Mean,inf,26.9926,inf,3.9424,19.6160,3.0239,115.4596,7.2329,inf,2.4254

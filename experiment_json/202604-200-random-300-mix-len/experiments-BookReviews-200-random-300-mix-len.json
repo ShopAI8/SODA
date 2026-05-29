@@ -3,8 +3,8 @@
       {
          "dataset_name": "BookReviews",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/BookReviews",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,
@@ -46,8 +46,8 @@
       {
          "dataset_name": "BookReviews",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/BookReviews",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,
@@ -86,8 +86,8 @@
       {
          "dataset_name": "BookReviews",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/BookReviews",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,
@@ -199,8 +199,8 @@
       {
          "dataset_name": "BookReviews",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/BookReviews",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/BookReviews",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 100,

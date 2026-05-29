@@ -28,9 +28,10 @@ except ImportError:
 # ==========================================
 ## "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"
 DATASET_LIST = ["Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
-BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
+BASE_DIR = "your_path/FilterVector/FilterVectorResults"
 
-ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG-nTfalse', 'UNG-nTtrue', 'pre-filter']
+# 更新原始算法列表
+ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG+', 'pre-filter']
 ACORN_FAMILY = ['ACORN-gamma', 'NaviX']
 
 MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
@@ -42,7 +43,7 @@ ROUTE_STRATEGY = {
     "default": "auto"
 }
 
-SUMMARY_OUT_DIR = os.path.join(BASE_DIR, "SelectModels_summary", "fast_smart_route")
+SUMMARY_OUT_DIR = os.path.join(BASE_DIR, "SelectModels_summary", "smart_route_4_features")
 
 # ==========================================
 # 2. 核心功能与特征
@@ -287,9 +288,9 @@ def save_onnx_model(classifier, model_type, num_features, output_dir, filename, 
     except Exception as e:
         print(f"❌ 导出 ONNX 模型时发生错误: {e}")
 
-def calculate_system_accuracy(X_test, X_ELS_test, y_global_best_test, 
+# 移除了 ELS 相关的输入参数和判断逻辑
+def calculate_system_accuracy(X_test, y_global_best_test, 
                               clf, real_classes, TARGET_MAP,
-                              els_clf,
                               majority_acorn_algo):
     inv_map = {v: k for k, v in TARGET_MAP.items()}
     
@@ -305,12 +306,7 @@ def calculate_system_accuracy(X_test, X_ELS_test, y_global_best_test,
         elif decision == 'ACORN_Family':
             final_preds.append(majority_acorn_algo) 
         elif decision == 'UNG_Family': 
-            els_decision = 'UNG-nTfalse' 
-            if els_clf is not None:
-                els_features = X_ELS_test.iloc[[i]].values 
-                els_pred = els_clf.predict(els_features)[0]
-                els_decision = 'UNG-nTtrue' if els_pred == 1 else 'UNG-nTfalse'
-            final_preds.append(els_decision)
+            final_preds.append('UNG+')
         else:
             final_preds.append('Unknown')
             
@@ -338,7 +334,7 @@ def process_single_dataset(dataset_name):
     print(f"{'='*70}")
     
     csv_path = os.path.join(BASE_DIR, "EDA_Plots", dataset_name, f"{dataset_name}_aligned_results.csv")
-    output_dir = os.path.join(BASE_DIR, dataset_name, "SelectModels", "fast_smart_route")
+    output_dir = os.path.join(BASE_DIR, dataset_name, "SelectModels", "smart_route_4_features")
     os.makedirs(output_dir, exist_ok=True)
     report_path = os.path.join(output_dir, f"FastSmartRoute_Single_Report_{dataset_name}.txt")
     
@@ -350,44 +346,24 @@ def process_single_dataset(dataset_name):
     
     df['Global_Best'] = label_best_algorithm_by_time(df, time_prefix='L1_Time_ms', min_recall=0.90, threshold=MARGIN_THRESHOLD)
     
-    # 映射为三大类
+    # 映射为三大类，更新了 UNG 的映射逻辑
     df['Target'] = df['Global_Best'].replace({a: 'ACORN_Family' for a in ACORN_FAMILY})
-    df['Target'] = df['Target'].replace({'UNG-nTfalse': 'UNG_Family', 'UNG-nTtrue': 'UNG_Family'})
+    df['Target'] = df['Target'].replace({'UNG+': 'UNG_Family'})
     
     X = generate_features(df)
-    
-    X_ELS = pd.DataFrame(index=df.index)
-    for feat in ['QuerySize', 'CandSize', 'TrieTotalNodes']:
-        if feat in df.columns:
-            X_ELS[feat] = df[feat]
-        else:
-            X_ELS[feat] = 0
-            
-    if 'TrieTotalNodes' in X_ELS.columns:
-        valid_val = X_ELS['TrieTotalNodes'].dropna().iloc[0] if not X_ELS['TrieTotalNodes'].dropna().empty else 0
-        X_ELS['TrieTotalNodes'].fillna(valid_val, inplace=True)
-        
-    X_ELS.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X_ELS.fillna(0, inplace=True)
     
     valid_mask = (df['Global_Best'] != 'Unknown')
     valid_indices = df[valid_mask].index
     
     train_idx, test_idx = train_test_split(valid_indices, test_size=0.2, random_state=42)
     
+    # 移除了 X_ELS 的构建和切分
     X_train, X_test = X.loc[train_idx], X.loc[test_idx]
-    X_ELS_test = X_ELS.loc[test_idx]
     
     y_train, y_test = df.loc[train_idx, 'Target'], df.loc[test_idx, 'Target']
     y_Global_Best_test = df.loc[test_idx, 'Global_Best']
 
-    els_model_path = os.path.join(BASE_DIR, dataset_name, "SelectModels", "intelElS", "idea1_selector_model_final.joblib")
-    els_clf = None
-    if os.path.exists(els_model_path):
-        print(f"[ELS 集成] 成功加载 ELS Router: {els_model_path}")
-        els_clf = joblib.load(els_model_path)
-    else:
-        print("[ELS 集成] ⚠️ 未找到 ELS 模型，评估时 UNG 将默认走 nTfalse。")
+    # 移除了 ELS_Router 模型加载的逻辑
 
     TARGET_MAP = {'UNG_Family': 0, 'ACORN_Family': 1, 'pre-filter': 2}
 
@@ -431,10 +407,10 @@ def process_single_dataset(dataset_name):
     with open(os.path.join(output_dir, "majority_acorn_id.txt"), "w") as f:
         f.write(str(cpp_algo_map.get(majority_acorn_algo, 2)))
 
+    # 更新了函数调用，去除了 ELS 相关的参数
     system_acc = calculate_system_accuracy(
-        X_test, X_ELS_test, y_Global_Best_test, 
+        X_test, y_Global_Best_test, 
         res['classifier'], res['real_classes'], TARGET_MAP,
-        els_clf,
         majority_acorn_algo
     )
 

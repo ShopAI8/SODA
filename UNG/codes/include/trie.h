@@ -12,34 +12,34 @@
 namespace ANNS
 {
 
-   // fxy_add:用于方法一 (Shortcut) 的指标传递
+   // fxy_add: Metrics passed by Method 1 (Shortcut)
    struct TrieMethod1Metrics
    {
       size_t initial_candidates = 0;
       size_t successful_checks = 0;
 
-      long long upward_traversals;   // 向上回溯的节点数
-      long long bfs_nodes_processed; // 向下BFS的节点数
+      long long upward_traversals;   // Number of nodes visited during upward backtracking
+      long long bfs_nodes_processed; // Number of nodes processed during downward BFS
 
-      long long redundant_upward_steps = 0; // 向上回溯过程中重复的节点
+      long long redundant_upward_steps = 0; // Duplicate nodes encountered during upward backtracking
 
-      //用于记录两个阶段的耗时
+      // Timing fields for the two phases
       double time_phase1_ms = 0.0;
       double time_phase2_ms = 0.0;
    };
 
-   // fxy_add:用于从方法二(递归法)中收集详细性能指标的结构体
+   // fxy_add: Collect detailed performance metrics for Method 2 (recursive search)
    struct TrieSearchMetricsRecursive
    {
-      // --- 递归搜索阶段 (DFS) ---
-      long long recursive_calls = 0; // 递归函数被调用的总次数
-      long long pruning_events = 0;  // 关键指标：剪枝发生的次数
-      int max_recursion_depth = 0;   // 到达过的最大递归深度
+      // --- Recursive search phase (DFS) ---
+      long long recursive_calls = 0; // Total number of recursive calls
+      long long pruning_events = 0;  // Number of pruning events
+      int max_recursion_depth = 0;   // Maximum recursion depth reached
 
-      // --- 结果收集阶段 (BFS) ---
-      long long collection_calls = 0;       // collect_all_terminals被调用的次数
-      long long nodes_processed_in_bfs = 0; // 在所有收集中，BFS处理的总节点数
-      double time_in_collection_bfs = 0.0;  // 在所有收集中，BFS花费的总时间
+      // --- Result collection phase (BFS) ---
+      long long collection_calls = 0;       // Number of collect_all_terminals calls
+      long long nodes_processed_in_bfs = 0; // Total nodes processed by BFS across all collections
+      double time_in_collection_bfs = 0.0;  // Total BFS time across all collections
    };
 
    // fxy_add:Add a struct to hold the calculated metrics
@@ -104,15 +104,15 @@ namespace ANNS
       // fxy_add
       size_t get_candidate_count_for_label(LabelType label) const
       {
-         // 步骤1: 检查标签ID是否在 _label_to_nodes 向量的有效范围内
+         // Step 1: Check whether the label ID is within the valid _label_to_nodes range
          if (label >= _label_to_nodes.size())
          {
-            return 0; // 标签越界，不可能有对应的候选集
+            return 0; // Out-of-range labels cannot have candidate sets
          }
-         // 步骤2: 直接通过索引访问并返回内部向量的大小
+         // Step 2: Access by index directly and return the internal vector size
          return _label_to_nodes[label].size();
       }
-      // fxy_add:计算并返回Trie树的静态结构指标
+      // fxy_add: Compute and return static structural metrics for the Trie
       TrieStaticMetrics calculate_static_metrics() const;
 
       // I/O
@@ -145,7 +145,7 @@ namespace ANNS
           TrieSearchMetricsRecursive &metrics,
           int current_depth) const;
 
-      void find_supersets_iterative_debug( // 迭代版本
+      void find_supersets_iterative_debug( // Iterative version
           std::shared_ptr<TrieNode> start_node,
           const std::vector<LabelType> &sorted_query,
           size_t start_query_idx,

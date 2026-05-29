@@ -3,8 +3,8 @@
       {
          "dataset_name": "Laion",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/Laion",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 1000,
@@ -96,8 +96,8 @@
       {
          "dataset_name": "Laion",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/Laion",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 1000,
@@ -172,8 +172,8 @@
       {
          "dataset_name": "Laion",
          "shared_config": {
-            "data_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorData/Laion",
-            "output_dir": "/noraiddata/lijiakang/FilterVector/FilterVectorResults/",
+            "data_dir": "/your_path/FilterVector/FilterVectorData/Laion",
+            "output_dir": "/your_path/FilterVector/FilterVectorResults/",
             "build_mode": "serial",
             "max_degree": 32,
             "Lbuild": 1000,

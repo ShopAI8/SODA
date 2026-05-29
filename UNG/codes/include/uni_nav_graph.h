@@ -35,37 +35,37 @@ namespace ANNS
       double time_ms;
       double search_time_ms;
       double core_search_time_ms;
-      double descendants_merge_time_ms;  // descendants合并耗时
-      double coverage_merge_time_ms;     // coverage合并耗时
-      double get_min_super_sets_time_ms; // 获取最小入口集合耗时
+      double descendants_merge_time_ms;  // Time spent merging descendants
+      double coverage_merge_time_ms;     // Time spent merging coverage sets
+      double get_min_super_sets_time_ms; // Time spent retrieving minimum entry sets
       double fpass_time_ms = 0.0;
 
       size_t num_distance_calcs;
       int acorn_efs_used;
 
-      size_t num_nodes_visited = 0; // 用于存储search过程中的节点总数
-      size_t query_length;            // 查询长度
-      long long trie_nodes_traversed; // 存储两种方法的总遍历节点数
+      size_t num_nodes_visited = 0; // Total number of nodes visited during search
+      size_t query_length;            // Query length
+      long long trie_nodes_traversed; // Total Trie nodes traversed by both methods
 
-      // Trie 静态特征
+      // Static Trie features
       size_t trie_total_nodes;
       size_t trie_label_cardinality;
       float trie_avg_path_length;
       float trie_avg_branching_factor;
 
-      // =========idea1 指标=============
-      // 方法一相关
+      // ========= Idea 1 metrics =========
+      // Method 1 related
       size_t candidate_set_size;
       size_t successful_checks = 0;
       float shortcut_hit_ratio = 0.0f;
-      long long redundant_upward_steps = 0; // 向上回溯过程中重复的节点
+      long long redundant_upward_steps = 0; // Duplicate nodes encountered during upward backtracking
 
-      // 方法二相关
+      // Method 2 related
       size_t recursive_calls = 0;
       size_t pruning_events = 0;
       float pruning_efficiency = 0.0f;
 
-      // =========idea2 指标=============
+      // ========= Idea 2 metrics =========
       size_t num_entry_points;
       size_t num_lng_descendants;
       float entry_group_total_coverage;
@@ -74,39 +74,39 @@ namespace ANNS
       size_t exact_cand_size = 0;
       float global_p_pass = 0.0f;
 
-    float algo_choice;                   // 记录最终选择的 0-7 算法代号
-    bool is_intel_els_used;             // 仅当真正调用 _trie_method_selector 推理时为 true
-    bool is_trie_recursive;               // 记录实际计算 ELS 时，用的是 递归(nTtrue) 还是 非递归(nTfalse)
+    float algo_choice;                   // Final selected algorithm ID, in the 0-7 range
+    bool is_intel_els_used;             // True only when _trie_method_selector inference is actually invoked
+    bool is_trie_recursive;               // Whether ELS used recursive nTtrue or non-recursive nTfalse
 
-    double intel_els_pred_time_ms;       // 记录预测 nTtrue/nTfalse 的耗时
-    double route_pred_time_ms;           // 记录 SmartRoute/FastSmartRoute 推理的耗时
+    double intel_els_pred_time_ms;       // Time spent predicting nTtrue/nTfalse
+    double route_pred_time_ms;           // Time spent on SmartRoute/FastSmartRoute inference
     double l1_pred_time_ms = 0.0;
     double l2_pred_time_ms = 0.0;
-    double routing_total_time_ms;        // 记录整个路由决策阶段 (特征+预测+ELS计算) 的总耗时
+    double routing_total_time_ms;        // Total routing-decision time, including features, prediction, and ELS computation
     double bitmap_time_ms;         
     double feature_extract_time_ms;
 
-    int acorn_filter_type = 0; //记录 ACORN 使用的掩码类型 (0=N/A, 1=ELS, 2=ExactMask, 3=InvertedIndex)
+    int acorn_filter_type = 0; // ACORN mask type: 0=N/A, 1=ELS, 2=ExactMask, 3=InvertedIndex
 
-    // ===== ELS具体时间统计 =====
+    // ===== Detailed ELS timing =====
     double els_trie_time = 0;
     double els_sort_time = 0;
     double els_filter_time = 0;
     double els_total_time = 0;
 
-      double global_sort_time_ms = 0.0;  // 记录平摊后的排序耗时
-      double mask_gen_time_ms = 0.0;     // 记录物理掩码生成耗时
+      double global_sort_time_ms = 0.0;  // Amortized sorting time
+      double mask_gen_time_ms = 0.0;     // Physical mask generation time
 
-      // ===== RabitQ 细粒度时间统计 =====
-      double rabitq_ctx_prepare_time_ms = 0.0;  // query 预处理 (rotate + q_to_centroids + wrapper)
-      double rabitq_ctx_rotate_time_ms = 0.0;   // query rotate 阶段
-      double rabitq_ctx_q2c_time_ms = 0.0;      // query->centroids 距离预计算阶段
-      double rabitq_ctx_wrapper_time_ms = 0.0;  // wrapper 构造阶段
-      double rabitq_bin_time_ms = 0.0;          // bin 估计累计耗时
-      double rabitq_full_time_ms = 0.0;         // full refine 累计耗时
-      size_t rabitq_bin_calls = 0;              // bin 调用次数
-      size_t rabitq_full_calls = 0;             // full 调用次数
-      bool rabitq_ctx_reused = false;           // 本次查询是否复用已有 context
+      // ===== Fine-grained RabitQ timing =====
+      double rabitq_ctx_prepare_time_ms = 0.0;  // Query preprocessing time: rotate + q_to_centroids + wrapper
+      double rabitq_ctx_rotate_time_ms = 0.0;   // Query rotation time
+      double rabitq_ctx_q2c_time_ms = 0.0;      // Query-to-centroid distance precomputation time
+      double rabitq_ctx_wrapper_time_ms = 0.0;  // Wrapper construction time
+      double rabitq_bin_time_ms = 0.0;          // Cumulative bin-estimation time
+      double rabitq_full_time_ms = 0.0;         // Cumulative full-refinement time
+      size_t rabitq_bin_calls = 0;              // Number of bin calls
+      size_t rabitq_full_calls = 0;             // Number of full-refinement calls
+      bool rabitq_ctx_reused = false;           // Whether an existing context was reused for this query
 
       
    };
@@ -124,24 +124,24 @@ namespace ANNS
    struct AcornInUng
    {
       bool ung_and_acorn;
-      std::string new_edge_policy;   // 只跑acorn，只跑保障边，两者都跑
-      int R_in_add_new_edge;         // 让ACORN为每个查询找20个邻居
-      int W_in_add_new_edge;         // 从20个中只考虑最近的10个
-      int M_in_add_new_edge;         // 每个点最多有M条新的出/入边
-      float layer_depth_retio;       // 候选总数占向量总数的比例
-      float query_vector_ratio;      // 查询向量占候选总数的比例
-      float root_coverage_threshold; // 单个属性被视为“概念根”的最低覆盖率
+      std::string new_edge_policy;   // Run ACORN only, safeguard edges only, or both
+      int R_in_add_new_edge;         // Number of neighbors ACORN retrieves per query
+      int W_in_add_new_edge;         // Number of nearest neighbors retained from ACORN candidates
+      int M_in_add_new_edge;         // Maximum number of new outgoing/incoming edges per point
+      float layer_depth_retio;       // Ratio of candidate count to total vector count
+      float query_vector_ratio;      // Ratio of query vectors to total candidate count
+      float root_coverage_threshold; // Minimum coverage ratio for treating an attribute as a concept root
       std::string acorn_in_ung_output_path;
 
-      // acorn中的参数
+      // ACORN parameters
       int M, M_beta, gamma, efs, compute_recall;
    };
 
-   // 定义入口点选择策略的枚举
+   // Entry-point selection strategy
    enum class SelectionMode
    {
-      SizeOnly,       // 策略1：只考虑组的 size
-      SizeAndDistance // 策略2：综合考虑 size 和 LNG 跳数
+      SizeOnly,       // Strategy 1: consider only group size
+      SizeAndDistance // Strategy 2: combine group size and LNG hop distance
    };
 
    class UniNavGraph
@@ -153,7 +153,7 @@ namespace ANNS
          RabitQ
       };
 
-      UniNavGraph(IdxType num_nodes) : _label_nav_graph(std::make_shared<LabelNavGraph>(num_nodes)) {} // 修改构造函数以初始化 _label_nav_graph
+      UniNavGraph(IdxType num_nodes) : _label_nav_graph(std::make_shared<LabelNavGraph>(num_nodes)) {} // Initialize _label_nav_graph in the constructor
       UniNavGraph() = default;
       ~UniNavGraph() = default;
 
@@ -184,11 +184,11 @@ namespace ANNS
                          int lsearch_start, int lsearch_step,
                          int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold, 
                          int routing_mode, int baseline_alg, faiss_navix::IndexHNSWFlat* navix_index = nullptr,
-                         const std::vector<IdxType> &true_query_group_ids = {},// 包含每个查询其真实来源组ID的向量
+                         const std::vector<IdxType> &true_query_group_ids = {},// True source-group ID for each query
                          const std::vector<int>& query_algo_choices = {},
                          std::queue<int> task_queue = std::queue<int>(),bool optimize_standalone_prefilter = false); 
 
-      // 全局预测函数：统一计算所有查询的掩码和模型路由
+      // Global prediction: compute masks and model routing for all queries
       std::vector<int> global_predict_algo_choices(
           std::shared_ptr<IStorage> query_storage,
           int routing_mode,
@@ -196,7 +196,7 @@ namespace ANNS
           uint32_t num_threads,
           std::vector<QueryStats>& out_global_stats);
 
-      // 全局排序函数：根据算法和哈希进行缓存友好重排
+      // Global ordering: cache-friendly reordering by algorithm and hash
       std::vector<int> get_sorted_query_ids(
           std::shared_ptr<IStorage> query_storage,
           const std::vector<int>& algo_choices,
@@ -212,7 +212,7 @@ namespace ANNS
 
       // query generator
 
-      std::map<std::vector<unsigned int>, int> _subset_count_cache; // 用于缓存标签组合出现次数的map，避免重复进行昂贵的计算。key是排序后的标签组合，value是其在整个数据集中的出现次数。
+      std::map<std::vector<unsigned int>, int> _subset_count_cache; // Cache label-combination frequencies to avoid repeated expensive computation. The key is the sorted label subset, and the value is its dataset-wide frequency.
       int count_subset_occurrences(const std::vector<unsigned int> &sorted_subset);
       void query_generate(std::string &output_prefix, int n, float keep_prob, int K, bool stratified_sampling, bool verify);
       void generate_multiple_queries(std::string dataset,
@@ -250,11 +250,11 @@ namespace ANNS
           int max_K,
           int min_K);
       void generate_queries_true_data_high_coverage(
-          int N,                            // 要生成的查询总数
-          int K,                            // 用于计算质心的邻居数量
-          int top_M_trees,                  // 选择覆盖率最高的M棵概念树
-          std::string dataset,              // 数据集名称，用于生成文件名
-          const std::string &output_prefix, // 输出文件路径前缀
+          int N,                            // Total number of queries to generate
+          int K,                            // Number of neighbors used to compute centroids
+          int top_M_trees,                  // Select the M concept trees with the highest coverage
+          std::string dataset,              // Dataset name used to generate filenames
+          const std::string &output_prefix, // Output file path prefix
           float min_root_coverage_threshold);
       void generate_queries_true_data_low_coverage(
           std::string &output_prefix,
@@ -265,33 +265,33 @@ namespace ANNS
           float coverage_threshold,
           int K);
       void generate_queries_hard_sandwich(
-          int N,                            // 要生成的查询总数
-          const std::string &output_prefix, // 输出文件路径前缀
-          const std::string &dataset,       // 数据集名称
-          float parent_min_coverage_ratio,  // 父节点的最小覆盖率阈值 (例如 0.02)
-          float child_max_coverage_ratio,   // 子节点的最大覆盖率阈值 (例如 0.005)
-          float query_min_selectivity,      // 查询的最小选择率 (例如 0.0005, 即0.05%)
-          float query_max_selectivity);     // 查询的最大选择率 (例如 0.01, 即1%)
-      std::vector<int> _lng_node_depths;    // 存储每个group_id的图深度,generate_queries_hard_sandwich需要用
+          int N,                            // Total number of queries to generate
+          const std::string &output_prefix, // Output file path prefix
+          const std::string &dataset,       // Dataset name
+          float parent_min_coverage_ratio,  // Minimum coverage threshold for parent nodes, for example 0.02
+          float child_max_coverage_ratio,   // Maximum coverage threshold for child nodes, for example 0.005
+          float query_min_selectivity,      // Minimum query selectivity, for example 0.0005 or 0.05%
+          float query_max_selectivity);     // Maximum query selectivity, for example 0.01 or 1%
+      std::vector<int> _lng_node_depths;    // Graph depth for each group_id, used by generate_queries_hard_sandwich
       void _precompute_lng_node_depths();
       void generate_queries_hard_top_n_rare(
-          int N,                            // 要生成的查询总数
-          const std::string &output_prefix, // 输出文件路径前缀
-          const std::string &dataset,       // 数据集名称
-          int num_rare_labels_to_use,       // 要使用的频率最低的标签数量 (n)
-          float query_min_selectivity,      // 查询的最小选择率
-          float query_max_selectivity,      // 查询的最大选择率
+          int N,                            // Total number of queries to generate
+          const std::string &output_prefix, // Output file path prefix
+          const std::string &dataset,       // Dataset name
+          int num_rare_labels_to_use,       // Number of lowest-frequency labels to use
+          float query_min_selectivity,      // Minimum query selectivity
+          float query_max_selectivity,      // Maximum query selectivity
           int min_frequency_for_rare_labels = 1);
 
       void load_bipartite_graph(const std::string &filename);
       bool compare_graphs(const ANNS::UniNavGraph &g1, const ANNS::UniNavGraph &g2);
       IdxType _num_points;
-      std::vector<std::vector<IdxType>> _vector_attr_graph; // 邻接表表示的图
-      std::unordered_map<LabelType, AtrType> _attr_to_id;   // 属性到ID的映射
-      std::unordered_map<AtrType, LabelType> _id_to_attr;   // ID到属性的映射
-      AtrType _num_attributes;                              // 唯一属性数量
+      std::vector<std::vector<IdxType>> _vector_attr_graph; // Graph represented as adjacency lists
+      std::unordered_map<LabelType, AtrType> _attr_to_id;   // Attribute-to-ID mapping
+      std::unordered_map<AtrType, LabelType> _id_to_attr;   // ID-to-attribute mapping
+      AtrType _num_attributes;                              // Number of unique attributes
 
-      std::pair<std::bitset<10000001>, double> compute_attribute_bitmap(const std::vector<LabelType> &query_attributes) const; // 构建bitmap
+      std::pair<std::bitset<10000001>, double> compute_attribute_bitmap(const std::vector<LabelType> &query_attributes) const; // Build bitmap
       roaring::Roaring compute_bitmap_from_groups(const std::vector<IdxType> &group_ids) const;
       std::vector<roaring::Roaring> batch_compute_ung_bitmaps(
           const ANNS::UniNavGraph &index,
@@ -301,7 +301,7 @@ namespace ANNS
           bool is_rec_more_start);
 
     
-    // 基础bitmap+暴力搜索
+    // Basic bitmap plus brute-force search
     void search_baseline_exact(
       const char* query,
       const std::bitset<16000000>& final_bitmap,
@@ -314,8 +314,8 @@ namespace ANNS
       size_t& cand_size,
       bool use_optimized = true) const;
 
-    // 使用CRoaring进行bitmap计算
-    std::vector<roaring::Roaring> _vec_attr_roaring_inv;// 底层向量级别的 CRoaring 倒排索引 (用于极速计算 GlobalPpass)
+    // Use CRoaring for bitmap computation
+    std::vector<roaring::Roaring> _vec_attr_roaring_inv;// Vector-level CRoaring inverted index for fast GlobalPpass computation
     void build_vector_inverted_indices();
     void search_baseline_exact_roaring(
         const char* query,
@@ -352,18 +352,18 @@ namespace ANNS
       float& num_cmps_out);
 
 
-      // 求search中flag需要的数据结构
-      std::vector<BitsetType> _lng_descendants_bits; // 每个 group 的后代集合
-      std::vector<BitsetType> _covered_sets_bits;    // 每个 group 的覆盖集合
+      // Data structures required for search flags
+      std::vector<BitsetType> _lng_descendants_bits; // Descendant set for each group
+      std::vector<BitsetType> _covered_sets_bits;    // Coverage set for each group
       std::vector<roaring::Roaring> _lng_descendants_rb;
       std::vector<roaring::Roaring> _covered_sets_rb;
 
       std::vector<IdxType> select_entry_groups(
-          const std::vector<IdxType> &minimum_entry_sets, // 基础入口，必须包含
-          SelectionMode mode,                             // 选择的策略模式
-          size_t top_k,                                   // 除了基础入口外，额外选择 K 个最优入口
-          double beta = 1.0,                              // 策略2中，用于调节跳数权重的 beta 值
-          IdxType true_query_group_id = 0) const;         // 声明为 const 函数，因为它不应修改图的状态
+          const std::vector<IdxType> &minimum_entry_sets, // Required base entry points
+          SelectionMode mode,                             // Selection strategy
+          size_t top_k,                                   // Number of additional best entry points to select
+          double beta = 1.0,                              // Beta weight for hop distance in Strategy 2
+          IdxType true_query_group_id = 0) const;         // Const because this function should not mutate graph state
 
       void get_min_super_sets_debug(const std::vector<LabelType> &query_label_set,
                                     std::vector<IdxType> &min_super_set_ids,
@@ -371,43 +371,28 @@ namespace ANNS
                                     std::atomic<int> &print_counter, bool is_new_trie_method, bool is_rec_more_start, QueryStats &stats,
                                     bool skip_group_id_check);
 
-      void warmup_selectors(uint32_t num_threads);//预热selector模型，避免首次查询时的延迟
+      void warmup_selectors(uint32_t num_threads);// Warm up selector models to avoid first-query latency
 
 
 
-    // 为 Method 2 准备的极轻量级倒排邻接表：[AttrID] -> [GroupID1, GroupID2, ...]
+    // Lightweight inverted adjacency list for Method 2: [AttrID] -> [GroupID1, GroupID2, ...]
     std::vector<std::vector<IdxType>> _group_attr_adj_list; 
-    // 为 Method 3 准备的 CRoaring 倒排索引：[AttrID] -> RoaringBitmap(GroupIDs)
+    // CRoaring inverted index for Method 3: [AttrID] -> RoaringBitmap(GroupIDs)
     std::vector<roaring::Roaring> _group_attr_roaring_inv;
-    void build_group_inverted_indices();// 构建倒排索引
-    void evaluate_fpass_methods(std::shared_ptr<IStorage> query_storage, const std::string& output_csv_path);// 执行 5 种 Fpass 计算方法的 Benchmark
+    void build_group_inverted_indices();// Build inverted indexes
+    void evaluate_fpass_methods(std::shared_ptr<IStorage> query_storage, const std::string& output_csv_path);// Benchmark the five Fpass computation methods
 
     std::vector<int> load_query_algo_choices_from_csv(
     const std::string &csv_path,
     size_t expected_num_queries) const;
 
-    // 用于动态控制是否跳过 ELS filter
+    // Dynamically control whether to skip the ELS filter
     bool skip_els_filter = false;
 
-    // 类成员线程池，用于复用
+    // Reusable class-level thread pool
     std::unique_ptr<ThreadPool> _thread_pool = nullptr;
 
    private:
-
-    //   void thread_function(std::queue<int>& Qid_595,std::shared_ptr<IStorage> &query_storage,
-    //                                std::shared_ptr<DistanceHandler> &distance_handler,
-    //                                uint32_t num_threads, IdxType Lsearch,
-    //                                IdxType num_entry_points, std::string scenario,
-    //                                IdxType K, std::pair<IdxType, float> *results,
-    //                                std::vector<float> &num_cmps,
-    //                                std::vector<QueryStats> &query_stats,
-    //                                bool is_new_trie_method, bool is_rec_more_start,
-    //                                bool is_ung_more_entry,
-    //                                int lsearch_start, int lsearch_step,
-    //                                int efs_start, int efs_step_slow,int efs_step_fast,int lsearch_threshold,
-    //                                int routing_mode,int baseline_alg, IdxType num_queries, 
-    //                                faiss_navix::IndexHNSWFlat* navix_index,
-    //                                const std::vector<IdxType> &true_query_group_ids,const std::vector<int> &query_algo_choices);
 
       void thread_function(int id, SearchCacheList& search_cache_list,
                            std::shared_ptr<IStorage> &query_storage,
@@ -467,8 +452,8 @@ namespace ANNS
       std::vector<std::shared_ptr<Vamana>> _vamana_instances;
 
       std::shared_ptr<Graph> _global_graph;
-      std::shared_ptr<Vamana> _global_vamana; // 全局 Vamana 实例
-      IdxType _global_vamana_entry_point;     // 全局 Vamana 实例的入口点
+      std::shared_ptr<Vamana> _global_vamana; // Global Vamana instance
+      IdxType _global_vamana_entry_point;     // Entry point of the global Vamana instance
       void build_global_vamana_graph();
 
       void build_vector_and_attr_graph();
@@ -478,11 +463,11 @@ namespace ANNS
       uint32_t compute_checksum() const;
       // void load_bipartite_graph(const std::string &filename);
 
-      // 处理flag的相关函数
+      // Flag-handling helpers
       void initialize_lng_descendants_coverage_bitsets();
       void initialize_roaring_bitsets();
 
-      // 添加新的跨组边
+      // Add new cross-group edges
       void add_new_distance_oriented_edges(
           const std::string &dataset,
           uint32_t num_threads,
@@ -491,7 +476,7 @@ namespace ANNS
       const bool ENABLE_SEARCH_PATH_LOGGING = true;
       std::unordered_set<uint64_t> _my_new_edges_set;
 
-      void finalize_intra_group_graphs(); // 用于将局部图ID转换为全局ID
+      void finalize_intra_group_graphs(); // Convert local graph IDs to global IDs
 
       // index parameters for each graph
       IdxType _max_degree,
@@ -537,11 +522,11 @@ namespace ANNS
       float _index_size, _index_size_add_rb;
       IdxType _graph_num_edges, _LNG_num_edges;
 
-      // FXY_ADD: 为 add_new_distance_oriented_edges 添加详细计时
-      double _cross_edge_step1_time_ms;                     // 步骤1 (识别、采样) 的耗时
-      double _cross_edge_step2_acorn_time_ms;               // 步骤2 (执行ACORN) 的耗时
-      double _cross_edge_step3_add_dist_edges_time_ms;      // 步骤3 (添加距离驱动边) 的耗时
-      double _cross_edge_step4_add_hierarchy_edges_time_ms; // 步骤4 (添加层级保障边) 的耗时
+      // FXY_ADD: detailed timing for add_new_distance_oriented_edges
+      double _cross_edge_step1_time_ms;                     // Step 1 time: identification and sampling
+      double _cross_edge_step2_acorn_time_ms;               // Step 2 time: ACORN execution
+      double _cross_edge_step3_add_dist_edges_time_ms;      // Step 3 time: adding distance-oriented edges
+      double _cross_edge_step4_add_hierarchy_edges_time_ms; // Step 4 time: adding hierarchy safeguard edges
       void statistics();
 
       std::string _dataset;
@@ -562,7 +547,7 @@ namespace ANNS
 
       // idea1 selector
       std::unique_ptr<MethodSelector> _trie_method_selector;
-      TrieStaticMetrics _trie_static_metrics; // 用于缓存 Trie 树的静态指标，避免重复计算
+      TrieStaticMetrics _trie_static_metrics; // Cache static Trie metrics to avoid repeated computation
 
       // idea2 selector
       std::shared_ptr<faiss::IndexACORNFlat> _acorn_index;
@@ -585,7 +570,7 @@ namespace ANNS
 
       // smartroute selector
       std::unique_ptr<MethodSelector> _smart_route_selector;    
-      int _majority_acorn_id = 2; // 默认为 ACORN-gamma (id:2)
+      int _majority_acorn_id = 2; // Default to ACORN-gamma (id: 2)
       std::unique_ptr<MethodSelector> _fast_route_single_selector;
       int _single_majority_acorn_id = 2;
       std::unique_ptr<MethodSelector> _fast_route_revised_selector;

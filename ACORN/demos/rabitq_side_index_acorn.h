@@ -8,8 +8,14 @@
 #include <string>
 #include <vector>
 
+#ifndef ACORN_ENABLE_RABITQ
+#define ACORN_ENABLE_RABITQ 0
+#endif
+
+#if ACORN_ENABLE_RABITQ
 #include "rabitqlib/index/query.hpp"
 #include "rabitqlib/utils/rotator.hpp"
+#endif
 
 namespace acorn_rabitq {
 
@@ -22,14 +28,17 @@ class RabitQSideIndex {
     };
 
     struct QueryContext {
+#if ACORN_ENABLE_RABITQ
         std::vector<float> rotated_query;
         std::vector<float> q_to_centroids;
         std::unique_ptr<rabitqlib::SplitSingleQuery<float>> query_wrapper;
+#endif
     };
 
     RabitQSideIndex() = default;
     ~RabitQSideIndex() = default;
 
+#if ACORN_ENABLE_RABITQ
     bool build(
         const float* base_vectors,
         std::size_t num_points,
@@ -50,8 +59,56 @@ class RabitQSideIndex {
 
     bool enabled() const { return enabled_; }
     std::size_t total_bits() const { return total_bits_; }
+#else
+    bool build(
+        const float*,
+        std::size_t,
+        std::size_t,
+        const std::vector<std::uint32_t>&,
+        std::uint32_t,
+        std::size_t
+    ) { return false; }
+
+    bool save(const std::string&) const { return false; }
+    bool load(const std::string&) { return false; }
+    std::uint64_t estimated_memory_bytes(bool include_rotator_state = false) const
+    {
+        (void)include_rotator_state;
+        return 0;
+    }
+    std::uint64_t estimated_rotator_state_bytes() const { return 0; }
+
+    bool init_query(const float*, QueryContext&, InitTiming* timing = nullptr) const
+    {
+        if (timing != nullptr)
+        {
+            *timing = InitTiming{};
+        }
+        return false;
+    }
+    float estimate_bin(std::uint32_t, QueryContext&, float* low_dist = nullptr) const
+    {
+        if (low_dist != nullptr)
+        {
+            *low_dist = 0.0f;
+        }
+        return 0.0f;
+    }
+    float estimate_full(std::uint32_t, QueryContext&, float* low_dist = nullptr) const
+    {
+        if (low_dist != nullptr)
+        {
+            *low_dist = 0.0f;
+        }
+        return 0.0f;
+    }
+
+    bool enabled() const { return false; }
+    std::size_t total_bits() const { return 0; }
+#endif
 
    private:
+#if ACORN_ENABLE_RABITQ
     bool enabled_ = false;
 
     std::size_t num_points_ = 0;
@@ -73,6 +130,7 @@ class RabitQSideIndex {
     std::vector<std::uint32_t> cluster_ids_;
     std::vector<std::uint8_t> bin_data_;
     std::vector<std::uint8_t> ex_data_;
+#endif
 };
 
 }  // namespace acorn_rabitq

@@ -3,9 +3,10 @@
 #include <stdexcept>
 #include <mutex>
 
-// 使用局部静态变量实现线程安全的单例 Env。无论实例化多少个 MethodSelector 模型（L1, L2, SmartRoute 等），整个进程都只会初始化一次 ONNX 环境，共用底层的线程池。
+// Use a function-local static variable to provide a thread-safe singleton Env.
+// The ONNX environment is initialized once per process and shared by all MethodSelector models.
 Ort::Env& MethodSelector::get_shared_env() {
-    // 设置日志级别为 WARNING，避免输出过多无用信息
+    // Set the log level to WARNING to avoid excessive runtime output
     static Ort::Env shared_env(ORT_LOGGING_LEVEL_WARNING, "GlobalONNXEnv");
     return shared_env;
 }
@@ -15,15 +16,15 @@ MethodSelector::MethodSelector(const std::string &model_path)
 {
    Ort::SessionOptions session_options;
    
-   // 严格限制所有维度的并发线程数为 1
-   session_options.SetIntraOpNumThreads(1); // 限制算子内（如矩阵乘法）单线程
-   session_options.SetInterOpNumThreads(1); // 限制算子间（独立的计算分支）单线程
+   // Strictly limit concurrency to one thread across all execution dimensions
+   session_options.SetIntraOpNumThreads(1); // Use one thread within each operator, such as matrix multiplication
+   session_options.SetInterOpNumThreads(1); // Use one thread across independent execution branches
    session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
    std::cout << "  - [Selector] Initializing ONNX Runtime session for: " << model_path << std::endl;
    try
    {
-      // 传入全局共享的 Env 实例
+      // Pass the globally shared Env instance
       _session = Ort::Session(get_shared_env(), model_path.c_str(), session_options);
    }
    catch (const Ort::Exception &e)
@@ -74,7 +75,7 @@ float MethodSelector::predict(const std::vector<float> &features)
                                       _output_node_names.data(),
                                       1); 
 
-   // 动态判断 ONNX 输出类型，兼容分类器(INT64)和回归器(FLOAT)
+   // Dynamically inspect the ONNX output type to support both classifiers (INT64) and regressors (FLOAT)
    Ort::Value& output_tensor = output_tensors.front();
    auto type_info = output_tensor.GetTensorTypeAndShapeInfo().GetElementType();
 
@@ -102,17 +103,17 @@ std::vector<float> MethodSelector::predict_batch(const std::vector<std::vector<f
     size_t batch_size = batch_features.size();
     size_t feature_dim = batch_features[0].size();
 
-    // 1. 将 2D 数组展平为 1D 连续内存,预分配内存避免多次扩容
+    // 1. Flatten the 2D array into contiguous 1D memory and reserve capacity up front
     std::vector<float> flat_input;
     flat_input.reserve(batch_size * feature_dim);
     for (const auto& row : batch_features) {
         flat_input.insert(flat_input.end(), row.begin(), row.end());
     }
 
-    // 2. 设置输入 Tensor 的 Shape (维度: [batch_size, feature_dim])
+    // 2. Configure the input tensor shape: [batch_size, feature_dim]
     std::vector<int64_t> input_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(feature_dim) };
 
-    // 3. 创建 ONNX Runtime 的输入 Tensor
+    // 3. Create the ONNX Runtime input tensor
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         memory_info, 
@@ -122,7 +123,7 @@ std::vector<float> MethodSelector::predict_batch(const std::vector<std::vector<f
         input_shape.size()
     );
 
-   // 4. 运行推理
+   // 4. Run inference
     auto output_tensors = _session.Run(
         Ort::RunOptions{nullptr},
         _input_node_names.data(),
@@ -132,7 +133,7 @@ std::vector<float> MethodSelector::predict_batch(const std::vector<std::vector<f
         1
     );
 
-    // 5. 提取批量输出结果并进行安全类型转换
+    // 5. Extract batched outputs and perform safe type conversion
     Ort::Value& output_tensor = output_tensors.front();
     auto type_info = output_tensor.GetTensorTypeAndShapeInfo().GetElementType();
 
@@ -140,13 +141,13 @@ std::vector<float> MethodSelector::predict_batch(const std::vector<std::vector<f
 
     if (type_info == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64) {
         int64_t* output_data = output_tensor.GetTensorMutableData<int64_t>();
-        // 逐个安全转换为 float
+        // Safely convert each value to float
         for (size_t i = 0; i < batch_size; ++i) {
             results[i] = static_cast<float>(output_data[i]);
         }
     } else if (type_info == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
         float* output_data = output_tensor.GetTensorMutableData<float>();
-        // 如果本身就是 float，直接拷贝
+        // If the output is already float, copy it directly
         results.assign(output_data, output_data + batch_size);
     } else {
         throw std::runtime_error("Unsupported ONNX output type in batch prediction!");

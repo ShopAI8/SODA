@@ -8,10 +8,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(ENABLE_KNOWHERE_MILVUS_BASELINE "Enable Milvus baseline via Knowhere engine" ON)
 set(ENABLE_KNOWHERE_MILVUS_BASELINE ON CACHE BOOL "Enable Milvus baseline via Knowhere engine" FORCE)
+option(UNG_ENABLE_RABITQ "Enable RabitQ side-index acceleration" OFF)
 set(KNOWHERE_INCLUDE_DIR "" CACHE PATH "Knowhere include directory (should contain knowhere/index/index_factory.h)")
 set(KNOWHERE_LIBRARY "" CACHE FILEPATH "Path to libknowhere.so or libknowhere.a")
 
-# 将 ACORN/faiss 项目作为 UNG 项目的一个子目录添加进来
+# Add the ACORN/Faiss project as a subdirectory of the UNG project
 set(FAISS_ENABLE_GPU OFF CACHE BOOL "Disable Faiss GPU support")
 set(FAISS_ENABLE_PYTHON OFF CACHE BOOL "Disable Faiss Python bindings")
 set(BUILD_TESTING OFF CACHE BOOL "Disable Faiss tests")
@@ -55,7 +56,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -DNDEBUG -Ofast -marc
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/third_party/CRoaring/include)
-include_directories(${PROJECT_SOURCE_DIR}/../../../RaBitQ/RaBitQ-Library/include)
+if(UNG_ENABLE_RABITQ)
+    include_directories(${PROJECT_SOURCE_DIR}/../../../RaBitQ/RaBitQ-Library/include)
+endif()
 
 if(NOT EXISTS "${KNOWHERE_INCLUDE_DIR}/knowhere/index/index_factory.h")
     message(FATAL_ERROR "Knowhere is mandatory but KNOWHERE_INCLUDE_DIR is invalid: ${KNOWHERE_INCLUDE_DIR}")
@@ -125,17 +128,17 @@ else()
 endif()
 
 # ==============================================================================
-# 引入 NaviX (Faiss 1.10.0 独立版)
+# Include NaviX, the standalone Faiss 1.10.0 variant
 # ==============================================================================
 set(NAVIX_ROOT "${PROJECT_SOURCE_DIR}/../../NaviX")
 include_directories(${NAVIX_ROOT})
 
-# 允许从外部构建脚本传入真实的 NAVIX_BUILD_DIR
+# Allow external build scripts to provide the actual NAVIX_BUILD_DIR
 if(NOT NAVIX_BUILD_DIR)
     set(NAVIX_BUILD_DIR "${NAVIX_ROOT}/build")
 endif()
 
-# 查找 libfaiss_avx2.a 或 libfaiss.a
+# Locate libfaiss_avx2.a or libfaiss.a
 find_library(NAVIX_LIB
     NAMES faiss_avx2 faiss
     PATHS "${NAVIX_BUILD_DIR}/faiss_navix" "${NAVIX_BUILD_DIR}/faiss"
@@ -143,9 +146,9 @@ find_library(NAVIX_LIB
 )
 
 if(NOT NAVIX_LIB)
-    message(FATAL_ERROR "NaviX library not found in ${NAVIX_BUILD_DIR}! 请先执行 NaviX 的编译。")
+    message(FATAL_ERROR "NaviX library not found in ${NAVIX_BUILD_DIR}! Please build NaviX first.")
 else()
-    message(STATUS "NaviX library 成功找到，路径为: ${NAVIX_LIB}")
+    message(STATUS "NaviX library found at: ${NAVIX_LIB}")
 endif()
 # ==============================================================================
 # ==============================================================================

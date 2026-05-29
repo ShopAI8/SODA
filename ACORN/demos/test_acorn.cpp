@@ -14,7 +14,7 @@
 #include <sstream>
 #include <set>
 #include <thread>
-#include <unordered_set> // +++ 新增，用于 recall 计算
+#include <unordered_set> // Added for recall computation
 #include <unordered_map>
 
 #include "../faiss/Index.h"
@@ -26,13 +26,13 @@
 #include "utils.cpp"
 #include "rabitq_side_index_acorn.h"
 
-// +++ 新增类型别名，与 UNG 框架保持一致
+// Added type alias to stay consistent with the UNG framework
 namespace ANNS
 {
    using IdxType = uint32_t;
 }
 
-// 辅助函数：获取文件大小（字节）
+// Helper function: get file size in bytes
 long get_file_size(const std::string &filename)
 {
    struct stat stat_buf;
@@ -40,7 +40,7 @@ long get_file_size(const std::string &filename)
    return rc == 0 ? stat_buf.st_size : -1;
 }
 
-// 存储单次查询的结果
+// Per-query result for a single run
 struct QueryResult
 {
    int query_id;
@@ -55,7 +55,7 @@ struct QueryResult
    double filter_time_ms;
 };
 
-// 存储多次 repeat 聚合后的平均结果
+// Aggregated average result across repeated runs
 struct AggregatedResult
 {
    double total_acorn_time_s = 0.0;
@@ -76,53 +76,23 @@ void load_gt_file(const std::string &filename, std::pair<ANNS::IdxType, float> *
    std::cout << "Ground truth loaded from " << filename << std::endl;
 }
 
-// // +++ 新增：从 search_UNG_index.cpp 移植过来的 Recall 计算函数
-// float calculate_single_query_recall(
-//     const std::pair<ANNS::IdxType, float> *gt_for_one_query,
-//     const faiss::idx_t *result_ids,
-//     ANNS::IdxType K)
-// {
-//    std::unordered_set<ANNS::IdxType> gt_set;
-//    for (int i = 0; i < K; ++i)
-//    {
-//       if (gt_for_one_query[i].first != -1)
-//       {
-//          gt_set.insert(gt_for_one_query[i].first);
-//       }
-//    }
-//    if (gt_set.empty())
-//    {
-//       return 1.0f; // 如果GT为空（例如，没有满足过滤条件的点），则认为召回率为1
-//    }
-//    int correct = 0;
-//    for (int i = 0; i < K; ++i)
-//    {
-//       if (result_ids[i] != -1 && gt_set.count(result_ids[i]))
-//       {
-//          correct++;
-//       }
-//    }
-//    return static_cast<float>(correct) / gt_set.size();
-// }
-
-// 修改后的 Recall 计算函数：支持处理距离平局 (Ties)
+// Updated recall computation with distance-tie handling
 float calculate_single_query_recall(
     const std::pair<ANNS::IdxType, float> *gt_for_one_query, // GT: ID + Distance
     const faiss::idx_t *result_ids,                          // Algo: ID
-    const float *result_dists,                               // Algo: Distance [新增参数]
+    const float *result_dists,                               // Algo: Distance
     ANNS::IdxType K)
 {
-    // 1. 获取 GT 中第 K 个结果的距离阈值 (GT 是排好序的，最后一个是最大的)
-    // 注意：GT pair 是 <ID, Distance>
+    // 1. Get the distance threshold from the K-th GT result. GT is sorted, with the last entry being the largest.
+    // Note: each GT pair is <ID, Distance>.
     float gt_threshold = gt_for_one_query[K - 1].second;
     
-    // 设置一个极小的浮点误差容忍度 (Epsilon)
-    // 防止浮点数精度问题导致 0.0000001 > 0.0
+    // Use a small floating-point tolerance to avoid precision artifacts such as 0.0000001 > 0.0
     float epsilon = 1e-5;
 
     int correct = 0;
     
-    // 建立 GT ID 的集合，用于处理那些距离虽然不相等但 ID 命中的情况 (常规 Recall)
+    // Build the GT ID set to handle regular recall cases where IDs match even if distances differ
     std::unordered_set<ANNS::IdxType> gt_set;
     for (int i = 0; i < K; ++i) {
         if (gt_for_one_query[i].first != -1) {
@@ -136,18 +106,18 @@ float calculate_single_query_recall(
     {
         if (result_ids[i] == -1) continue;
 
-        // 情况 A: ID 直接命中
+        // Case A: direct ID hit
         if (gt_set.count(result_ids[i])) {
             correct++;
         }
-        // 情况 B: ID 没命中，但距离足够好 (处理 Ties)
-        // 如果算法找到的距离 <= GT 第 K 个距离，说明它也是一个合法的 Top-K 答案
+        // Case B: ID miss but the distance is good enough, which handles ties
+        // If the retrieved distance is <= the K-th GT distance, it is also a valid Top-K answer
         else if (result_dists[i] <= gt_threshold + epsilon) {
             correct++;
         }
     }
     
-    // 归一化，最大不超过 1.0
+    // Normalize and cap at 1.0
     return std::min(1.0f, static_cast<float>(correct) / K);
 }
 
@@ -156,13 +126,13 @@ int main(int argc, char *argv[])
    std::cout << "====================\nSTART: ACORN Test Suite --" << std::endl;
    double t0 = elapsed();
 
-   // --- 参数定义 ---
+   // --- Parameter definitions ---
    size_t d = 0;
    int M, M_beta, gamma, k = 10;
    std::string dataset;
    size_t N = 0;
    int nthreads, repeat_num = 0;
-   // --- 修改：dis_output_path 替换为 gt_bin_path
+   // --- Updated: replace dis_output_path with gt_bin_path
    std::string base_path, base_label_path, query_path, csv_dir, avg_csv_dir, gt_bin_path;
    std::vector<int> efs_list;
    bool if_bfs_filter = true;
@@ -170,7 +140,7 @@ int main(int argc, char *argv[])
    size_t rabitq_total_bits = 4;
    std::string mode, index_path_acorn, index_path_acorn1;
 
-   // --- 参数解析 ---
+   // --- Argument parsing ---
    {
       if (argc < 20)
       {
@@ -199,7 +169,7 @@ int main(int argc, char *argv[])
       repeat_num = atoi(argv[14]);
       // if_bfs_filter = atoi(argv[15]);
       std::string bfs_arg = std::string(argv[15]);
-      std::transform(bfs_arg.begin(), bfs_arg.end(), bfs_arg.begin(), ::tolower); // 转为小写以兼容 True/TRUE
+      std::transform(bfs_arg.begin(), bfs_arg.end(), bfs_arg.begin(), ::tolower); // Lowercase for compatibility with True/TRUE
       if (bfs_arg == "true" || bfs_arg == "1") {
          if_bfs_filter = true;
       } else {
@@ -240,7 +210,7 @@ int main(int argc, char *argv[])
       std::sort(efs_list.begin(), efs_list.end());
    }
 
-   // --- 加载元数据 ---
+   // --- Load metadata ---
    std::cout << "Loading metadata for base vectors from: " << base_label_path << std::endl;
    std::vector<std::vector<int>> metadata = load_ab_muti(dataset, gamma, "rand", N, base_label_path); // TODO
    metadata.resize(N);
@@ -251,7 +221,7 @@ int main(int argc, char *argv[])
    }
    printf("[%.3f s] Loaded metadata, %ld vectors found\n", elapsed() - t0, metadata.size());
 
-   // ==================== BUILD 模式 ====================
+   // ==================== BUILD mode ====================
    if (mode == "build")
    {
       omp_set_num_threads(nthreads);
@@ -289,7 +259,7 @@ int main(int argc, char *argv[])
                 << ", gamma=" << gamma << ", M_beta=" << M_beta
                 << std::endl;
 
-      // 构建 ACORN
+      // Build ACORN
       printf("[%.3f s] Adding %zu vectors to ACORN index...\n", elapsed() - t0, N);
       double t_start_acorn = elapsed();
       hybrid_index.add(N, xb);
@@ -298,14 +268,14 @@ int main(int argc, char *argv[])
 
       std::cout << "ACORN index built. Now building ACORN-1 index with gamma=1 and M_beta=" << M * 2 << std::endl;
 
-      // 构建 ACORN-1
+      // Build ACORN-1
       printf("[%.3f s] Adding %zu vectors to ACORN-1 index...\n", elapsed() - t0, N);
       double t_start_acorn1 = elapsed();
       hybrid_index_gamma1.add(N, xb);
       double acorn_1_build_time_s = elapsed() - t_start_acorn1;
       printf("[%.3f s] ACORN-1 build time: %.3f s\n", elapsed() - t0, acorn_1_build_time_s);
 
-      // --- ACORN RabitQ side-index 构建 (可选) ---
+      // --- Optional ACORN RabitQ side-index build ---
       bool rabitq_enabled = false;
       double rabitq_build_time_s = 0.0;
       long long rabitq_side_size_bytes = 0;
@@ -384,21 +354,21 @@ int main(int argc, char *argv[])
 
       delete[] xb;
 
-      // 保存索引
+      // Save indexes
       printf("[%.3f s] Saving ACORN index to %s\n", elapsed() - t0, index_path_acorn.c_str());
       faiss::write_index(&hybrid_index, index_path_acorn.c_str());
 
       printf("[%.3f s] Saving ACORN-1 index to %s\n", elapsed() - t0, index_path_acorn1.c_str());
       faiss::write_index(&hybrid_index_gamma1, index_path_acorn1.c_str());
 
-      // --- ACORN 索引大小计算 ---
+      // --- ACORN index size computation ---
       long acorn_total_size_bytes = get_file_size(index_path_acorn);
-      long acorn_vectors_size_bytes = (long)N * d * sizeof(float);// 计算理论向量大小 (N * d * 4 bytes)
-      long acorn_index_only_size_bytes = acorn_total_size_bytes - acorn_vectors_size_bytes;// 计算纯索引结构大小
+      long acorn_vectors_size_bytes = (long)N * d * sizeof(float);// Theoretical vector size: N * d * 4 bytes
+      long acorn_index_only_size_bytes = acorn_total_size_bytes - acorn_vectors_size_bytes;// Pure index-structure size
 
-      // --- ACORN 逻辑内存大小计算 (新增, 模拟UNG的.size()统计) ---
+      // --- ACORN logical memory size computation, matching UNG-style .size() accounting ---
       size_t acorn_index_only_logical_memory_bytes = hybrid_index.acorn.get_logical_memory_usage();
-      size_t acorn_vectors_memory_bytes = (size_t)acorn_vectors_size_bytes; // 保持一致
+      size_t acorn_vectors_memory_bytes = (size_t)acorn_vectors_size_bytes; // Keep accounting consistent
       size_t acorn_total_logical_memory_bytes = acorn_index_only_logical_memory_bytes + acorn_vectors_memory_bytes;
 
       // Meta size fields now use sizeof-style logical memory accounting.
@@ -416,7 +386,7 @@ int main(int argc, char *argv[])
       std::ofstream meta_file(index_path_acorn + ".meta");
       meta_file << "build_time_s:" << acorn_build_time_s << std::endl;
       meta_file << "total_build_time_s:" << acorn_total_build_time_s << std::endl;
-      // 磁盘大小 (Disk size)
+      // Disk size
       meta_file << "total_size_bytes:" << acorn_total_size_for_meta << std::endl;
       meta_file << "index_only_size_bytes:" << acorn_index_only_size_for_meta << std::endl;
       meta_file << "faiss_index_file_size_bytes:" << acorn_total_size_bytes << std::endl;
@@ -424,7 +394,7 @@ int main(int argc, char *argv[])
       meta_file << "rabitq_total_bits:" << (rabitq_enabled ? rabitq_total_bits : 0) << std::endl;
       meta_file << "rabitq_build_time_s:" << (rabitq_enabled ? rabitq_build_time_s : 0.0) << std::endl;
       meta_file << "rabitq_side_size_bytes:" << (rabitq_enabled ? rabitq_side_size_bytes : 0) << std::endl;
-      // 逻辑内存大小 (Logical Memory size - 新增)
+      // Logical memory size
       meta_file << "total_logical_memory_bytes:" << acorn_total_logical_memory_bytes << std::endl;
       meta_file << "index_only_logical_memory_bytes:" << acorn_index_only_logical_memory_bytes << std::endl;
       meta_file.close();
@@ -439,16 +409,16 @@ int main(int argc, char *argv[])
             (double)acorn_index_only_logical_memory_bytes / (1024.0 * 1024.0)
       );
 
-      // --- ACORN-1 索引大小计算 ---
+      // --- ACORN-1 index size computation ---
       long acorn_1_total_size_bytes = get_file_size(index_path_acorn1);
       long acorn_1_vectors_size_bytes = (long)N * d * sizeof(float);
       long acorn_1_index_only_size_bytes = acorn_1_total_size_bytes - acorn_1_vectors_size_bytes;
-      // --- ACORN-1 逻辑内存大小计算 (新增, 模拟UNG的.size()统计) ---
+      // --- ACORN-1 logical memory size computation, matching UNG-style .size() accounting ---
       size_t acorn_1_index_only_logical_memory_bytes = hybrid_index_gamma1.acorn.get_logical_memory_usage();
-      size_t acorn_1_vectors_memory_bytes = (size_t)acorn_1_vectors_size_bytes; // 保持一致
+      size_t acorn_1_vectors_memory_bytes = (size_t)acorn_1_vectors_size_bytes; // Keep accounting consistent
       size_t acorn_1_total_logical_memory_bytes = acorn_1_index_only_logical_memory_bytes + acorn_1_vectors_memory_bytes;
 
-      // 保存元数据文件
+      // Save metadata file
       long long acorn_1_total_size_for_meta = static_cast<long long>(acorn_1_total_logical_memory_bytes);
       long long acorn_1_index_only_size_for_meta = static_cast<long long>(acorn_1_index_only_logical_memory_bytes);
       if (rabitq_enabled && rabitq_side_size_bytes_1 > 0)
@@ -463,7 +433,7 @@ int main(int argc, char *argv[])
       std::ofstream meta_file1(index_path_acorn1 + ".meta");
       meta_file1 << "build_time_s:" << acorn_1_build_time_s << std::endl;
       meta_file1 << "total_build_time_s:" << acorn_1_total_build_time_s << std::endl;
-      // 磁盘大小 (Disk size)
+      // Disk size
       meta_file1 << "total_size_bytes:" << acorn_1_total_size_for_meta << std::endl;
       meta_file1 << "index_only_size_bytes:" << acorn_1_index_only_size_for_meta << std::endl;
       meta_file1 << "faiss_index_file_size_bytes:" << acorn_1_total_size_bytes << std::endl;
@@ -471,7 +441,7 @@ int main(int argc, char *argv[])
       meta_file1 << "rabitq_total_bits:" << (rabitq_enabled ? rabitq_total_bits : 0) << std::endl;
       meta_file1 << "rabitq_build_time_s:" << (rabitq_enabled ? rabitq_build_time_s : 0.0) << std::endl;
       meta_file1 << "rabitq_side_size_bytes:" << (rabitq_enabled ? rabitq_side_size_bytes_1 : 0) << std::endl;
-      // 逻辑内存大小 (Logical Memory size - 新增)
+      // Logical memory size
       meta_file1 << "total_logical_memory_bytes:" << acorn_1_total_logical_memory_bytes << std::endl;
       meta_file1 << "index_only_logical_memory_bytes:" << acorn_1_index_only_logical_memory_bytes << std::endl;
       meta_file1.close();
@@ -481,20 +451,20 @@ int main(int argc, char *argv[])
            "    Logical Memory (like UNG): Total=%.2f MB, Index-Only=%.2f MB.\n",
             elapsed() - t0,
             (double)acorn_1_total_size_bytes / (1024.0 * 1024.0),
-            (double)acorn_1_index_only_size_bytes / (1024.0 * 1024.0), // <-- 修正点 2
+            (double)acorn_1_index_only_size_bytes / (1024.0 * 1024.0), // Correction 2
             (double)acorn_1_total_logical_memory_bytes / (1024.0 * 1024.0),
             (double)acorn_1_index_only_logical_memory_bytes / (1024.0 * 1024.0)
-            // <-- 删除了多余的 acorn_1_vectors_size_bytes 变量
+            // Removed the redundant acorn_1_vectors_size_bytes variable
       );
 
-      // 保存倒排索引
+      // Save inverted index
       std::string inverted_index_path = index_path_acorn + ".inverted_index";
       build_and_save_inverted_index(metadata, N, inverted_index_path);
 
       printf("[%.3f s] Build finished successfully.\n", elapsed() - t0);
       return 0;
    }
-   // ==================== SEARCH 模式 ====================
+   // ==================== SEARCH mode ====================
    else if (mode == "search")
    {
       omp_set_num_threads(nthreads);
@@ -505,7 +475,7 @@ int main(int argc, char *argv[])
                 << ", dataset=" << dataset
                 << ", k= " << k << std::endl;
 
-      // --- 加载构建阶段的元数据 (build time, index size) ---
+      // --- Load build-stage metadata, including build time and index size ---
       double acorn_build_time_s = 0.0, acorn_1_build_time_s = 0.0;
       long acorn_index_size_bytes = 0, acorn_1_index_size_bytes = 0;
 
@@ -521,7 +491,7 @@ int main(int argc, char *argv[])
             if (key == "build_time_s")
                ss >> acorn_build_time_s;
             if (key == "total_size_bytes")
-               ss >> acorn_index_size_bytes; // 修正：读取total size
+               ss >> acorn_index_size_bytes; // Correction: read total size
          }
          meta_file.close();
       }
@@ -541,7 +511,7 @@ int main(int argc, char *argv[])
             if (key == "build_time_s")
                ss >> acorn_1_build_time_s;
             if (key == "total_size_bytes")
-               ss >> acorn_1_index_size_bytes; // 修正：读取total size
+               ss >> acorn_1_index_size_bytes; // Correction: read total size
          }
          meta_file1.close();
       }
@@ -550,7 +520,7 @@ int main(int argc, char *argv[])
          printf("Warning: Could not open meta file for ACORN-1 index: %s.meta\n", index_path_acorn1.c_str());
       }
 
-      // --- 加载索引 ---
+      // --- Load indexes ---
       faiss::IndexACORNFlat *hybrid_index = nullptr;
       faiss::IndexACORNFlat *hybrid_index_gamma1 = nullptr;
 
@@ -571,13 +541,13 @@ int main(int argc, char *argv[])
          exit(1);
       }
 
-      // 重新关联元数据
+      // Re-associate metadata
       printf("[%.3f s] Re-associating metadata with loaded indexes...\n", elapsed() - t0);
       hybrid_index->set_metadata(metadata);
       hybrid_index_gamma1->set_metadata(metadata);
       printf("[%.3f s] Indexes loaded and ready for search.\n", elapsed() - t0);
 
-      // --- 加载查询数据 ---
+      // --- Load query data ---
       size_t nq;
       float *xq;
       std::vector<std::vector<int>> aq;
@@ -598,7 +568,7 @@ int main(int argc, char *argv[])
          printf("[%.3f s] Loaded %zu queries\n", elapsed() - t0, nq);
       }
 
-      // --- 准备结果存储 ---
+      // --- Prepare result storage ---
       int efs_cnt = efs_list.size();
       std::vector<std::vector<std::vector<QueryResult>>> all_query_results(repeat_num, std::vector<std::vector<QueryResult>>(efs_cnt, std::vector<QueryResult>(nq)));
       for (int r = 0; r < repeat_num; ++r)
@@ -608,7 +578,7 @@ int main(int argc, char *argv[])
 
       std::vector<AggregatedResult> final_avg_results(efs_cnt);
 
-      // +++ 新增：加载二进制 Ground Truth 文件 +++
+      // Load binary ground-truth file
       std::cout << "\n[INFO] Loading binary ground truth from: " << gt_bin_path << std::endl;
       double t_load_gt_start = elapsed();
       auto gt_data = new std::pair<ANNS::IdxType, float>[nq * k];
@@ -617,12 +587,12 @@ int main(int argc, char *argv[])
       double t_load_gt_end = elapsed();
       printf("[INFO] Binary ground truth loaded in %.3f s.\n\n", t_load_gt_end - t_load_gt_start);
 
-      // +++ 检查连通性 +++
+      // Check graph connectivity
       printf("\n--- Checking Graph Connectivity ---\n");
-      hybrid_index->acorn.check_connectivity(0); // 检查 Layer 0
+      hybrid_index->acorn.check_connectivity(0); // Check Layer 0
       printf("-----------------------------------\n\n");
 
-      // --- 计算 filter map ---
+      // --- Compute filter map ---
       std::string inverted_index_path = index_path_acorn + ".inverted_index";
       std::unordered_map<int, std::vector<int>> inverted_index = load_inverted_index(inverted_index_path);
       hybrid_index->set_inverted_index(inverted_index);
@@ -634,7 +604,7 @@ int main(int argc, char *argv[])
       double filter_para_time_s = elapsed() - t_filter_para_0;
       printf("[%.3f s] Filter map created in %.4f s\n", elapsed() - t0, filter_para_time_s);
 
-      // --- 多次重复执行搜索 ---
+      // --- Execute repeated searches ---
       for (int repeat = 0; repeat < repeat_num; repeat++)
       {
          std::cout << "=============== Repeat " << repeat + 1 << "/" << repeat_num << " ===============" << std::endl;
@@ -642,7 +612,7 @@ int main(int argc, char *argv[])
          {
             int current_efs = efs_list[efs_id];
 
-            // --- 搜索 ACORN ---
+            // --- Search ACORN ---
             std::vector<faiss::idx_t> nns2(k * nq);
             std::vector<float> dis2(k * nq);
             std::vector<double> query_times(nq);
@@ -658,25 +628,25 @@ int main(int argc, char *argv[])
             double search_time_acorn_s = elapsed() - t1_acorn;
             const faiss::ACORNStats &acorn_search_stats = faiss::acorn_stats;
 
-            // +++ 新增：使用新的函数计算 ACORN Recall +++
+            // Compute ACORN recall with the updated function
             std::vector<float> recalls_acorn(nq);
 #pragma omp parallel for
             for (size_t i = 0; i < nq; ++i)
             {
-               // [调试代码] 仅针对第 0 个查询进行深度诊断
+               // Debug code: run detailed diagnostics only for query 0
                if (i == 0) {
                   printf("\n================ [DEBUG DIAGNOSIS START] ================\n");
                   printf("Query ID: %zu\n", i);
                   
-                  // 1. 打印算法找到的前 10 个结果 (ID 和 距离)
+                  // 1. Print the top 10 algorithm results, including ID and distance
                   printf("--- Algorithm Search Results ---\n");
                   printf("%-10s %-15s %-15s\n", "Rank", "ID", "Distance");
                   for (int z = 0; z < k; ++z) {
                      printf("%-10d %-15lld %-15.6f\n", z, nns2[i * k + z], dis2[i * k + z]);
                   }
 
-                  // 2. 打印 Ground Truth 里的前 10 个结果 (ID 和 距离)
-                  // 注意：gt_data 里的 float 通常是距离
+                  // 2. Print the top 10 ground-truth results, including ID and distance
+                  // Note: the float value in gt_data is usually the distance
                   printf("\n--- Ground Truth (Standard Answer) ---\n");
                   printf("%-10s %-15s %-15s\n", "Rank", "ID", "Distance");
                   for (int z = 0; z < k; ++z) {
@@ -685,11 +655,11 @@ int main(int argc, char *argv[])
                      printf("%-10d %-15d %-15.6f\n", z, gt_id, gt_dist);
                   }
                   
-                  // 3. [核心检查] 检查 GT 中的 ID 在当前的 Filter Map 中是否被允许？
-                  // 如果 filter_map 判定 GT ID 为 false，那算法永远搜不到它，这就是 Filter 生成逻辑的问题
-                  // 我们需要临时重新生成一下 map 来检查 (因为 filter_ids_map_para 可能不可见或被销毁)
-                  // 这里简单调用一下生成逻辑 (会有一点性能损耗，但在 debug 时无所谓)
-                  // 注意：需要 access inverted_index，确保变量名对应
+                  // 3. Core check: determine whether GT IDs are allowed by the current filter map.
+                  // If filter_map marks a GT ID as false, the algorithm can never retrieve it, indicating an issue in filter generation.
+                  // Regenerate the map temporarily because filter_ids_map_para may be unavailable or destroyed.
+                  // This incurs a small performance cost, which is acceptable during debugging.
+                  // Ensure inverted_index is accessible and variable names are correct.
                   if (hybrid_index != nullptr) {
                         printf("\n--- Filter Validity Check for GT Items ---\n");
                         std::vector<char> debug_filter = generate_single_filter_map(
@@ -697,7 +667,7 @@ int main(int argc, char *argv[])
                         
                         for (int z = 0; z < k; ++z) {
                            ANNS::IdxType gt_id = (gt_data + i * k)[z].first;
-                           // 检查边界
+                           // Check bounds
                            if (gt_id >= 0 && gt_id < debug_filter.size()) {
                               bool allowed = debug_filter[gt_id];
                               printf("GT ID %d -> Filter Allowed? %s\n", gt_id, allowed ? "YES" : "NO [FATAL]");
@@ -711,7 +681,7 @@ int main(int argc, char *argv[])
                recalls_acorn[i] = calculate_single_query_recall(gt_data + i * k, nns2.data() + i * k, dis2.data() + i * k,k);
             }
 
-            // --- 搜索 ACORN-1 ---
+            // --- Search ACORN-1 ---
             std::vector<faiss::idx_t> nns3(k * nq);
             std::vector<float> dis3(k * nq);
             std::vector<double> query_times3(nq);
@@ -726,7 +696,7 @@ int main(int argc, char *argv[])
             double search_time_acorn1_s = elapsed() - t1_acorn1;
             const faiss::ACORNStats &acorn1_search_stats = faiss::acorn_stats;
 
-            // --- 使用新的方法计算 Recall ---
+            // --- Compute recall with the updated method ---
             float recall_mean_acorn = std::accumulate(recalls_acorn.begin(), recalls_acorn.end(), 0.0f) / nq;
 
             std::vector<float> recalls_acorn1(nq);
@@ -740,7 +710,7 @@ int main(int argc, char *argv[])
             std::cout << "  ACORN   | Time: " << search_time_acorn_s << " s, QPS: " << nq / search_time_acorn_s << ", Recall: " << recall_mean_acorn << std::endl;
             std::cout << "  ACORN-1 | Time: " << search_time_acorn1_s << " s, QPS: " << nq / search_time_acorn1_s << ", Recall: " << recall_mean_acorn1 << std::endl;
 
-            // --- 存储单次结果 ---
+            // --- Store per-run results ---
             for (int i = 0; i < nq; i++)
             {
                all_query_results[repeat][efs_id][i].acorn_time_ms = query_times[i] * 1000.0;
@@ -753,7 +723,7 @@ int main(int argc, char *argv[])
                all_query_results[repeat][efs_id][i].acorn_1_n3 = query_n33[i];
             }
 
-            // --- 累加结果用于最终平均 ---
+            // --- Accumulate results for final averaging ---
             final_avg_results[efs_id].total_acorn_time_s += search_time_acorn_s;
             final_avg_results[efs_id].total_acorn_recall += recall_mean_acorn;
             final_avg_results[efs_id].total_acorn_n3 += (acorn_search_stats.n1 > 0) ? ((size_t)acorn_search_stats.n3) : 0;
@@ -764,7 +734,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      // --- 生成动态文件名 ---
+      // --- Generate dynamic filenames ---
       std::string query_num_str = query_path.substr(query_path.find_last_of('_') + 1);
       std::stringstream efs_str_stream;
       efs_str_stream << efs_list.front() << "-" << efs_list.back();
@@ -787,7 +757,7 @@ int main(int argc, char *argv[])
       printf("\n[%.3f s] Writing detailed results to: %s\n", elapsed() - t0, full_csv_path.c_str());
       printf("[%.3f s] Writing average results to: %s\n", elapsed() - t0, full_avg_csv_path.c_str());
 
-      // --- 写详细CSV文件 (per query) ---
+      // --- Write detailed CSV file, per query ---
       std::ofstream csv_file(full_csv_path);
       csv_file << "repeat,efs,QueryID,acorn_Time_ms,acorn_QPS,acorn_Recall,acorn_n3_visited,"
                << "acorn_build_time_ms,acorn_index_size_MB,"
@@ -815,12 +785,12 @@ int main(int argc, char *argv[])
       }
       csv_file.close();
 
-      // --- 写平均CSV文件 (per efs) ---
+      // --- Write average CSV file, per efs ---
       std::ofstream avg_csv_file(full_avg_csv_path);
       avg_csv_file << "efs,acorn_Time_ms,acorn_QPS,acorn_Recall,acorn_n3_visited_avg,"
                    << "acorn_build_time_ms,acorn_index_size_MB,"
                    << "acorn_1_Time_ms,acorn_1_QPS,acorn_1_Recall,acorn_1_n3_visited_avg,"
-                   << "acorn_1_build_time_ms,acorn_1_index_size_MB\n"; // 移除了 FilterMapTime
+                   << "acorn_1_build_time_ms,acorn_1_index_size_MB\n"; // Removed FilterMapTime
       for (int efs_id = 0; efs_id < efs_list.size(); efs_id++)
       {
          const auto &aggregated = final_avg_results[efs_id];

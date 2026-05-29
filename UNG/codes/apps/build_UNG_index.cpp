@@ -78,7 +78,7 @@ int main(int argc, char **argv)
       desc.add_options()("alpha", po::value<float>(&alpha)->default_value(ANNS::default_paras::ALPHA),
                          "Alpha for building Vamana");
       desc.add_options()("build_rabitq_side_index", po::value<bool>(&build_rabitq_side_index)->default_value(false),
-                         "Build and persist RabitQ side index for UNG query acceleration");
+                         "Build and persist RabitQ side index for UNG query acceleration (disabled unless UNG_ENABLE_RABITQ=ON)");
       desc.add_options()("rabitq_total_bits", po::value<size_t>(&rabitq_total_bits)->default_value(4),
                          "Total quantization bits for RabitQ side index [1..9]");
 
@@ -108,6 +108,13 @@ int main(int argc, char **argv)
       std::cerr << "Invalid rabitq_total_bits: " << rabitq_total_bits << ", expected in [1, 9]." << std::endl;
       return -1;
    }
+#if !UNG_ENABLE_RABITQ
+   if (build_rabitq_side_index)
+   {
+      std::cerr << "[RabitQ] RabitQ support is disabled at compile time. Ignoring --build_rabitq_side_index." << std::endl;
+      build_rabitq_side_index = false;
+   }
+#endif
 
    // load base data
    std::shared_ptr<ANNS::IStorage> base_storage = ANNS::create_storage(data_type);
@@ -144,73 +151,6 @@ int main(int argc, char **argv)
 
    // save index
    index.save(index_path_prefix, result_path_prefix);
-
-   // 测试读取向量-属性二分图的函数
-   // ANNS::UniNavGraph index2;
-   // index2.load_bipartite_graph(index_path_prefix + "vector_attr_graph");
-   // index2.compare_graphs(index, index2);
-
-   /*if (generate_query)
-   {
-      // 生成查询标签和查询向量：(文件名，每个group中有几个查询向量, 每个属性的概率, 是否分层抽样, 是否验证是子集)
-      std::cout << "Generating query file ..." << std::endl;
-      std::cout << "Query file path: " << query_file_path << std::endl;
-      if (generate_query_task == "gene_by_lng")
-         index.generate_multiple_queries(dataset, index, 10, query_file_path, 1, 1, 0.5f, false, true); // 根据LNG的group生成查询任务
-      else if (generate_query_task == "method1_high_coverage")                                          // 极端数据方法1-高覆盖率
-      {
-         index.generate_queries_method1_high_coverage(query_file_path, dataset, 1000, base_label_file, method1_high_coverage_p);
-      }
-      else if (generate_query_task == "method1_low_coverage") // 极端数据方法1-低覆盖率:选出覆盖率在 (0, coverage_threshold=0.1] 区间且出现次数 ≥ K=10 的组合
-      {
-         index.generate_queries_method1_low_coverage(query_file_path, dataset, 1000, base_label_file, 7, 0.1f, 10);
-      }
-      else if (generate_query_task == "method2_high_coverage") // 极端数据方法2-高覆盖率
-      {
-         //(int N, int K, int top_M_trees, std::string dataset, const std::string &output_prefix, const std::string &base_label_tree_roots);
-         index.generate_queries_method2_high_coverage(1000, 10, 2, dataset, query_file_path, base_label_tree_roots);
-      }
-      else if (generate_query_task == "method2_low_coverage") // 极端数据方法2-低覆盖率
-      {
-         index.generate_queries_method2_low_coverage(query_file_path, dataset, 1000, base_label_file, 7, 10, 50, 5);
-      }
-      else if (generate_query_task == "true_data_high_coverage")
-      {
-         index.generate_queries_true_data_high_coverage(1000, 10, 2, dataset, query_file_path, 0.05);
-      }
-      else if (generate_query_task == "true_data_low_coverage")
-      {
-         index.generate_queries_true_data_low_coverage(query_file_path, dataset, 1000, base_label_file, 7, 0.1f, 10);
-      }
-      else if (generate_query_task == "hard_sandwich") // 极端数据方法3-硬三明治
-      {
-         index.generate_queries_hard_sandwich(
-             3000,            // 生成查询的个数
-             query_file_path, // 输出目录
-             dataset,         // 数据集名字
-             0.0f,            // 父节点覆盖率至少
-             1.0f,            // 子节点覆盖率至多
-             0.00007f,        // 查询选择率至少
-             0.9f             // 查询选择率至多
-         );
-      }
-      else if (generate_query_task == "hard_top_n_rare")
-      {
-         index.generate_queries_hard_top_n_rare(
-             3000,            // 生成查询的个数
-             query_file_path, // 输出目录
-             dataset,         // 数据集名字
-             8,               // top n
-             0.000005f,       // 查询选择率至少
-             0.1f,            // 查询选择率至多
-             15);             // 最小频率
-      }
-
-      else
-      {
-         std::cout << "Error in generate_query_task" << std::endl;
-      }
-   }*/
 
    return 0;
 }

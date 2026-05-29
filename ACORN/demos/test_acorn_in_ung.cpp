@@ -45,23 +45,23 @@ std::map<std::string, std::string> parse_arguments(int argc, char *argv[])
 // Function to print usage instructions
 void print_usage(const char *prog_name)
 {
-   std::cerr << "用法: " << prog_name << " [参数]\n\n"
-             << "必需参数:\n"
-             << "  --dataset <string>         数据集名称 (例如: sift1m)\n"
-             << "  --base_path <path>         基础向量数据目录\n"
-             << "  --base_label_path <path>   基础向量属性标签目录\n"
-             << "  --query_vec_path <path>    查询向量文件路径\n"
-             << "  --query_attr_path <path>   查询属性文件目录\n"
-             << "  --output_path <path>       结果输出文件路径\n"
-             << "  --N <int>                  数据库向量数量\n"
-             << "  --M <int>                  ACORN图的邻居数\n"
-             << "  --M_beta <int>             ACORN压缩层的邻居数\n"
-             << "  --gamma <int>              ACORN的属性分区数\n"
-             << "  --efs <int>                ACORN的搜索参数efSearch\n"
-             << "  --k <int>                  要查找的最近邻数量\n"
-             << "  --threads <int>            使用的线程数\n\n"
-             << "可选参数:\n"
-             << "  --compute_recall           启用召回率计算 (耗时较长)\n"
+   std::cerr << "Usage: " << prog_name << " [arguments]\n\n"
+             << "Required arguments:\n"
+             << "  --dataset <string>         Dataset name, for example sift1m\n"
+             << "  --base_path <path>         Base vector data directory\n"
+             << "  --base_label_path <path>   Base vector attribute-label directory\n"
+             << "  --query_vec_path <path>    Query vector file path\n"
+             << "  --query_attr_path <path>   Query attribute file directory\n"
+             << "  --output_path <path>       Result output file path\n"
+             << "  --N <int>                  Number of database vectors\n"
+             << "  --M <int>                  Number of neighbors in the ACORN graph\n"
+             << "  --M_beta <int>             Number of neighbors in the ACORN compression layer\n"
+             << "  --gamma <int>              Number of ACORN attribute partitions\n"
+             << "  --efs <int>                ACORN efSearch parameter\n"
+             << "  --k <int>                  Number of nearest neighbors to retrieve\n"
+             << "  --threads <int>            Number of threads to use\n\n"
+             << "Optional arguments:\n"
+             << "  --compute_recall           Enable recall computation, which may be time-consuming\n"
              << std::endl;
 }
 
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
    {
       if (args.find(key) == args.end())
       {
-         std::cerr << "错误: 缺少必需参数 --" << key << std::endl;
+         std::cerr << "Error: Missing required argument --" << key << std::endl;
          print_usage(argv[0]);
          return 1;
       }
@@ -173,10 +173,10 @@ int main(int argc, char *argv[])
    bool compute_recall = args.count("compute_recall") > 0;
 
    omp_set_num_threads(nthreads);
-   std::cout << "参数解析完成. 使用 " << nthreads << " 个线程." << std::endl;
+   std::cout << "Argument parsing completed. Using " << nthreads << " threads." << std::endl;
    if (compute_recall)
    {
-      std::cout << "召回率计算已启用." << std::endl;
+      std::cout << "Recall computation is enabled." << std::endl;
    }
 
    // --- 3. Load Data & Attributes ---
@@ -191,78 +191,78 @@ int main(int argc, char *argv[])
    try
    {
       // Load base vectors
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在加载数据库向量..." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loading database vectors..." << std::endl;
       size_t d_base, nb;
       std::string base_filename = base_path + "/" + dataset + "_base.fvecs";
       float *xb_raw = fvecs_read(base_filename.c_str(), &d_base, &nb);
       if (!xb_raw)
-         throw std::runtime_error("无法读取基础向量文件: " + base_filename);
+         throw std::runtime_error("Unable to read base vector file: " + base_filename);
       d = d_base;
       xb.assign(xb_raw, xb_raw + nb * d);
       delete[] xb_raw; // Immediately free raw pointer after copy
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 加载了 " << nb << " 个数据库向量 (维度: " << d << ")." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loaded " << nb << " database vectors (dimension: " << d << ")." << std::endl;
 
       // Load query vectors
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在加载查询向量..." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loading query vectors..." << std::endl;
       size_t d_query;
       float *xq_raw = fvecs_read(query_vec_path.c_str(), &d_query, &nq);
       if (!xq_raw)
-         throw std::runtime_error("无法读取查询向量文件: " + query_vec_path);
+         throw std::runtime_error("Unable to read query vector file: " + query_vec_path);
       if (d != d_query)
-         throw std::runtime_error("基础向量和查询向量的维度不匹配!");
+         throw std::runtime_error("Base vectors and query vectors have mismatched dimensions.");
       xq.assign(xq_raw, xq_raw + nq * d);
       delete[] xq_raw;
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 加载了 " << nq << " 个查询向量 (维度: " << d << ")." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loaded " << nq << " query vectors (dimension: " << d << ")." << std::endl;
 
       // Load base attributes
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在加载数据库属性..." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loading database attributes..." << std::endl;
       metadata = load_ab_muti(dataset, gamma, "rand", N, base_label_path);
       metadata.resize(N);
       for (auto &vec : metadata)
       {
          std::sort(vec.begin(), vec.end());
       }
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 加载了 " << metadata.size() << " 个数据库条目的属性." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loaded attributes for " << metadata.size() << " database entries." << std::endl;
 
       // Load query attributes
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在加载查询属性..." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loading query attributes..." << std::endl;
       aq = load_txt_to_vector_multi<int>(query_attr_path);
       for (auto &vec : aq)
       {
          std::sort(vec.begin(), vec.end());
       }
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 加载了 " << aq.size() << " 个查询的属性." << std::endl;
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Loaded attributes for " << aq.size() << " queries." << std::endl;
 
       if (nq != aq.size())
       {
-         throw std::runtime_error("查询向量数量和查询属性数量不匹配!");
+         throw std::runtime_error("The number of query vectors does not match the number of query attributes.");
       }
    }
    catch (const std::exception &e)
    {
-      std::cerr << "数据加载时发生错误: " << e.what() << std::endl;
+      std::cerr << "Error while loading data: " << e.what() << std::endl;
       return 1;
    }
 
    // --- 4. Build ACORN Index ---
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在创建 ACORN 索引 (M=" << M << ", gamma=" << gamma << ")..." << std::endl;
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Creating ACORN index (M=" << M << ", gamma=" << gamma << ")..." << std::endl;
    faiss::IndexACORNFlat hybrid_index(d, M, gamma, metadata, M_beta);
    double t_build_0 = elapsed();
    hybrid_index.add(N, xb.data());
    double t_build_1 = elapsed();
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 成功将 " << N << " 个向量添加到索引. 构建耗时: " << t_build_1 - t_build_0 << " s." << std::endl;
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Added " << N << " vectors to the index successfully. Build time: " << t_build_1 - t_build_0 << " s." << std::endl;
    hybrid_index.printStats(false);
 
    // --- 5. Perform Filtered Search ---
-   std::cout << "==================== 开始搜索 ====================\n";
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在为 " << nq << " 个查询搜索 " << k << " 个近邻 (efs=" << efs << ")..." << std::endl;
+   std::cout << "==================== Starting Search ====================\n";
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Searching " << k << " nearest neighbors for " << nq << " queries (efs=" << efs << ")..." << std::endl;
 
    hybrid_index.acorn.efSearch = efs;
 
    std::vector<faiss::idx_t> result_labels(k * nq, -1);
    std::vector<float> result_dists(k * nq, -1.0f);
 
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在创建属性过滤器..." << std::endl;
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Creating attribute filter..." << std::endl;
    double t_filter_0 = elapsed();
    std::vector<char> filter_ids_map(nq * N);
 #pragma omp parallel for
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
       }
    }
    double t_filter_1 = elapsed();
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 属性过滤器创建完成. 耗时: " << t_filter_1 - t_filter_0 << " s" << std::endl;
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Attribute filter created. Time: " << t_filter_1 - t_filter_0 << " s" << std::endl;
 
    double t_search_0 = elapsed();
    hybrid_index.search(nq, xq.data(), k, result_dists.data(), result_labels.data(), filter_ids_map.data(), nullptr, nullptr, nullptr, true);
@@ -286,17 +286,17 @@ int main(int argc, char *argv[])
 
    double search_time = t_search_1 - t_search_0;
    double qps = (search_time > 0) ? (nq / search_time) : 0;
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 搜索完成. 总耗时: " << search_time << " s, QPS: " << std::fixed << std::setprecision(2) << qps << std::endl;
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Search completed. Total time: " << search_time << " s, QPS: " << std::fixed << std::setprecision(2) << qps << std::endl;
 
    // --- 6. Calculate Recall (Optional) ---
    if (compute_recall)
    {
-      std::cout << "==================== 计算召回率 ====================\n";
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在计算真实近邻 (Ground Truth)，这可能需要很长时间..." << std::endl;
+      std::cout << "==================== Computing Recall ====================\n";
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Computing ground truth nearest neighbors. This may take a long time..." << std::endl;
       double t_gt_0 = elapsed();
       auto ground_truth = compute_ground_truth(nq, N, d, k, xq, xb, filter_ids_map);
       double t_gt_1 = elapsed();
-      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 真实近邻计算完成. 耗时: " << t_gt_1 - t_gt_0 << " s\n";
+      std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Ground truth computation completed. Time: " << t_gt_1 - t_gt_0 << " s\n";
 
       // 1. Calculate recall for each query individually
       auto per_query_recalls = calculate_per_query_recall(result_labels, ground_truth, nq, k);
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
       double total_recall_sum = 0.0;
       int queries_with_gt = 0;
 
-      std::cout << "\n--- 每个查询的召回率 (Recall@" << k << ") ---\n";
+      std::cout << "\n--- Per-query Recall@" << k << " ---\n";
       std::cout << std::fixed << std::setprecision(4);
       for (size_t i = 0; i < per_query_recalls.size(); ++i)
       {
@@ -319,15 +319,15 @@ int main(int argc, char *argv[])
       // 2. Calculate the average of the per-query recalls
       double average_recall = (queries_with_gt > 0) ? total_recall_sum / queries_with_gt : 0.0;
 
-      std::cout << "\n>>> 平均召回率 (Macro Average Recall@" << k << "): " << average_recall << "\n\n";
+      std::cout << "\n>>> Macro Average Recall@" << k << ": " << average_recall << "\n\n";
    }
 
    // --- 7. Save Results ---
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 正在将结果 (包括完整向量) 写入到 " << output_path << "...\n";
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Writing results, including full vectors, to " << output_path << "...\n";
    std::ofstream out_file(output_path);
    if (!out_file.is_open())
    {
-      std::cerr << "错误: 无法打开输出文件 " << output_path << std::endl;
+      std::cerr << "Error: Unable to open output file " << output_path << std::endl;
       return 1;
    }
    out_file << std::fixed << std::setprecision(6);
@@ -353,10 +353,10 @@ int main(int argc, char *argv[])
       out_file << "---\n";
    }
    out_file.close();
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] 结果写入完成.\n";
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] Result writing completed.\n";
 
    // --- 8. Cleanup & Exit ---
    // No manual delete[] needed for xb and xq thanks to std::vector!
-   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] -----   任务完成   -----\n";
+   std::cout << "[" << std::fixed << std::setprecision(3) << elapsed() - t_start << " s] -----   Task completed   -----\n";
    return 0;
 }

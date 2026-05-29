@@ -10,8 +10,14 @@
 #include "config.h"
 #include "storage.h"
 
+#ifndef UNG_ENABLE_RABITQ
+#define UNG_ENABLE_RABITQ 0
+#endif
+
+#if UNG_ENABLE_RABITQ
 #include "rabitqlib/index/query.hpp"
 #include "rabitqlib/utils/rotator.hpp"
+#endif
 
 namespace ANNS::rabitq {
 
@@ -24,14 +30,17 @@ class RabitQSideIndex {
     };
 
     struct QueryContext {
+#if UNG_ENABLE_RABITQ
         std::vector<float> rotated_query;
         std::vector<float> q_to_centroids;
         std::unique_ptr<rabitqlib::SplitSingleQuery<float>> query_wrapper;
+#endif
     };
 
     RabitQSideIndex() = default;
     ~RabitQSideIndex() = default;
 
+#if UNG_ENABLE_RABITQ
     bool build(
         const std::shared_ptr<ANNS::IStorage>& base_storage,
         const std::vector<ANNS::IdxType>& point_to_group,
@@ -68,8 +77,72 @@ class RabitQSideIndex {
     [[nodiscard]] bool enabled() const { return enabled_; }
     [[nodiscard]] size_t total_bits() const { return total_bits_; }
     [[nodiscard]] size_t ex_bits() const { return ex_bits_; }
+#else
+    bool build(
+        const std::shared_ptr<ANNS::IStorage>&,
+        const std::vector<ANNS::IdxType>&,
+        ANNS::IdxType,
+        size_t
+    ) { return false; }
+
+    bool save(const std::string&) const { return false; }
+    bool load(const std::string&) { return false; }
+    [[nodiscard]] uint64_t estimated_memory_bytes(bool include_rotator_state = false) const
+    {
+        (void)include_rotator_state;
+        return 0;
+    }
+    [[nodiscard]] uint64_t estimated_rotator_state_bytes() const { return 0; }
+
+    bool init_query(const char*, QueryContext&, InitTiming* timing = nullptr) const
+    {
+        if (timing != nullptr)
+        {
+            *timing = InitTiming{};
+        }
+        return false;
+    }
+    bool build_query_wrapper(QueryContext&) const { return false; }
+    bool save_query_context_cache(
+        const std::string&,
+        const std::vector<std::unique_ptr<QueryContext>>&
+    ) const { return false; }
+    bool load_query_context_cache(
+        const std::string&,
+        std::vector<std::unique_ptr<QueryContext>>&
+    ) const { return false; }
+    float estimate_bin(
+        ANNS::IdxType,
+        QueryContext&,
+        float* low_dist = nullptr
+    ) const
+    {
+        if (low_dist != nullptr)
+        {
+            *low_dist = 0.0f;
+        }
+        return 0.0f;
+    }
+    float estimate_full(
+        ANNS::IdxType,
+        QueryContext&,
+        float* low_dist = nullptr
+    ) const
+    {
+        if (low_dist != nullptr)
+        {
+            *low_dist = 0.0f;
+        }
+        return 0.0f;
+    }
+
+    [[nodiscard]] bool enabled() const { return false; }
+    [[nodiscard]] size_t total_bits() const { return 0; }
+    [[nodiscard]] size_t ex_bits() const { return 0; }
+#endif
 
    private:
+#if UNG_ENABLE_RABITQ
     bool enabled_ = false;
 
     size_t num_points_ = 0;
@@ -91,6 +164,7 @@ class RabitQSideIndex {
     std::vector<ANNS::IdxType> cluster_ids_;
     std::vector<uint8_t> bin_data_;
     std::vector<uint8_t> ex_data_;
+#endif
 };
 
 }  // namespace ANNS::rabitq

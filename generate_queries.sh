@@ -1,103 +1,103 @@
 #!/bin/bash
 
 # ==============================================================================
-# generate_queries.sh - 独立的查询数据生成脚本
-# 作用: 读取指定的JSON配置文件，并根据其内容执行一个或多个查询生成任务。
-#       支持多种生成模式 (generate, sub_base, weighted_sub_base, analyze)。
+# generate_queries.sh - Standalone query-data generation script
+# Purpose: read the specified JSON configuration file and execute one or more query-generation tasks.
+#          Supports multiple generation modes: generate, sub_base, weighted_sub_base, and analyze.
 # ==============================================================================
 
-set -e # 如果任何命令失败，则立即退出
+set -e # Exit immediately if any command fails
 
-# --- 检查jq是否安装 ---
+# --- Check whether jq is installed ---
 if ! command -v jq &> /dev/null; then
-    echo "错误: jq 未安装。请先安装 jq (https://stedolan.github.io/jq/)"
+    echo "Error: jq is not installed. Please install jq first: https://stedolan.github.io/jq/"
     exit 1
 fi
 
-# --- 检查命令行参数 ---
+# --- Validate command-line arguments ---
 CONFIG_FILE="$1"
 BUILD_DIR="/home/fengxiaoyao/FilterVector/build_gene"
 
 if [ -z "$CONFIG_FILE" ] || [ -z "$BUILD_DIR" ]; then
-    echo "错误: 参数不足。"
-    echo "用法: $0 /path/to/config.json /path/to/build_dir"
+    echo "Error: Insufficient arguments."
+    echo "Usage: $0 /path/to/config.json /path/to/build_dir"
     exit 1
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "错误: 配置文件不存在: $CONFIG_FILE"
+    echo "Error: Configuration file does not exist: $CONFIG_FILE"
     exit 1
 fi
 
-echo "使用配置文件: $CONFIG_FILE"
-echo "使用构建目录: $BUILD_DIR"
+echo "Using configuration file: $CONFIG_FILE"
+echo "Using build directory: $BUILD_DIR"
 
 # ==============================================================================
-# 核心逻辑: 遍历JSON文件中的所有任务
+# Core logic: iterate over all tasks in the JSON file
 # ==============================================================================
 cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
     
-    # --- 提取任务参数 ---
+    # --- Extract task parameters ---
     ENABLED=$(echo "$task" | jq -r '.enabled')
     TASK_NAME=$(echo "$task" | jq -r '.task_name')
 
     echo -e "\n=========================================================="
-    echo "正在处理任务: $TASK_NAME"
+    echo "Processing task: $TASK_NAME"
     
     if [[ "$ENABLED" != "true" ]]; then
-        echo "任务被禁用，跳过。"
+        echo "Task is disabled. Skipping."
         continue
     fi
 
-    # - 通用参数
+    # - Common parameters
     MODE=$(echo "$task" | jq -r '.mode // "generate"')
     DATASET=$(echo "$task" | jq -r '.dataset')
     DATA_DIR=$(echo "$task" | jq -r '.data_dir')
     OVERWRITE=$(echo "$task" | jq -r '.overwrite')
     
-    # --- 构造文件路径 ---
+    # --- Construct file paths ---
     QUERY_DIR="$DATA_DIR/query_${TASK_NAME}"
     QUERY_VECTORS_FILE="$QUERY_DIR/${DATASET}_query.fvecs"
-    QUERY_LABELS_FILE="$QUERY_DIR/${DATASET}_query_labels.txt" # 更新base labels文件
+    QUERY_LABELS_FILE="$QUERY_DIR/${DATASET}_query_labels.txt" # Update the base labels file
     
     BASE_LABELS_FILE="$DATA_DIR/${DATASET}_B_base_labels.txt"
     BASE_VECTORS_FILE="$DATA_DIR/${DATASET}_base.fvecs"
 
-    # --- 编译检查和自动编译 ---
+    # --- Build check and automatic compilation ---
     SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
     EXECUTABLE_PATH="$BUILD_DIR/tools/generate_mixed_queries"
     
     if [ ! -f "$EXECUTABLE_PATH" ]; then
-        echo "可执行文件不存在，开始编译..."
+        echo "Executable not found. Starting compilation..."
         mkdir -p "$BUILD_DIR"
-        SOURCE_CODE_DIR="${SCRIPT_DIR}/UNG/codes" # 此脚本与 UNG/ACORN 目录同级
+        SOURCE_CODE_DIR="${SCRIPT_DIR}/UNG/codes" # This script is at the same level as the UNG and ACORN directories
         if [ ! -d "$SOURCE_CODE_DIR" ]; then
-            # 如果不是，可以做一个兼容性调整
-            SOURCE_CODE_DIR="${SCRIPT_DIR}/codes" # 兼容旧的"codes"目录结构
+            # Compatibility fallback for older layouts
+            SOURCE_CODE_DIR="${SCRIPT_DIR}/codes" # Compatible with the legacy "codes" directory layout
         fi
-        echo "使用源码目录: $SOURCE_CODE_DIR"
+        echo "Using source directory: $SOURCE_CODE_DIR"
         cmake -S "$SOURCE_CODE_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
         make -C "$BUILD_DIR" -j generate_mixed_queries
     else
-        echo "编译产物已存在，跳过编译步骤。"
+        echo "Build artifact already exists. Skipping compilation."
     fi
 
-    # --- 检查是否跳过 ---
+    # --- Check whether to skip this task ---
     if [[ "$OVERWRITE" != "true" ]] && [ -f "$QUERY_VECTORS_FILE" ]; then
-        echo "查询文件 '$QUERY_VECTORS_FILE' 已存在且不允许覆盖，跳过任务。"
+        echo "Query file '$QUERY_VECTORS_FILE' already exists and overwrite is disabled. Skipping task."
         continue
     fi
     
-    echo "开始生成查询数据..."
+    echo "Starting query-data generation..."
     mkdir -p "$QUERY_DIR"
 
-    # --- 检查依赖文件 ---
-    if [ ! -f "$BASE_LABELS_FILE" ]; then echo "错误: Base labels 文件不存在: $BASE_LABELS_FILE"; exit 1; fi
-    if [ ! -f "$BASE_VECTORS_FILE" ]; then echo "错误: Base vectors 文件不存在: $BASE_VECTORS_FILE"; exit 1; fi
-    if [ ! -f "$EXECUTABLE_PATH" ]; then echo "错误: 可执行文件不存在: $EXECUTABLE_PATH"; exit 1; fi
+    # --- Check dependency files ---
+    if [ ! -f "$BASE_LABELS_FILE" ]; then echo "Error: Base labels file does not exist: $BASE_LABELS_FILE"; exit 1; fi
+    if [ ! -f "$BASE_VECTORS_FILE" ]; then echo "Error: Base vectors file does not exist: $BASE_VECTORS_FILE"; exit 1; fi
+    if [ ! -f "$EXECUTABLE_PATH" ]; then echo "Error: Executable does not exist: $EXECUTABLE_PATH"; exit 1; fi
 
-    # --- 根据模式构建并执行命令 ---
-    echo "任务模式: $MODE"
+    # --- Build and execute the command according to the selected mode ---
+    echo "Task mode: $MODE"
     
     CMD_BASE=(
         "$EXECUTABLE_PATH"
@@ -129,11 +129,11 @@ cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
             CMD+=("--cache-file" "$CACHE_FILE")
         fi
 
-        echo "执行 sub_base 模式命令..."
+        echo "Executing sub_base mode command..."
         "${CMD[@]}"
 
     elif [[ "$MODE" == "weighted_sub_base" ]]; then
-        # weighted_sub_base 使用与 sub_base 完全相同的参数块
+        # weighted_sub_base uses exactly the same parameter block as sub_base
         PARAMS=$(echo "$task" | jq -r '.sub_base_params')
         NUM_POINTS=$(echo "$PARAMS" | jq -r '.num_points')
         QUERY_LENGTH=$(echo "$PARAMS" | jq -r '.query_length')
@@ -142,7 +142,7 @@ cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
         MIN_CHILDREN=$(echo "$PARAMS" | jq -r '.min_children')
         CACHE_FILE=$(echo "$PARAMS" | jq -r '.["cache-file"] // ""')
 
-        # 唯一的区别是 --mode 参数
+        # The only difference is the --mode parameter
         CMD=(
             "${CMD_BASE[@]}" --mode weighted_sub_base
             --num_points "$NUM_POINTS"
@@ -156,34 +156,34 @@ cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
             CMD+=("--cache-file" "$CACHE_FILE")
         fi
 
-        echo "执行 weighted_sub_base 模式命令..."
+        echo "Executing weighted_sub_base mode command..."
         "${CMD[@]}"
         
-    # --- [新代码块] ---
+    # --- analyze_only mode ---
     elif [[ "$MODE" == "analyze_only" ]]; then
         PARAMS=$(echo "$task" | jq -r '.analysis_params')
         CANDIDATE_PATH=$(echo "$PARAMS" | jq -r '.candidate_file')
         PROFILE_PATH=$(echo "$PARAMS" | jq -r '.profiled_output')
 
         if [ -z "$CANDIDATE_PATH" ] || [ -z "$PROFILE_PATH" ]; then
-            echo "错误: 'analyze_only' 模式需要 'candidate_file' 和 'profiled_output' 的*完整路径* (在 analysis_params 中)"
+            echo "Error: 'analyze_only' mode requires full paths for 'candidate_file' and 'profiled_output' in analysis_params"
             exit 1
         fi
         
         if [ ! -f "$CANDIDATE_PATH" ]; then
-            echo "错误: 候选文件 (candidate_file) 未找到: $CANDIDATE_PATH"
+            echo "Error: Candidate file (candidate_file) not found: $CANDIDATE_PATH"
             exit 1
         fi
         
         mkdir -p "$(dirname "$PROFILE_PATH")"
 
-        echo "执行 analyze_only 模式命令..."
+        echo "Executing analyze_only mode command..."
         "$EXECUTABLE_PATH" --mode analyze \
             --input_file "$BASE_LABELS_FILE" \
             --candidate_file "$CANDIDATE_PATH" \
             --profiled_output "$PROFILE_PATH"
         
-        echo "分析完成 -> $PROFILE_PATH"
+        echo "Analysis completed -> $PROFILE_PATH"
 
     elif [[ "$MODE" == "generate" ]]; then
         PARAMS=$(echo "$task" | jq -r '.generation_params')
@@ -194,7 +194,7 @@ cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
         LABELS_PER_QUERY=$(echo "$PARAMS" | jq -r '.num_labels_per_query')
         EXPECTED_LABEL=$(echo "$PARAMS" | jq -r '.expected_num_label')
 
-        echo "执行 generate 模式命令..."
+        echo "Executing generate mode command..."
         "${CMD_BASE[@]}" --mode generate \
             --num_points "$NUM_POINTS" \
             --K "$K" \
@@ -204,26 +204,26 @@ cat "$CONFIG_FILE" | jq -c '.query_tasks[]' | while read -r task; do
             --expected_num_label "$EXPECTED_LABEL"
             
     else
-        echo "错误: 未知的任务模式 '$MODE' (非 generate, sub_base, 或 weighted_sub_base)。"
+        echo "Error: Unknown task mode '$MODE'. Expected generate, sub_base, weighted_sub_base, or analyze_only."
         exit 1
     fi
 
-    echo "查询数据生成成功 -> $QUERY_VECTORS_FILE"
+    echo "Query data generated successfully -> $QUERY_VECTORS_FILE"
 
-    # --- 执行分析命令 ---
+    # --- Execute analysis command ---
     ANALYZE=$(echo "$task" | jq -r '.analysis_params.analyze // false')
     if [[ "$MODE" == "analyze_only" ]]; then
-        echo "analyze_only 任务已完成, 跳过标准分析。"
+        echo "analyze_only task completed. Skipping standard analysis."
     elif [[ "$ANALYZE" == "true" ]]; then
-        echo "开始分析生成的查询..."
+        echo "Starting analysis of generated queries..."
         PROFILE_OUTPUT_FILE="$QUERY_DIR/profiled_${TASK_NAME}.csv"
         "$EXECUTABLE_PATH" --mode analyze \
             --input_file "$BASE_LABELS_FILE" \
             --candidate_file "$QUERY_LABELS_FILE" \
             --profiled_output "$PROFILE_OUTPUT_FILE"
-        echo "分析完成 -> $PROFILE_OUTPUT_FILE"
+        echo "Analysis completed -> $PROFILE_OUTPUT_FILE"
     fi
 
 done
 
-echo -e "\n所有已启用的查询生成任务处理完毕！"
+echo -e "\nAll enabled query-generation tasks have completed successfully."

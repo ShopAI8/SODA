@@ -104,13 +104,21 @@ target_link_libraries(demo_residual_quantizer PRIVATE faiss)
 # add_executable(test_Laion_arb_pred EXCLUDE_FROM_ALL test_Laion_arb_pred.cpp)
 # target_link_libraries(test_Laion_arb_pred PRIVATE faiss)
 
+option(ACORN_ENABLE_RABITQ "Enable RabitQ side-index acceleration for ACORN demos" OFF)
 add_executable(test_acorn EXCLUDE_FROM_ALL
     test_acorn.cpp
-    rabitq_side_index_acorn.cpp
 )
+if(ACORN_ENABLE_RABITQ)
+    target_sources(test_acorn PRIVATE rabitq_side_index_acorn.cpp)
+endif()
 target_link_libraries(test_acorn PRIVATE faiss)
-target_include_directories(test_acorn PRIVATE ${PROJECT_SOURCE_DIR}/../../RaBitQ/RaBitQ-Library/include)
-target_compile_options(test_acorn PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mavx2 -mfma -mf16c -mpopcnt>)
+if(ACORN_ENABLE_RABITQ)
+    target_include_directories(test_acorn PRIVATE ${PROJECT_SOURCE_DIR}/../../RaBitQ/RaBitQ-Library/include)
+    target_compile_definitions(test_acorn PRIVATE ACORN_ENABLE_RABITQ=1)
+    target_compile_options(test_acorn PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mavx2 -mfma -mf16c -mpopcnt>)
+else()
+    target_compile_definitions(test_acorn PRIVATE ACORN_ENABLE_RABITQ=0)
+endif()
 
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)

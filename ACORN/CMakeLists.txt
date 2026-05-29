@@ -56,21 +56,6 @@ if(BUILD_TESTING)
   endif()
 endif()
 
-# include(FetchContent)
-
-# FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
-# FetchContent_MakeAvailable(json)
-
-# # target_link_libraries(foo PRIVATE nlohmann_json::nlohmann_json)
-
-# include(FetchContent)
-
-# FetchContent_Declare(
-#     nlohmann_json
-#     GIT_REPOSITORY https://github.com/nlohmann/json.git
-#     GIT_TAG v3.10.4
-# )
-
 # FetchContent_GetProperties(nlohmann_json)
 include(FetchContent)
 FetchContent_Declare(nlohmann_json

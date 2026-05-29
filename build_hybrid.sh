@@ -1,58 +1,63 @@
 #!/bin/bash
 
 # ==============================================================================
-# build_hybrid.sh - 统一构建 UNG、ACORN 和 NaviX 索引
+# build_hybrid.sh - Unified build workflow for UNG, ACORN, and NaviX indexes
 #
-# 功能:
-# 1. 编译 UNG、ACORN 和 NaviX 的代码
-# 2. 检查并转换 fvecs -> bin 数据格式
-# 3. 根据 build_mode 构建索引(parallel, serial, ung_only, acorn_only, navix_only)
+# Responsibilities:
+# 1. Compile the UNG, ACORN, and NaviX codebases
+# 2. Validate and convert data from fvecs to bin format when needed
+# 3. Build indexes according to build_mode (parallel, serial, ung_only, acorn_only, navix_only)
 # ==============================================================================
 
-set -e # 如果任何命令失败，则立即退出
+set -e # Exit immediately if any command fails
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# --- Step 1: 解析命令行参数 ---
+# --- Step 1: Parse command-line arguments ---
 PARAMS=("$@")
 while [[ $# -gt 0 ]]; do
     if [[ $1 == --* ]]; then
         key=$(echo "$1" | sed 's/--//' | tr '[:lower:]-' '[:upper:]_')
         
-        # 处理模式参数
+        # Handle the mode argument
         if [[ $key == "BUILD_MODE" ]]; then
             BUILD_MODE="$2"
             shift 2
             continue
         fi
 
-        # 处理其他参数
+        # Handle the remaining arguments
         if [ -z "$2" ]; then
-            echo "错误: 参数 $1 缺少值"
+            echo "Error: Missing value for parameter $1"
             exit 1
         fi
         declare "$key"="$2"
         shift 2
     else
-        echo "未知参数: $1"; exit 1
+        echo "Unknown parameter: $1"; exit 1
     fi
 done
 
-# 验证构建模式
+# Validate the build mode
 case "$BUILD_MODE" in
     parallel|serial|ung_only|acorn_only|navix_only|all)
         echo "[INFO] Build mode set to: $BUILD_MODE"
         ;;
     *)
-        echo "错误: 无效的 build_mode '$BUILD_MODE'。可用选项: parallel, serial, ung_only, acorn_only, navix_only, all"
+        echo "Error: Invalid build_mode '$BUILD_MODE'. Supported options: parallel, serial, ung_only, acorn_only, navix_only, all"
         exit 1
         ;;
 esac
 
-# --- Step 2: 编译代码 ---
+if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
+    echo "[WARN] RabitQ support is disabled in this build. Ignoring build_rabitq_side_index=true."
+fi
+BUILD_RABITQ_SIDE_INDEX=false
 
-# 仅在首次缺失可执行文件时编译 UNG，避免每次实验都清空并重编译。
+# --- Step 2: Compile code ---
 
-# 1. 先编译 NaviX (因为 UNG 依赖它)
+# Compile UNG only when required artifacts are missing, to avoid unnecessary clean rebuilds.
+
+# 1. Compile NaviX first, because UNG depends on it
 if [ -z "$NAVIX_BUILD_DIR" ]; then
     NAVIX_BUILD_DIR="${SCRIPT_DIR}/NaviX/build"
 fi
@@ -75,7 +80,7 @@ else
     echo "[INFO] NaviX library found."
 fi
 
-# 2. 再编译 UNG（强制要求 Knowhere）
+# 2. Compile UNG next, with Knowhere as a mandatory dependency
 if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" || -z "${KNOWHERE_LIBRARY:-}" ]]; then
     echo "[ERROR] Knowhere is mandatory for Milvus baseline."
     echo "        Please export:"
@@ -106,11 +111,13 @@ cmake -S "${SCRIPT_DIR}/UNG/codes" -B "$UNG_BUILD_DIR" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DNAVIX_BUILD_DIR="$NAVIX_BUILD_DIR" \
     -DENABLE_KNOWHERE_MILVUS_BASELINE=ON \
+    -DUNG_ENABLE_RABITQ=OFF \
+    -DACORN_ENABLE_RABITQ=OFF \
     -DKNOWHERE_INCLUDE_DIR="${KNOWHERE_INCLUDE_DIR}" \
     -DKNOWHERE_LIBRARY="${KNOWHERE_LIBRARY}"
 make -C "$UNG_BUILD_DIR" -j
 
-# 3. 编译 ACORN
+# 3. Compile ACORN
 ACORN_EXECUTABLE="${ACORN_BUILD_DIR}/demos/test_acorn"
 if [ ! -f "$ACORN_EXECUTABLE" ]; then
     echo "[INFO] ACORN executable not found. Compiling..."
@@ -121,6 +128,7 @@ if [ ! -f "$ACORN_EXECUTABLE" ]; then
         -DFAISS_ENABLE_PYTHON=OFF \
         -DBUILD_TESTING=ON \
         -DBUILD_SHARED_LIBS=ON \
+        -DACORN_ENABLE_RABITQ=OFF \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     make -C "$ACORN_BUILD_DIR" -j test_acorn
@@ -128,7 +136,7 @@ else
     echo "[INFO] ACORN executable found."
 fi
 
-# --- Step 2.5: 检查并转换数据格式 ---
+# --- Step 2.5: Validate and convert data format ---
 echo "[INFO] Checking and converting data format (if necessary)..."
 FVECS_TO_BIN_TOOL="${UNG_BUILD_DIR}/tools/fvecs_to_bin"
 BASE_FVECS_FILE="${DATA_DIR}/${DATASET}_base.fvecs"
@@ -152,7 +160,7 @@ else
 fi
 
 
-# --- Step 3: 构造与 search.sh 兼容的输出目录 ---
+# --- Step 3: Construct the output directory layout expected by search.sh ---
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
     INDEX_BASE_DIR="Index_parallel"
 else
@@ -194,7 +202,7 @@ if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIR
     UNG_RABITQ_OUTPUT_DIR="$INDEX_OUTPUT_DIR"
 fi
 
-# 定义标记文件路径 ---
+# Define marker file paths
 UNG_MARKER_FILE="$UNG_EXACT_OUTPUT_DIR/index_files/.ung_built"
 UNG_RABITQ_MARKER_FILE="$UNG_RABITQ_OUTPUT_DIR/index_files/.ung_rabitq_built"
 ACORN_MARKER_FILE="$INDEX_OUTPUT_DIR/acorn_output/.acorn_built"
@@ -206,7 +214,7 @@ NAVIX_MARKER_FILE="$INDEX_OUTPUT_DIR/navix_output/.navix_built"
 # - false: keep previous behavior
 ACORN_FAIR_COMPARE="${ACORN_FAIR_COMPARE:-true}"
 
-# --- Step 4: 定义构建函数 ---
+# --- Step 4: Define build functions ---
 
 build_ung() {
     local variant="${1:-exact}"
@@ -458,7 +466,7 @@ build_acorn() {
     fi
 
     if [ ! -f "$acorn_base_fvecs_path" ] || [ ! -f "$acorn_base_label_path" ]; then
-        echo "[$acorn_tag] 错误: 必需的输入文件未找到."
+        echo "[$acorn_tag] Error: Required input files were not found."
         exit 1
     fi
 
@@ -495,7 +503,7 @@ build_navix() {
     touch "$NAVIX_MARKER_FILE"
 }
 
-# --- Step 5: 根据构建模式执行任务 ---
+# --- Step 5: Execute tasks based on the selected build mode ---
 start_time=$(date +%s)
 
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
