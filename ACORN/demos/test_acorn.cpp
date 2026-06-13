@@ -541,13 +541,13 @@ int main(int argc, char *argv[])
          exit(1);
       }
 
-      // Re-associate metadata
+      // 重新关联元数据
       printf("[%.3f s] Re-associating metadata with loaded indexes...\n", elapsed() - t0);
       hybrid_index->set_metadata(metadata);
       hybrid_index_gamma1->set_metadata(metadata);
       printf("[%.3f s] Indexes loaded and ready for search.\n", elapsed() - t0);
 
-      // --- Load query data ---
+      // --- 加载查询数据 ---
       size_t nq;
       float *xq;
       std::vector<std::vector<int>> aq;

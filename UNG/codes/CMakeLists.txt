@@ -56,6 +56,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -DNDEBUG -Ofast -marc
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/third_party/CRoaring/include)
+include_directories(${PROJECT_SOURCE_DIR}/../../FAVOR/include)
 if(UNG_ENABLE_RABITQ)
     include_directories(${PROJECT_SOURCE_DIR}/../../../RaBitQ/RaBitQ-Library/include)
 endif()

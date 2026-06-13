@@ -1,73 +1,61 @@
 #!/bin/bash
 
 # ==============================================================================
-# build_hybrid.sh - Unified build workflow for UNG, ACORN, and NaviX indexes
+# build_hybrid.sh - 统一构建 UNG、ACORN、FAVOR 和 NaviX 索引
 #
-# Responsibilities:
-# 1. Compile the UNG, ACORN, and NaviX codebases
-# 2. Validate and convert data from fvecs to bin format when needed
-# 3. Build indexes according to build_mode (parallel, serial, ung_only, acorn_only, navix_only)
+# 功能:
+# 1. 编译 UNG、ACORN、FAVOR 和 NaviX 的代码
+# 2. 检查并转换 fvecs -> bin 数据格式
+# 3. 根据 build_mode 构建索引(parallel, serial, ung_only, acorn_only, favor_only, navix_only)
 # ==============================================================================
 
-set -e # Exit immediately if any command fails
+set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# --- Step 1: Parse command-line arguments ---
+# --- Step 1: 解析命令行参数 ---
 PARAMS=("$@")
 while [[ $# -gt 0 ]]; do
     if [[ $1 == --* ]]; then
         key=$(echo "$1" | sed 's/--//' | tr '[:lower:]-' '[:upper:]_')
-        
-        # Handle the mode argument
+
         if [[ $key == "BUILD_MODE" ]]; then
             BUILD_MODE="$2"
             shift 2
             continue
         fi
 
-        # Handle the remaining arguments
         if [ -z "$2" ]; then
-            echo "Error: Missing value for parameter $1"
+            echo "错误: 参数 $1 缺少值"
             exit 1
         fi
         declare "$key"="$2"
         shift 2
     else
-        echo "Unknown parameter: $1"; exit 1
+        echo "未知参数: $1"
+        exit 1
     fi
 done
 
-# Validate the build mode
 case "$BUILD_MODE" in
-    parallel|serial|ung_only|acorn_only|navix_only|all)
+    parallel|serial|ung_only|acorn_only|favor_only|navix_only|all)
         echo "[INFO] Build mode set to: $BUILD_MODE"
         ;;
     *)
-        echo "Error: Invalid build_mode '$BUILD_MODE'. Supported options: parallel, serial, ung_only, acorn_only, navix_only, all"
+        echo "错误: 无效的 build_mode '$BUILD_MODE'。可用选项: parallel, serial, ung_only, acorn_only, favor_only, navix_only, all"
         exit 1
         ;;
 esac
 
-if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-    echo "[WARN] RabitQ support is disabled in this build. Ignoring build_rabitq_side_index=true."
-fi
-BUILD_RABITQ_SIDE_INDEX=false
+# --- Step 2: 编译代码 ---
 
-# --- Step 2: Compile code ---
-
-# Compile UNG only when required artifacts are missing, to avoid unnecessary clean rebuilds.
-
-# 1. Compile NaviX first, because UNG depends on it
-if [ -z "$NAVIX_BUILD_DIR" ]; then
+# 1. 先编译 NaviX (因为 UNG 依赖它)
+if [[ -z "${NAVIX_BUILD_DIR:-}" ]]; then
     NAVIX_BUILD_DIR="${SCRIPT_DIR}/NaviX/build"
 fi
 
-# echo $NAVIX_BUILD_DIR
-# whoami
-
 if [ ! -f "${NAVIX_BUILD_DIR}/faiss_navix/libfaiss.a" ] && [ ! -f "${NAVIX_BUILD_DIR}/faiss_navix/libfaiss_avx2.a" ]; then
     echo "[INFO] NaviX library not found. Compiling..."
-    rm -rf "$NAVIX_BUILD_DIR" 
+    rm -rf "$NAVIX_BUILD_DIR"
     mkdir -p "$NAVIX_BUILD_DIR"
     cmake -S "${SCRIPT_DIR}/NaviX" -B "$NAVIX_BUILD_DIR" \
         -DFAISS_OPT_LEVEL=avx2 \
@@ -80,7 +68,7 @@ else
     echo "[INFO] NaviX library found."
 fi
 
-# 2. Compile UNG next, with Knowhere as a mandatory dependency
+# 2. 再编译 UNG（强制要求 Knowhere）
 if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" || -z "${KNOWHERE_LIBRARY:-}" ]]; then
     echo "[ERROR] Knowhere is mandatory for Milvus baseline."
     echo "        Please export:"
@@ -88,47 +76,60 @@ if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" || -z "${KNOWHERE_LIBRARY:-}" ]]; then
     echo "          KNOWHERE_LIBRARY=/path/to/libknowhere.so"
     exit 1
 fi
+
 KNOWHERE_BOOTSTRAP_SCRIPT="${SCRIPT_DIR}/build_knowhere.sh"
 LOCAL_KNOWHERE_LIBRARY="${SCRIPT_DIR}/knowhere/build/Release/libknowhere.so"
 if [[ ! -f "${KNOWHERE_LIBRARY}" && "${KNOWHERE_LIBRARY}" == "${LOCAL_KNOWHERE_LIBRARY}" && -f "${KNOWHERE_BOOTSTRAP_SCRIPT}" ]]; then
     echo "[INFO] Local knowhere library not found. Bootstrapping build via ${KNOWHERE_BOOTSTRAP_SCRIPT} ..."
     bash "${KNOWHERE_BOOTSTRAP_SCRIPT}"
 fi
+
 if [[ ! -f "${KNOWHERE_INCLUDE_DIR}/knowhere/index/index_factory.h" ]]; then
     echo "[ERROR] Invalid KNOWHERE_INCLUDE_DIR: ${KNOWHERE_INCLUDE_DIR}"
     echo "        Missing: ${KNOWHERE_INCLUDE_DIR}/knowhere/index/index_factory.h"
     exit 1
 fi
+
 if [[ ! -f "${KNOWHERE_LIBRARY}" ]]; then
     echo "[ERROR] Invalid KNOWHERE_LIBRARY: ${KNOWHERE_LIBRARY}"
     exit 1
 fi
 
 echo "[INFO] Compiling UNG with mandatory Knowhere Milvus baseline enabled."
+if [[ -z "${UNG_BUILD_DIR:-}" ]]; then
+    UNG_BUILD_DIR="${SCRIPT_DIR}/UNG/codes/build"
+fi
+
 mkdir -p "$UNG_BUILD_DIR"
 cmake -S "${SCRIPT_DIR}/UNG/codes" -B "$UNG_BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DNAVIX_BUILD_DIR="$NAVIX_BUILD_DIR" \
     -DENABLE_KNOWHERE_MILVUS_BASELINE=ON \
-    -DUNG_ENABLE_RABITQ=OFF \
-    -DACORN_ENABLE_RABITQ=OFF \
     -DKNOWHERE_INCLUDE_DIR="${KNOWHERE_INCLUDE_DIR}" \
     -DKNOWHERE_LIBRARY="${KNOWHERE_LIBRARY}"
 make -C "$UNG_BUILD_DIR" -j
 
-# 3. Compile ACORN
+UNG_EXECUTABLE="${UNG_BUILD_DIR}/apps/build_UNG_index"
+if [[ ! -x "$UNG_EXECUTABLE" ]]; then
+    echo "[ERROR] UNG executable not found after compilation: $UNG_EXECUTABLE"
+    exit 1
+fi
+
+# 3. 编译 ACORN
+if [[ -z "${ACORN_BUILD_DIR:-}" ]]; then
+    ACORN_BUILD_DIR="${SCRIPT_DIR}/ACORN/build"
+fi
+
 ACORN_EXECUTABLE="${ACORN_BUILD_DIR}/demos/test_acorn"
 if [ ! -f "$ACORN_EXECUTABLE" ]; then
     echo "[INFO] ACORN executable not found. Compiling..."
     mkdir -p "$ACORN_BUILD_DIR"
-    # cmake -S "${SCRIPT_DIR}/ACORN" -B "$ACORN_BUILD_DIR" -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DBUILD_TESTING=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
-     cmake -S "${SCRIPT_DIR}/ACORN" -B "$ACORN_BUILD_DIR" \
+    cmake -S "${SCRIPT_DIR}/ACORN" -B "$ACORN_BUILD_DIR" \
         -DFAISS_ENABLE_GPU=OFF \
         -DFAISS_ENABLE_PYTHON=OFF \
         -DBUILD_TESTING=ON \
         -DBUILD_SHARED_LIBS=ON \
-        -DACORN_ENABLE_RABITQ=OFF \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     make -C "$ACORN_BUILD_DIR" -j test_acorn
@@ -136,7 +137,29 @@ else
     echo "[INFO] ACORN executable found."
 fi
 
-# --- Step 2.5: Validate and convert data format ---
+# 4. 编译 FAVOR
+if [[ -z "${FAVOR_BUILD_DIR:-}" ]]; then
+    FAVOR_BUILD_DIR="${SCRIPT_DIR}/FAVOR/build"
+fi
+
+FAVOR_EXECUTABLE="${FAVOR_BUILD_DIR}/app/build_index"
+FAVOR_BUILD_SOURCE="${SCRIPT_DIR}/FAVOR/app/build_index.cpp"
+if [ ! -f "$FAVOR_EXECUTABLE" ] || [ "$FAVOR_BUILD_SOURCE" -nt "$FAVOR_EXECUTABLE" ]; then
+    if [ ! -f "$FAVOR_EXECUTABLE" ]; then
+        echo "[INFO] FAVOR executable not found. Compiling..."
+    else
+        echo "[INFO] FAVOR source is newer than executable. Recompiling..."
+    fi
+    mkdir -p "$FAVOR_BUILD_DIR"
+    cmake -S "${SCRIPT_DIR}/FAVOR" -B "$FAVOR_BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+    make -C "$FAVOR_BUILD_DIR" -j build_index
+else
+    echo "[INFO] FAVOR executable found."
+fi
+
+# --- Step 2.5: 检查并转换数据格式 ---
 echo "[INFO] Checking and converting data format (if necessary)..."
 FVECS_TO_BIN_TOOL="${UNG_BUILD_DIR}/tools/fvecs_to_bin"
 BASE_FVECS_FILE="${DATA_DIR}/${DATASET}_base.fvecs"
@@ -159,102 +182,83 @@ else
     echo "Target file '${BASE_BIN_FILE}' already exists. Skipping conversion."
 fi
 
-
-# --- Step 3: Construct the output directory layout expected by search.sh ---
+# --- Step 3: 构造与 search.sh 兼容的输出目录 ---
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
     INDEX_BASE_DIR="Index_parallel"
 else
     INDEX_BASE_DIR="Index"
 fi
+
 echo "[INFO] Index base directory set to: $INDEX_BASE_DIR"
 INDEX_DIR_NAME="M${MAX_DEGREE}_LB${LBUILD}_alpha${ALPHA}_C${NUM_CROSS_EDGES}_EP${NUM_ENTRY_POINTS}_AN${ACORN_N}_AM${ACORN_M}_AMB${ACORN_M_BETA}_AG${ACORN_GAMMA}"
-INDEX_DIR_NAME_EXACT="$INDEX_DIR_NAME"
-if [[ "${BUILD_RABITQ_SIDE_INDEX}" == "true" ]]; then
-    INDEX_DIR_NAME="${INDEX_DIR_NAME}_RQB${RABITQ_TOTAL_BITS:-4}"
-fi
 INDEX_OUTPUT_DIR="${EXP_OUTPUT_DIR}/${INDEX_BASE_DIR}/${INDEX_DIR_NAME}"
-EXACT_INDEX_OUTPUT_DIR="${EXP_OUTPUT_DIR}/${INDEX_BASE_DIR}/${INDEX_DIR_NAME_EXACT}"
 
 echo "[INFO] Preparing index directory (if not exists): $INDEX_OUTPUT_DIR"
 mkdir -p "$INDEX_OUTPUT_DIR/index_files"
 mkdir -p "$INDEX_OUTPUT_DIR/acorn_output"
+mkdir -p "$INDEX_OUTPUT_DIR/FAVOR"
 mkdir -p "$INDEX_OUTPUT_DIR/navix_output"
 mkdir -p "$INDEX_OUTPUT_DIR/others"
+mkdir -p "$INDEX_OUTPUT_DIR/results"
 
-# Split exact/rabitq index dirs:
-# - _RQB* dir stores RabitQ artifacts
-# - non-_RQB dir stores exact artifacts
-SPLIT_RABITQ_EXACT_DIRS="${SPLIT_RABITQ_EXACT_DIRS:-true}"
-if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-    echo "[INFO] Split exact/rabitq dirs enabled."
-    echo "[INFO]   exact dir : $EXACT_INDEX_OUTPUT_DIR"
-    echo "[INFO]   rabitq dir: $INDEX_OUTPUT_DIR"
-    mkdir -p "$EXACT_INDEX_OUTPUT_DIR/index_files"
-    mkdir -p "$EXACT_INDEX_OUTPUT_DIR/acorn_output"
-    mkdir -p "$EXACT_INDEX_OUTPUT_DIR/navix_output"
-    mkdir -p "$EXACT_INDEX_OUTPUT_DIR/others"
-fi
+BUILD_THREADS="${NUM_THREADS:-60}"
+echo "[INFO] Build threads set to: $BUILD_THREADS"
 
-UNG_EXACT_OUTPUT_DIR="$INDEX_OUTPUT_DIR"
-UNG_RABITQ_OUTPUT_DIR="$INDEX_OUTPUT_DIR"
-if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-    UNG_EXACT_OUTPUT_DIR="$EXACT_INDEX_OUTPUT_DIR"
-    UNG_RABITQ_OUTPUT_DIR="$INDEX_OUTPUT_DIR"
-fi
-
-# Define marker file paths
-UNG_MARKER_FILE="$UNG_EXACT_OUTPUT_DIR/index_files/.ung_built"
-UNG_RABITQ_MARKER_FILE="$UNG_RABITQ_OUTPUT_DIR/index_files/.ung_rabitq_built"
+UNG_MARKER_FILE="$INDEX_OUTPUT_DIR/index_files/.ung_built"
 ACORN_MARKER_FILE="$INDEX_OUTPUT_DIR/acorn_output/.acorn_built"
-ACORN_RABITQ_MARKER_FILE="$INDEX_OUTPUT_DIR/acorn_output/.acorn_rabitq_built"
+FAVOR_MARKER_FILE="$INDEX_OUTPUT_DIR/FAVOR/.favor_built"
 NAVIX_MARKER_FILE="$INDEX_OUTPUT_DIR/navix_output/.navix_built"
+UNG_BUILD_STATUS="unknown"
+FAVOR_BUILD_STATUS="unknown"
 
-# Fair ACORN comparison switch:
-# - true: exact and rabitq use the same input files; when both are built, run ACORN builds sequentially
-# - false: keep previous behavior
-ACORN_FAIR_COMPARE="${ACORN_FAIR_COMPARE:-true}"
+# --- Step 4: 定义构建函数 ---
 
-# --- Step 4: Define build functions ---
+reset_directory_contents() {
+    local target_dir="$1"
+    if [[ -d "$target_dir" ]]; then
+        find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    fi
+}
+
+prepare_parallel_build_state() {
+    echo "[INFO] Parallel/all mode requires a real rebuild. Cleaning existing UNG/FAVOR outputs first."
+    reset_directory_contents "$INDEX_OUTPUT_DIR/index_files"
+    reset_directory_contents "$INDEX_OUTPUT_DIR/results"
+    reset_directory_contents "$INDEX_OUTPUT_DIR/FAVOR"
+    rm -f "$UNG_MARKER_FILE" "$FAVOR_MARKER_FILE"
+    rm -f "$INDEX_OUTPUT_DIR/others/ung_build_stats.csv" \
+          "$INDEX_OUTPUT_DIR/others/favor_build_stats.csv" \
+          "$INDEX_OUTPUT_DIR/others/parallel_build_summary.csv"
+}
 
 build_ung() {
-    local variant="${1:-exact}"
-    local target_dir marker_file ung_log_file ung_tag build_rabitq_flag
-    if [[ "$variant" == "rabitq" ]]; then
-        target_dir="$UNG_RABITQ_OUTPUT_DIR"
-        marker_file="$UNG_RABITQ_MARKER_FILE"
-        ung_log_file="$target_dir/others/ung_rabitq_build.log"
-        ung_tag="UNG-RABITQ"
-        build_rabitq_flag="true"
-    else
-        target_dir="$UNG_EXACT_OUTPUT_DIR"
-        marker_file="$UNG_MARKER_FILE"
-        ung_log_file="$target_dir/others/ung_build.log"
-        ung_tag="UNG"
-        build_rabitq_flag="false"
-    fi
-
-    if [ -f "$marker_file" ]; then
-        echo "[$ung_tag] Marker file found ('$marker_file'). Skipping UNG build."
+    if [[ -f "$UNG_MARKER_FILE" && -f "$INDEX_OUTPUT_DIR/index_files/meta" ]]; then
+        echo "[UNG] Marker file found ('$UNG_MARKER_FILE'). Skipping UNG build."
+        UNG_BUILD_STATUS="skipped"
         return 0
     fi
 
-    echo "[$ung_tag] Build process started."
+    echo "[UNG] Build process started."
     "$UNG_EXECUTABLE" \
-        --data_type float --dist_fn L2 --num_threads 60 \
+        --data_type float --dist_fn L2 --num_threads "$BUILD_THREADS" \
         --max_degree "$MAX_DEGREE" --Lbuild "$LBUILD" --alpha "$ALPHA" --num_cross_edges "$NUM_CROSS_EDGES" \
         --base_bin_file "$DATA_DIR/${DATASET}_base.bin" \
         --base_label_file "$DATA_DIR/${DATASET}_base_labels.txt" \
         --base_label_info_file "$DATA_DIR/${DATASET}_base_labels_info.log" \
         --base_label_tree_roots "$DATA_DIR/tree_roots.txt" \
-        --index_path_prefix "$target_dir/index_files/" \
-        --result_path_prefix "$target_dir/results/" \
-        --build_rabitq_side_index "$build_rabitq_flag" \
-        --rabitq_total_bits "${RABITQ_TOTAL_BITS:-4}" \
+        --index_path_prefix "$INDEX_OUTPUT_DIR/index_files/" \
+        --result_path_prefix "$INDEX_OUTPUT_DIR/results/" \
         --scenario general --dataset "$DATASET" \
-        > "$ung_log_file" 2>&1
+        > "$INDEX_OUTPUT_DIR/others/ung_build.log" 2>&1
 
-    echo "[$ung_tag] Build process finished."
-    touch "$marker_file"
+    if [[ ! -f "$INDEX_OUTPUT_DIR/index_files/meta" ]]; then
+        echo "[UNG] 错误: UNG 构建命令执行完成，但未生成 meta 文件: $INDEX_OUTPUT_DIR/index_files/meta"
+        return 1
+    fi
+
+    echo "[UNG] Build process finished."
+    UNG_BUILD_STATUS="built"
+    touch "$UNG_MARKER_FILE"
 }
 
 parse_meta_value() {
@@ -289,6 +293,7 @@ print_acorn_meta_summary() {
         echo "[$tag] Meta file not found: $meta_file"
         return 0
     fi
+
     local build_time_s total_size_bytes index_only_size_bytes total_logical_memory_bytes index_only_logical_memory_bytes
     build_time_s=$(parse_meta_value "$meta_file" "total_build_time_s")
     if [[ -z "$build_time_s" ]]; then
@@ -309,6 +314,7 @@ append_acorn_meta_csv() {
     if [[ ! -f "$meta_file" ]]; then
         return 0
     fi
+
     local build_time_s total_size_bytes index_only_size_bytes total_logical_memory_bytes index_only_logical_memory_bytes
     build_time_s=$(parse_meta_value "$meta_file" "total_build_time_s")
     if [[ -z "$build_time_s" ]]; then
@@ -318,30 +324,62 @@ append_acorn_meta_csv() {
     index_only_size_bytes=$(parse_meta_value "$meta_file" "index_only_size_bytes")
     total_logical_memory_bytes=$(parse_meta_value "$meta_file" "total_logical_memory_bytes")
     index_only_logical_memory_bytes=$(parse_meta_value "$meta_file" "index_only_logical_memory_bytes")
+
     echo "${variant},${build_time_s},${total_size_bytes},${index_only_size_bytes},${total_logical_memory_bytes},${index_only_logical_memory_bytes}" >> "$csv_file"
 }
 
-print_ung_meta_summary() {
+get_fvecs_dim() {
+    local fvecs_file="$1"
+    od -An -td4 -N4 "$fvecs_file" | awk '{print $1}'
+}
+
+get_fvecs_rows() {
+    local fvecs_file="$1"
+    local dim
+    local size_bytes
+    local row_bytes
+    dim=$(get_fvecs_dim "$fvecs_file")
+    if [[ -z "$dim" || "$dim" -le 0 ]]; then
+        return 1
+    fi
+    size_bytes=$(stat -c%s "$fvecs_file")
+    row_bytes=$((4 + dim * 4))
+    echo $((size_bytes / row_bytes))
+}
+
+write_favor_meta() {
     local meta_file="$1"
+    local rows="$2"
+    local dim="$3"
+    local build_time_ms="$4"
+    local serialized_size_bytes="$5"
+    local serialized_size_mb
+    serialized_size_mb=$(awk -v b="$serialized_size_bytes" 'BEGIN { printf "%.6f", b / (1024 * 1024) }')
+
+    cat > "$meta_file" <<EOF
+rows=${rows}
+dim=${dim}
+build_time_ms=${build_time_ms}
+serialized_size_bytes=${serialized_size_bytes}
+serialized_index_size_mb=${serialized_size_mb}
+EOF
+}
+
+append_favor_meta_csv() {
+    local meta_file="$1"
+    local csv_file="$2"
     if [[ ! -f "$meta_file" ]]; then
-        echo "[UNG] Meta file not found: $meta_file"
         return 0
     fi
-    local rabitq_build_requested rabitq_enabled rabitq_total_bits rabitq_build_time_ms rabitq_side_size_bytes
-    local index_time_without_rabitq_ms index_time_with_rabitq_ms
-    local index_size_without_rabitq_mb index_size_with_rabitq_mb
 
-    rabitq_build_requested=$(parse_meta_value "$meta_file" "rabitq_build_requested")
-    rabitq_enabled=$(parse_meta_value "$meta_file" "rabitq_enabled")
-    rabitq_total_bits=$(parse_meta_value "$meta_file" "rabitq_total_bits")
-    rabitq_build_time_ms=$(parse_meta_value "$meta_file" "rabitq_build_time(ms)")
-    rabitq_side_size_bytes=$(parse_meta_value "$meta_file" "rabitq_side_size_bytes")
-    index_time_without_rabitq_ms=$(parse_meta_value "$meta_file" "index_time_without_rabitq(ms)")
-    index_time_with_rabitq_ms=$(parse_meta_value "$meta_file" "index_time_with_rabitq(ms)")
-    index_size_without_rabitq_mb=$(parse_meta_value "$meta_file" "index_size_without_rabitq(MB)")
-    index_size_with_rabitq_mb=$(parse_meta_value "$meta_file" "index_size_with_rabitq(MB)")
+    local rows dim build_time_ms serialized_size_bytes serialized_index_size_mb
+    rows=$(parse_meta_value "$meta_file" "rows")
+    dim=$(parse_meta_value "$meta_file" "dim")
+    build_time_ms=$(parse_meta_value "$meta_file" "build_time_ms")
+    serialized_size_bytes=$(parse_meta_value "$meta_file" "serialized_size_bytes")
+    serialized_index_size_mb=$(parse_meta_value "$meta_file" "serialized_index_size_mb")
 
-    echo "[UNG] rabitq_build_requested=${rabitq_build_requested}, rabitq_enabled=${rabitq_enabled}, rabitq_total_bits=${rabitq_total_bits}, rabitq_build_time_ms=${rabitq_build_time_ms}, rabitq_side_size_bytes=${rabitq_side_size_bytes}, index_time_without_rabitq_ms=${index_time_without_rabitq_ms}, index_time_with_rabitq_ms=${index_time_with_rabitq_ms}, index_size_without_rabitq_mb=${index_size_without_rabitq_mb}, index_size_with_rabitq_mb=${index_size_with_rabitq_mb}"
+    echo "${rows},${dim},${build_time_ms},${serialized_size_bytes},${serialized_index_size_mb}" >> "$csv_file"
 }
 
 append_ung_meta_csv() {
@@ -350,123 +388,71 @@ append_ung_meta_csv() {
     if [[ ! -f "$meta_file" ]]; then
         return 0
     fi
-    local rabitq_build_requested rabitq_enabled rabitq_total_bits rabitq_build_time_ms rabitq_side_size_bytes
-    local index_time_without_rabitq_ms index_time_with_rabitq_ms
-    local index_size_without_rabitq_mb index_size_with_rabitq_mb
 
-    rabitq_build_requested=$(parse_meta_value "$meta_file" "rabitq_build_requested")
-    rabitq_enabled=$(parse_meta_value "$meta_file" "rabitq_enabled")
-    rabitq_total_bits=$(parse_meta_value "$meta_file" "rabitq_total_bits")
-    rabitq_build_time_ms=$(parse_meta_value "$meta_file" "rabitq_build_time(ms)")
-    rabitq_side_size_bytes=$(parse_meta_value "$meta_file" "rabitq_side_size_bytes")
-    index_time_without_rabitq_ms=$(parse_meta_value "$meta_file" "index_time_without_rabitq(ms)")
-    index_time_with_rabitq_ms=$(parse_meta_value "$meta_file" "index_time_with_rabitq(ms)")
-    index_size_without_rabitq_mb=$(parse_meta_value "$meta_file" "index_size_without_rabitq(MB)")
-    index_size_with_rabitq_mb=$(parse_meta_value "$meta_file" "index_size_with_rabitq(MB)")
+    local index_time_ms index_size_mb
+    index_time_ms=$(parse_meta_value "$meta_file" "index_time(ms)")
+    index_size_mb=$(parse_meta_value "$meta_file" "index_size(MB)")
 
-    echo "${rabitq_build_requested},${rabitq_enabled},${rabitq_total_bits},${rabitq_build_time_ms},${rabitq_side_size_bytes},${index_time_without_rabitq_ms},${index_time_with_rabitq_ms},${index_size_without_rabitq_mb},${index_size_with_rabitq_mb}" >> "$csv_file"
+    echo "${index_time_ms},${index_size_mb}" >> "$csv_file"
 }
 
-append_ung_variant_compare_csv() {
-    local exact_meta_file="$1"
-    local rabitq_meta_file="$2"
-    local csv_file="$3"
+write_parallel_build_summary() {
+    local csv_file="$1"
+    local ung_meta_file="$2"
+    local favor_meta_file="$3"
+    local ung_status="$4"
+    local favor_status="$5"
 
-    local exact_time_ms exact_size_mb
-    local rabitq_enabled rabitq_time_ms rabitq_size_mb rabitq_build_time_ms rabitq_side_size_bytes
+    local ung_index_time_ms ung_index_size_mb
+    local favor_build_time_ms favor_serialized_size_bytes favor_serialized_index_size_mb
+    local parallel_build_time_ms parallel_build_time_s
 
-    if [[ -f "$exact_meta_file" ]]; then
-        exact_time_ms=$(parse_meta_value "$exact_meta_file" "index_time_without_rabitq(ms)")
-        exact_size_mb=$(parse_meta_value "$exact_meta_file" "index_size_without_rabitq(MB)")
-    elif [[ -f "$rabitq_meta_file" ]]; then
-        exact_time_ms=$(parse_meta_value "$rabitq_meta_file" "index_time_without_rabitq(ms)")
-        exact_size_mb=$(parse_meta_value "$rabitq_meta_file" "index_size_without_rabitq(MB)")
-    fi
-    if [[ -n "$exact_time_ms" || -n "$exact_size_mb" ]]; then
-        echo "exact,${exact_time_ms},${exact_size_mb},0,0" >> "$csv_file"
-    fi
+    ung_index_time_ms=$(parse_meta_value "$ung_meta_file" "index_time(ms)")
+    ung_index_size_mb=$(parse_meta_value "$ung_meta_file" "index_size(MB)")
 
-    if [[ -f "$rabitq_meta_file" ]]; then
-        rabitq_enabled=$(parse_meta_value "$rabitq_meta_file" "rabitq_enabled")
-        rabitq_time_ms=$(parse_meta_value "$rabitq_meta_file" "index_time_with_rabitq(ms)")
-        rabitq_size_mb=$(parse_meta_value "$rabitq_meta_file" "index_size_with_rabitq(MB)")
-        rabitq_build_time_ms=$(parse_meta_value "$rabitq_meta_file" "rabitq_build_time(ms)")
-        rabitq_side_size_bytes=$(parse_meta_value "$rabitq_meta_file" "rabitq_side_size_bytes")
-        if [[ "${rabitq_enabled}" == "1" ]]; then
-            echo "rabitq,${rabitq_time_ms},${rabitq_size_mb},${rabitq_build_time_ms},${rabitq_side_size_bytes}" >> "$csv_file"
-        fi
+    favor_build_time_ms=$(parse_meta_value "$favor_meta_file" "build_time_ms")
+    favor_serialized_size_bytes=$(parse_meta_value "$favor_meta_file" "serialized_size_bytes")
+    favor_serialized_index_size_mb=$(parse_meta_value "$favor_meta_file" "serialized_index_size_mb")
+    if awk "BEGIN { exit !($ung_index_time_ms > $favor_build_time_ms) }"; then
+        parallel_build_time_ms="$ung_index_time_ms"
+    else
+        parallel_build_time_ms="$favor_build_time_ms"
     fi
+    parallel_build_time_s=$(awk -v ms="$parallel_build_time_ms" 'BEGIN { printf "%.3f", ms / 1000 }')
+
+    {
+        echo "ung_status,favor_status,parallel_build_time_ms,parallel_build_time_s,ung_index_time_ms,ung_index_size_mb,favor_build_time_ms,favor_serialized_size_bytes,favor_serialized_size_mb"
+        echo "${ung_status},${favor_status},${parallel_build_time_ms},${parallel_build_time_s},${ung_index_time_ms},${ung_index_size_mb},${favor_build_time_ms},${favor_serialized_size_bytes},${favor_serialized_index_size_mb}"
+    } > "$csv_file"
 }
 
 build_acorn() {
-    local variant="${1:-exact}"
-    local acorn_tag marker_file index_path_acorn index_path_acorn1 acorn_log_file target_dir
-    local acorn_build_rabitq_flag="false"
-    local acorn_rabitq_bits="${RABITQ_TOTAL_BITS:-4}"
+    local index_path_acorn="$INDEX_OUTPUT_DIR/acorn_output/acorn.index"
+    local index_path_acorn1="$INDEX_OUTPUT_DIR/acorn_output/acorn1.index"
+    local acorn_base_fvecs_path
+    local acorn_base_label_path
 
-    if [[ "$variant" == "rabitq" ]]; then
-        target_dir="$INDEX_OUTPUT_DIR"
-        acorn_tag="ACORN-RABITQ"
-        acorn_build_rabitq_flag="true"
-        marker_file="$target_dir/acorn_output/.acorn_rabitq_built"
-        index_path_acorn="$target_dir/acorn_output/acorn_rabitq.index"
-        index_path_acorn1="$target_dir/acorn_output/acorn1_rabitq.index"
-        acorn_log_file="$target_dir/others/acorn_rabitq_build.log"
-    else
-        if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-            target_dir="$EXACT_INDEX_OUTPUT_DIR"
-        else
-            target_dir="$INDEX_OUTPUT_DIR"
-        fi
-        acorn_tag="ACORN"
-        marker_file="$target_dir/acorn_output/.acorn_built"
-        index_path_acorn="$target_dir/acorn_output/acorn.index"
-        index_path_acorn1="$target_dir/acorn_output/acorn1.index"
-        acorn_log_file="$target_dir/others/acorn_build.log"
-    fi
-
-    if [[ -f "$marker_file" && -f "$index_path_acorn" && -f "$index_path_acorn1" ]]; then
-        echo "[$acorn_tag] Marker file found ('$marker_file') and index files exist. Skipping build."
+    if [[ -f "$ACORN_MARKER_FILE" && -f "$index_path_acorn" && -f "$index_path_acorn1" ]]; then
+        echo "[ACORN] Marker file found ('$ACORN_MARKER_FILE') and index files exist. Skipping build."
         return 0
     fi
 
-    echo "[$acorn_tag] Build process started."
-    local acorn_base_fvecs_path
-    local acorn_base_label_path
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${ACORN_FAIR_COMPARE}" == "true" ]]; then
-        # Fair comparison: exact and rabitq ACORN use exactly the same input files.
-        acorn_base_fvecs_path="${UNG_EXACT_OUTPUT_DIR}/index_files/reordered_vecs.fvecs"
-        acorn_base_label_path="${UNG_EXACT_OUTPUT_DIR}/index_files/reordered_labels.txt"
-        if [[ ! -f "$acorn_base_fvecs_path" || ! -f "$acorn_base_label_path" ]]; then
-            echo "[$acorn_tag] Reordered files not found, fallback to original base files for BOTH exact/rabitq."
-            acorn_base_fvecs_path="${DATA_DIR}/${DATASET}_base.fvecs"
-            acorn_base_label_path="${DATA_DIR}/${DATASET}_base_labels.txt"
-        fi
-        echo "[$acorn_tag] Fair-compare input vectors: $acorn_base_fvecs_path"
-    elif [[ "$variant" == "rabitq" ]]; then
+    echo "[ACORN] Build process started."
+    if [[ "$BUILD_MODE" == "serial" || "$BUILD_MODE" == "all" ]]; then
         acorn_base_fvecs_path="${INDEX_OUTPUT_DIR}/index_files/reordered_vecs.fvecs"
         acorn_base_label_path="${INDEX_OUTPUT_DIR}/index_files/reordered_labels.txt"
-        if [[ ! -f "$acorn_base_fvecs_path" || ! -f "$acorn_base_label_path" ]]; then
-            echo "[$acorn_tag] Reordered files not found, fallback to original base files."
-            acorn_base_fvecs_path="${DATA_DIR}/${DATASET}_base.fvecs"
-            acorn_base_label_path="${DATA_DIR}/${DATASET}_base_labels.txt"
-        fi
-        echo "[$acorn_tag] Using base vectors: $acorn_base_fvecs_path"
-    elif [[ "$BUILD_MODE" == "serial" || "$BUILD_MODE" == "all" ]]; then
-        acorn_base_fvecs_path="${INDEX_OUTPUT_DIR}/index_files/reordered_vecs.fvecs"
-        acorn_base_label_path="${INDEX_OUTPUT_DIR}/index_files/reordered_labels.txt"
-        echo "[$acorn_tag] Using reordered base vectors: $acorn_base_fvecs_path"
+        echo "[ACORN] Using reordered base vectors: $acorn_base_fvecs_path"
     else
         acorn_base_fvecs_path="${DATA_DIR}/${DATASET}_base.fvecs"
         acorn_base_label_path="${DATA_DIR}/${DATASET}_base_labels.txt"
-        if [[ "$BUILD_MODE" == "acorn_only" ]]; then 
+        if [[ "$BUILD_MODE" == "acorn_only" ]]; then
             acorn_base_label_path="${DATA_DIR}/${DATASET}_base_labels_reorder_ori.txt"
         fi
-        echo "[$acorn_tag] Using original base vectors: $acorn_base_fvecs_path"
+        echo "[ACORN] Using original base vectors: $acorn_base_fvecs_path"
     fi
 
     if [ ! -f "$acorn_base_fvecs_path" ] || [ ! -f "$acorn_base_label_path" ]; then
-        echo "[$acorn_tag] Error: Required input files were not found."
+        echo "[ACORN] 错误: 必需的输入文件未找到."
         exit 1
     fi
 
@@ -478,12 +464,73 @@ build_acorn() {
         "$index_path_acorn" \
         "$index_path_acorn1" \
         0 \
-        "$acorn_build_rabitq_flag" \
-        "$acorn_rabitq_bits" \
-        > "$acorn_log_file" 2>&1
+        > "$INDEX_OUTPUT_DIR/others/acorn_build.log" 2>&1
 
-    echo "[$acorn_tag] Build process finished."
-    touch "$marker_file"
+    echo "[ACORN] Build process finished."
+    touch "$ACORN_MARKER_FILE"
+}
+
+build_favor() {
+    local favor_index_file="$INDEX_OUTPUT_DIR/FAVOR/favor.index"
+    local favor_meta_file="$INDEX_OUTPUT_DIR/FAVOR/favor.meta"
+    local favor_attribute_file="${FAVOR_ATTRIBUTE_FILE:-${DATA_DIR}/${DATASET}_favor_attribute.txt}"
+    local favor_base_fvecs_path="${DATA_DIR}/${DATASET}_base.fvecs"
+    local favor_rows
+    local favor_dim
+    local start_ms
+    local end_ms
+    local build_time_ms
+    local serialized_size_bytes
+
+    if [[ -f "$FAVOR_MARKER_FILE" && -f "$favor_index_file" ]]; then
+        echo "[FAVOR] Marker file found ('$FAVOR_MARKER_FILE') and index file exists. Skipping build."
+        FAVOR_BUILD_STATUS="skipped"
+        return 0
+    fi
+
+    if [[ ! -f "$favor_base_fvecs_path" ]]; then
+        echo "[FAVOR] 错误: base fvecs 文件未找到: $favor_base_fvecs_path"
+        exit 1
+    fi
+
+    echo "[FAVOR] Build process started."
+    start_ms=$(date +%s%3N)
+    if [[ -f "$favor_attribute_file" ]]; then
+        echo "[FAVOR] Using attribute file: $favor_attribute_file"
+        "$FAVOR_EXECUTABLE" \
+            "$favor_base_fvecs_path" \
+            "$favor_attribute_file" \
+            "$favor_index_file" \
+            "$BUILD_THREADS" \
+            > "$INDEX_OUTPUT_DIR/others/favor_build.log" 2>&1
+    else
+        echo "[FAVOR] Attribute file not found. Falling back to attribute-free FAVOR build."
+        echo "[FAVOR] Building standalone FAVOR without attributes."
+        "$FAVOR_EXECUTABLE" \
+            "$favor_base_fvecs_path" \
+            "$favor_index_file" \
+            "$BUILD_THREADS" \
+            > "$INDEX_OUTPUT_DIR/others/favor_build.log" 2>&1
+    fi
+    if [[ ! -f "$favor_index_file" ]]; then
+        echo "[FAVOR] 错误: FAVOR 索引构建命令执行完成，但未生成索引文件: $favor_index_file"
+        exit 1
+    fi
+
+    build_time_ms=$(parse_meta_value "$INDEX_OUTPUT_DIR/others/favor_build.log" "graph_build_time_ms")
+    if [[ -z "$build_time_ms" ]]; then
+        echo "[FAVOR] 错误: 未能从 favor_build.log 解析 graph_build_time_ms"
+        exit 1
+    fi
+
+    favor_rows=$(get_fvecs_rows "$favor_base_fvecs_path")
+    favor_dim=$(get_fvecs_dim "$favor_base_fvecs_path")
+    serialized_size_bytes=$(stat -c%s "$favor_index_file")
+    write_favor_meta "$favor_meta_file" "$favor_rows" "$favor_dim" "$build_time_ms" "$serialized_size_bytes"
+
+    echo "[FAVOR] Build process finished."
+    FAVOR_BUILD_STATUS="built"
+    touch "$FAVOR_MARKER_FILE"
 }
 
 build_navix() {
@@ -497,142 +544,115 @@ build_navix() {
         --base_bin_file "$DATA_DIR/${DATASET}_base.bin" \
         --index_output "$INDEX_OUTPUT_DIR/navix_output/hnsw_base.index" \
         --M "$ACORN_M" \
-        --num_threads 60 \
+        --num_threads "$BUILD_THREADS" \
         > "$INDEX_OUTPUT_DIR/others/navix_build.log" 2>&1
     echo "[NAVIX] Build process finished."
     touch "$NAVIX_MARKER_FILE"
 }
 
-# --- Step 5: Execute tasks based on the selected build mode ---
-start_time=$(date +%s)
+# --- Step 5: 根据构建模式执行任务 ---
+start_time_ms=$(date +%s%3N)
 
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
     echo "--- [Executing in PARALLEL/ALL mode] ---"
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-        echo "[INFO] RAbitQ ACORN build enabled. Build UNG first to prepare reordered files."
-        if [[ "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-            build_ung exact
-            build_ung rabitq
-        else
-            build_ung rabitq
+    prepare_parallel_build_state
+    build_ung &
+    ung_pid=$!
+    build_favor &
+    favor_pid=$!
+
+    ung_status=0
+    favor_status=0
+    set +e
+    wait "$ung_pid"
+    ung_status=$?
+    wait "$favor_pid"
+    favor_status=$?
+    set -e
+
+    if [[ "$ung_status" -ne 0 || "$favor_status" -ne 0 ]]; then
+        echo "[ERROR] Parallel build failed."
+        if [[ "$ung_status" -ne 0 ]]; then
+            echo "[ERROR] UNG build failed with status $ung_status. See: $INDEX_OUTPUT_DIR/others/ung_build.log"
         fi
-        if [[ "${ACORN_FAIR_COMPARE}" == "true" ]]; then
-            echo "[INFO] ACORN fair compare enabled: build exact and rabitq sequentially to avoid resource contention."
-            build_acorn exact
-            build_acorn rabitq
-        else
-            build_acorn exact &
-            acorn_pid=$!
-            build_acorn rabitq &
-            acorn_rabitq_pid=$!
-            wait $acorn_pid
-            wait $acorn_rabitq_pid
+        if [[ "$favor_status" -ne 0 ]]; then
+            echo "[ERROR] FAVOR build failed with status $favor_status. See: $INDEX_OUTPUT_DIR/others/favor_build.log"
         fi
-    else
-        build_ung &
-        ung_pid=$!
-        build_acorn exact &
-        acorn_pid=$!
-        # build_navix &
-        # navix_pid=$!
-        wait $ung_pid
-        wait $acorn_pid
-        # wait $navix_pid
+        exit 1
+    fi
+
+    if [[ "$BUILD_MODE" == "all" ]]; then
+        build_acorn
     fi
 elif [ "$BUILD_MODE" == "serial" ]; then
     echo "--- [Executing in SERIAL mode] ---"
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-        build_ung exact
-        build_ung rabitq
-    elif [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-        build_ung rabitq
-    else
-        build_ung exact
-    fi
-    build_acorn exact
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-        build_acorn rabitq
-    fi
-    # build_navix
+    build_ung
+    build_acorn
+    build_favor
 elif [ "$BUILD_MODE" == "ung_only" ]; then
     echo "--- [Executing in UNG_ONLY mode] ---"
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-        build_ung exact
-        build_ung rabitq
-    elif [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-        build_ung rabitq
-    else
-        build_ung exact
-    fi
+    build_ung
 elif [ "$BUILD_MODE" == "acorn_only" ]; then
     echo "--- [Executing in ACORN_ONLY mode] ---"
-    build_acorn exact
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" ]]; then
-        build_acorn rabitq
-    fi
+    build_acorn
+elif [ "$BUILD_MODE" == "favor_only" ]; then
+    echo "--- [Executing in FAVOR_ONLY mode] ---"
+    build_favor
 elif [ "$BUILD_MODE" == "navix_only" ]; then
     echo "--- [Executing in NAVIX_ONLY mode] ---"
     build_navix
 fi
 
-end_time=$(date +%s)
-duration=$((end_time - start_time))
+end_time_ms=$(date +%s%3N)
+duration_ms=$((end_time_ms - start_time_ms))
+duration_s=$(awk -v ms="$duration_ms" 'BEGIN { printf "%.3f", ms / 1000 }')
 
 echo "--- Build Summary ---"
-echo "[SUCCESS] All build tasks complete. Total time: $duration seconds."
+echo "[SUCCESS] All build tasks complete. Total time: ${duration_ms} ms (${duration_s} s)."
 echo "Indexes are saved in: $INDEX_OUTPUT_DIR"
 
-ACORN_META_CSV="$INDEX_OUTPUT_DIR/others/acorn_build_stats.csv"
-if [[ -f "$ACORN_META_CSV" ]]; then
-    echo "[INFO] ACORN build stats CSV already exists. Skipping analysis: $ACORN_META_CSV"
-else
-    echo "variant,build_time_s,total_size_bytes,index_only_size_bytes,total_logical_memory_bytes,index_only_logical_memory_bytes" > "$ACORN_META_CSV"
-
-    ACORN_EXACT_META_DIR="$INDEX_OUTPUT_DIR"
-    if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" == "true" && "${SPLIT_RABITQ_EXACT_DIRS}" == "true" ]]; then
-        ACORN_EXACT_META_DIR="$EXACT_INDEX_OUTPUT_DIR"
-    fi
-
-    print_acorn_meta_summary "ACORN-gamma-EXACT" "$ACORN_EXACT_META_DIR/acorn_output/acorn.index.meta"
-    append_acorn_meta_csv "acorn_gamma_exact" "$ACORN_EXACT_META_DIR/acorn_output/acorn.index.meta" "$ACORN_META_CSV"
-    if [[ -f "$ACORN_EXACT_META_DIR/acorn_output/acorn1.index.meta" ]]; then
-        print_acorn_meta_summary "ACORN-1-EXACT" "$ACORN_EXACT_META_DIR/acorn_output/acorn1.index.meta"
-        append_acorn_meta_csv "acorn_1_exact" "$ACORN_EXACT_META_DIR/acorn_output/acorn1.index.meta" "$ACORN_META_CSV"
-    fi
-
-    if [[ -f "$INDEX_OUTPUT_DIR/acorn_output/acorn_rabitq.index.meta" ]]; then
-        print_acorn_meta_summary "ACORN-gamma-RABITQ" "$INDEX_OUTPUT_DIR/acorn_output/acorn_rabitq.index.meta"
-        append_acorn_meta_csv "acorn_gamma_rabitq" "$INDEX_OUTPUT_DIR/acorn_output/acorn_rabitq.index.meta" "$ACORN_META_CSV"
-    fi
-    if [[ -f "$INDEX_OUTPUT_DIR/acorn_output/acorn1_rabitq.index.meta" ]]; then
-        print_acorn_meta_summary "ACORN-1-RABITQ" "$INDEX_OUTPUT_DIR/acorn_output/acorn1_rabitq.index.meta"
-        append_acorn_meta_csv "acorn_1_rabitq" "$INDEX_OUTPUT_DIR/acorn_output/acorn1_rabitq.index.meta" "$ACORN_META_CSV"
-    fi
-
-    echo "ACORN build stats saved to: $ACORN_META_CSV"
-fi
-
-UNG_EXACT_META_FILE="$UNG_EXACT_OUTPUT_DIR/index_files/meta"
-UNG_RABITQ_META_FILE="$UNG_RABITQ_OUTPUT_DIR/index_files/meta"
-UNG_META_FILE="$UNG_RABITQ_META_FILE"
-if [[ "${BUILD_RABITQ_SIDE_INDEX:-false}" != "true" ]]; then
-    UNG_META_FILE="$UNG_EXACT_META_FILE"
-fi
 UNG_META_CSV="$INDEX_OUTPUT_DIR/others/ung_build_stats.csv"
-if [[ -f "$UNG_META_CSV" ]]; then
-    echo "[INFO] UNG build stats CSV already exists. Skipping analysis: $UNG_META_CSV"
+if [[ ! -f "$INDEX_OUTPUT_DIR/index_files/meta" ]]; then
+    echo "[INFO] UNG meta file not found. Skipping UNG stats summary."
 else
-    echo "rabitq_build_requested,rabitq_enabled,rabitq_total_bits,rabitq_build_time_ms,rabitq_side_size_bytes,index_time_without_rabitq_ms,index_time_with_rabitq_ms,index_size_without_rabitq_mb,index_size_with_rabitq_mb" > "$UNG_META_CSV"
-    print_ung_meta_summary "$UNG_META_FILE"
-    append_ung_meta_csv "$UNG_META_FILE" "$UNG_META_CSV"
+    echo "index_time_ms,index_size_mb" > "$UNG_META_CSV"
+    append_ung_meta_csv "$INDEX_OUTPUT_DIR/index_files/meta" "$UNG_META_CSV"
     echo "UNG build stats saved to: $UNG_META_CSV"
 fi
 
-UNG_COMPARE_CSV="$INDEX_OUTPUT_DIR/others/ung_build_compare_stats.csv"
-if [[ -f "$UNG_COMPARE_CSV" ]]; then
-    echo "[INFO] UNG compare stats CSV already exists. Skipping analysis: $UNG_COMPARE_CSV"
+ACORN_META_CSV="$INDEX_OUTPUT_DIR/others/acorn_build_stats.csv"
+if [[ ! -f "$INDEX_OUTPUT_DIR/acorn_output/acorn.index.meta" && ! -f "$INDEX_OUTPUT_DIR/acorn_output/acorn1.index.meta" ]]; then
+    echo "[INFO] ACORN meta files not found. Skipping ACORN stats summary."
 else
-    echo "variant,build_time_ms,index_size_mb,rabitq_build_time_ms,rabitq_side_size_bytes" > "$UNG_COMPARE_CSV"
-    append_ung_variant_compare_csv "$UNG_EXACT_META_FILE" "$UNG_RABITQ_META_FILE" "$UNG_COMPARE_CSV"
-    echo "UNG compare stats saved to: $UNG_COMPARE_CSV"
+    echo "variant,build_time_s,total_size_bytes,index_only_size_bytes,total_logical_memory_bytes,index_only_logical_memory_bytes" > "$ACORN_META_CSV"
+    print_acorn_meta_summary "ACORN-gamma" "$INDEX_OUTPUT_DIR/acorn_output/acorn.index.meta"
+    append_acorn_meta_csv "acorn_gamma" "$INDEX_OUTPUT_DIR/acorn_output/acorn.index.meta" "$ACORN_META_CSV"
+    if [[ -f "$INDEX_OUTPUT_DIR/acorn_output/acorn1.index.meta" ]]; then
+        print_acorn_meta_summary "ACORN-1" "$INDEX_OUTPUT_DIR/acorn_output/acorn1.index.meta"
+        append_acorn_meta_csv "acorn_1" "$INDEX_OUTPUT_DIR/acorn_output/acorn1.index.meta" "$ACORN_META_CSV"
+    fi
+    echo "ACORN build stats saved to: $ACORN_META_CSV"
+fi
+
+FAVOR_META_CSV="$INDEX_OUTPUT_DIR/others/favor_build_stats.csv"
+if [[ ! -f "$INDEX_OUTPUT_DIR/FAVOR/favor.meta" ]]; then
+    echo "[INFO] FAVOR meta file not found. Skipping FAVOR stats summary."
+else
+    echo "rows,dim,build_time_ms,serialized_size_bytes,serialized_index_size_mb" > "$FAVOR_META_CSV"
+    append_favor_meta_csv "$INDEX_OUTPUT_DIR/FAVOR/favor.meta" "$FAVOR_META_CSV"
+    echo "FAVOR build stats saved to: $FAVOR_META_CSV"
+fi
+
+PARALLEL_SUMMARY_CSV="$INDEX_OUTPUT_DIR/others/parallel_build_summary.csv"
+if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
+    if [[ -f "$INDEX_OUTPUT_DIR/index_files/meta" && -f "$INDEX_OUTPUT_DIR/FAVOR/favor.meta" ]]; then
+        if [[ "$UNG_BUILD_STATUS" == "skipped" && "$FAVOR_BUILD_STATUS" == "skipped" && -f "$PARALLEL_SUMMARY_CSV" ]]; then
+            echo "[INFO] UNG and FAVOR were both skipped. Keeping existing parallel summary: $PARALLEL_SUMMARY_CSV"
+        else
+            write_parallel_build_summary "$PARALLEL_SUMMARY_CSV" "$INDEX_OUTPUT_DIR/index_files/meta" "$INDEX_OUTPUT_DIR/FAVOR/favor.meta" "$UNG_BUILD_STATUS" "$FAVOR_BUILD_STATUS"
+            echo "Parallel build summary saved to: $PARALLEL_SUMMARY_CSV"
+        fi
+    else
+        echo "[INFO] Missing UNG or FAVOR meta file. Skipping parallel build summary."
+    fi
 fi

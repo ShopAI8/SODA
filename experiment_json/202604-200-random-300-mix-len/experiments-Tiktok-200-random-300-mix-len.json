@@ -34,8 +34,8 @@
                   "acorn_efs_step_fast": 500
                },
                "algorithms": [
-                  "SmartRoute",
-                  "SmartRoute+",
+                  "SODA",
+                  "SODA+",
                   "pre-filter",
                   "Milvus-IVF",
                   "Milvus-HNSW"
@@ -130,8 +130,8 @@
                   "acorn_efs_step_fast": 500
                },
                "algorithms": [
-                  "SmartRoute",
-                  "SmartRoute+",
+                  "SODA",
+                  "SODA+",
                   "pre-filter",
                   "Milvus-IVF",
                   "Milvus-HNSW",
@@ -148,8 +148,8 @@
                   "acorn_efs_step_fast": 500
                },
                "algorithms": [
-                  "SmartRoute",
-                  "SmartRoute+",
+                  "SODA",
+                  "SODA+",
                   "pre-filter",
                   "Milvus-IVF",
                   "Milvus-HNSW",
@@ -166,8 +166,8 @@
                   "acorn_efs_step_fast": 500
                },
                "algorithms": [
-                  "SmartRoute",
-                  "SmartRoute+",
+                  "SODA",
+                  "SODA+",
                   "pre-filter",
                   "Milvus-IVF",
                   "Milvus-HNSW",
@@ -184,8 +184,8 @@
                   "acorn_efs_step_fast": 500
                },
                "algorithms": [
-                  "SmartRoute",
-                  "SmartRoute+",
+                  "SODA",
+                  "SODA+",
                   "pre-filter",
                   "Milvus-IVF",
                   "Milvus-HNSW",

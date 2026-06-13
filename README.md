@@ -1,6 +1,6 @@
 # Filtered Approximate Nearest Neighbor Search on Vectors with Diverse Labels
 
-This repository provides **SmartRoute**, an enhanced implementation for **Filtered Approximate Nearest Neighbor Search (Filtered ANNS)**. SmartRoute improves **UNG (Unified Navigating Graph)** with an accelerated variant named **UNG+**, and further integrates the core ideas of **UNG+**, **NaviX**, and **Pre-Filtering**. It introduces a new **AI-based intelligent routing** mechanism that adaptively schedules algorithms using a machine learning model. In addition, the improved version, **SmartRoute+**, addresses cache thrashing caused by frequent switching among algorithms.
+This repository provides **SODA**, an enhanced implementation for **Filtered Approximate Nearest Neighbor Search (Filtered ANNS)**. SODA improves **UNG (Unified Navigating Graph)** with an accelerated variant named **UNG+**, and further integrates the core ideas of **UNG+**, **FAVOR**, and **Pre-Filtering**. It introduces a new **AI-based intelligent routing** mechanism that adaptively schedules algorithms using a machine learning model. In addition, the improved version, **SODA+**, addresses cache thrashing caused by frequent switching among algorithms.
 
 ---
 
@@ -100,7 +100,7 @@ docker build -t filtervector:latest .
 
 This image will:
 
-- install the system toolchain required by `UNG`, `ACORN`, `NaviX`, and `Knowhere`
+- install the system toolchain required by `UNG`, `ACORN`, `NaviX`, `FAVOR`, and `Knowhere`
 - create the Conda environment from `environment.yml`
 - install `conan`
 - build the local `knowhere` dependency in advance
@@ -109,7 +109,7 @@ This image will:
 
 If your datasets and experiment outputs are stored on the host machine, it is better to mount only those directories into the container instead of copying them into the image.
 
-Do **not** mount the whole repository over `/workspace/FilterVectorCode-20260529` unless you also plan to rebuild `knowhere` inside the container, because that would hide the prebuilt library baked into the image.
+Do **not** mount the whole repository over `/workspace/FilterVectorCode` unless you also plan to rebuild `knowhere` inside the container, because that would hide the prebuilt library baked into the image.
 
 Example:
 
@@ -118,7 +118,7 @@ docker run --rm -it \
   --name filtervector-dev \
   -v /your_path/FilterVector/FilterVectorData:/data \
   -v /your_path/FilterVector/FilterVectorResults:/results \
-  -w /workspace/FilterVectorCode-20260529 \
+  -w /workspace/FilterVectorCode \
   filtervector:latest
 ```
 
@@ -135,54 +135,6 @@ After entering the container, run:
 conda activate vs
 bash exp.sh experiment_json/202604-200-random-300-mix-len/experiments-Genome-200-random-300-mix-len.json
 ```
-
-The image already exports:
-
-```bash
-KNOWHERE_INCLUDE_DIR=/workspace/FilterVectorCode-20260529/knowhere/include
-KNOWHERE_LIBRARY=/workspace/FilterVectorCode-20260529/knowhere/build/Release/libknowhere.so
-PROJECT_ROOT=/workspace/FilterVectorCode-20260529
-```
-
-so the default `exp.sh` / `build_hybrid.sh` path logic can continue to work.
-
-If you really need to edit code live from the host, mount the repository to another path, for example:
-
-```bash
-docker run --rm -it \
-  --name filtervector-dev \
-  -v /your_path/FilterVector/FilterVectorCode-20260529:/workspace/src \
-  -v /your_path/FilterVector/FilterVectorData:/data \
-  -v /your_path/FilterVector/FilterVectorResults:/results \
-  -w /workspace/src \
-  filtervector:latest
-```
-
-In that case, you should rebuild `knowhere` once inside the container and then export:
-
-```bash
-make -C knowhere BUILD_DIR=/workspace/src/knowhere/build
-export KNOWHERE_INCLUDE_DIR=/workspace/src/knowhere/include
-export KNOWHERE_LIBRARY=/workspace/src/knowhere/build/Release/libknowhere.so
-export PROJECT_ROOT=/workspace/src
-```
-
-### 3.4 About `perf stat` in Docker
-
-`search.sh` uses `perf stat` by default. In Docker, this often requires extra privileges from the host.
-
-The easiest way is to run the container with elevated privileges:
-
-```bash
-docker run --rm -it --privileged \
-  -v /your_path/FilterVector/FilterVectorData:/data \
-  -v /your_path/FilterVector/FilterVectorResults:/results \
-  -w /workspace/FilterVectorCode-20260529 \
-  filtervector:latest
-```
-
-If you do not want to grant that level of privilege, a practical fallback is to temporarily remove or disable the `perf stat` wrapper in `search.sh`.
-
 ---
 
 ## 4. Core Parameters
@@ -191,8 +143,8 @@ The following parameters in the configuration files or scripts determine the beh
 
 | Parameter | Description | Values / Notes |
 | :--- | :--- | :--- |
-| `ROUTING_MODE` | Determines the routing logic. | `0`: Baseline mode; `1`: **SmartRoute**; `5`: **SmartRoute+**. |
-| `BASELINE_ALG` | Specifies the algorithm when `ROUTING_MODE=0`. | `0`: UNG; `2`: ACORN-gamma; `4`: NaviX; `5`: Pre-Filtering; `6`: ACORN-1; `8`: UNG+; `9`: Milvus-IVF; `10`: Milvus-HNSW. |
+| `ROUTING_MODE` | Determines the routing logic. | `0`: Baseline mode; `1`: **SODA**; `5`: **SODA+**. |
+| `BASELINE_ALG` | Specifies the algorithm when `ROUTING_MODE=0`. | `0`: UNG; `2`: ACORN-gamma; `4`: NaviX; `5`: Pre-Filtering; `6`: ACORN-1; `8`: UNG+; `9`: Milvus-IVF; `10`: Milvus-HNSW; `11`: FAVOR; `12`: FAVOR-HNSW. |
 | `BUILD_MODE` | Specifies the index construction mode. | `parallel`: Build all indexes in parallel; `acorn_only`: Build only the ACORN index. |
 | `Lsearch` | Search parameter for UNG. | Similar to `efSearch` in HNSW; controls the search depth. |
 | `efs_start/step` | Search parameters for ACORN/NaviX. | Used to dynamically adjust the filtering strength during search. |

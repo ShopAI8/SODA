@@ -1,8 +1,11 @@
+import argparse
 import os
+import glob
 import pandas as pd
 import numpy as np
 import time
 from datetime import datetime
+from itertools import combinations
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from imblearn.over_sampling import SMOTE
@@ -27,23 +30,69 @@ except ImportError:
 # 1. 全局配置区域
 # ==========================================
 ## "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"
-DATASET_LIST = ["Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"] 
-BASE_DIR = "your_path/FilterVector/FilterVectorResults"
+DATASET_LIST = ["Amazon", "BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"]
+GENERALIZATION_TARGET_DATASETS = DATASET_LIST.copy()
+BASE_DIR = "/noraiddata/lijiakang/FilterVector/FilterVectorResults"
+EDA_ROOT_DIR = os.path.join(BASE_DIR, "EDA_Plots_try")
 
-# 更新原始算法列表
-ALGO_LIST = ['ACORN-gamma', 'NaviX', 'UNG+', 'pre-filter']
-ACORN_FAMILY = ['ACORN-gamma', 'NaviX']
-
-MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
-
-MARGIN_THRESHOLD = 0.20 
+# MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
+MODELS_TO_TRY = ["XGBoost"]
+MIN_RECALL_THRESHOLD = 0.90
+# 按数据集覆盖 min recall。未命中的数据集回退到 MIN_RECALL_THRESHOLD。
+DATASET_MIN_RECALL_THRESHOLDS = {
+    "Laion": 0.91,
+}
+MARGIN_THRESHOLD = 0.2 
+DATASET_MARGIN_THRESHOLDS = {
+    "Tiktok": 1.5,
+    "Reviews": 1.0,
+}
 USE_SMOTE = False
+
+# 仅当 pairwise 训练出现“单一标签无法训练”时，自动放宽一次打标阈值后重试。
+# 这不会影响正常可训练的情况。
+SINGLE_LABEL_RETRY_MIN_RECALL = 0.85
+SINGLE_LABEL_RETRY_MARGIN_THRESHOLD = 0.5
 
 ROUTE_STRATEGY = {
     "default": "auto"
 }
 
-SUMMARY_OUT_DIR = os.path.join(BASE_DIR, "SelectModels_summary", "smart_route_4_features")
+# 训练模式配置
+RUN_SINGLE_DATASET_TRAINING = False
+RUN_MULTI_DATASET_GENERALIZATION = False #目标数据集 80% + 其他 7 个数据集 训练，目标数据集 20% 测试
+RUN_CROSS_DATASET_HOLDOUT = True # 只用另外 7 个数据集训练，在目标数据集上纯测试
+TARGET_DATASET_TRAIN_RATIO = 0.8
+GENERALIZATION_HOLDOUT_TARGET_DATASETS = DATASET_LIST.copy()
+
+# 输出路径配置。8 数据集泛化训练结果统一写到 models_8datasets 下。
+SELECT_MODELS_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets")
+SELECT_MODELS_RUN_DIR = "routing_models"
+SUMMARY_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets")
+SUMMARY_RUN_DIR = "summary"
+LEAVE1_SELECT_MODELS_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets_leave1")
+LEAVE1_SUMMARY_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets_leave1")
+
+SUPPORTED_ROUTING_CONFIGS = ["FAVOR"]
+
+# 默认训练哪些配置。
+# 可选值: "FAVOR", "ACORN-gamma", "NaviX"
+# 例如:
+AVAILABLE_ROUTING_CONFIGS = ["FAVOR"]
+
+# 是否默认只训练“三选二”的 pairwise 模型。
+# True:
+#   只训练 FAVOR vs UNG+、FAVOR vs pre-filter、UNG+ vs pre-filter
+# False:
+#   同时训练原始三分类模型 + 上面三组 pairwise 模型
+DEFAULT_PAIRWISE_ONLY = False
+
+# 是否默认只训练原始三分类模型。
+# True:
+#   只训练完整候选集，例如 FAVOR / UNG+ / pre-filter
+# False:
+#   是否训练 pairwise 由 DEFAULT_PAIRWISE_ONLY 和命令行参数决定
+DEFAULT_FULL_MODEL_ONLY = True
 
 # ==========================================
 # 2. 核心功能与特征
@@ -63,7 +112,18 @@ def create_classifier(model_type="RandomForest", **kwargs):
         
     elif model_type == "XGBoost":
         import xgboost as xgb
-        params = {'max_depth': 6, 'learning_rate': 0.05, 'n_estimators': 200, 'random_state': 42, 'n_jobs': -1}
+        params = {
+            'max_depth': 6,
+            'learning_rate': 0.05,
+            'n_estimators': 300,
+            'subsample': 1,
+            'colsample_bytree': 1,
+            'min_child_weight': 1,
+            'random_state': 42,
+            'n_jobs': -1,
+            'eval_metric': 'mlogloss'
+        }
+
         params.update(kwargs)
         return xgb.XGBClassifier(**params)
         
@@ -76,12 +136,55 @@ def create_classifier(model_type="RandomForest", **kwargs):
     else:
         raise ValueError(f"不支持的模型类型: {model_type}")
 
-def label_best_algorithm_by_time(df, time_prefix='L1_Time_ms', min_recall=0.90, threshold=0.15):
+def infer_algorithm_list(df, time_prefix='L1_Time_ms'):
+    algo_list = []
+    prefix = f"{time_prefix}_"
+    for col in df.columns:
+        if col.startswith(prefix):
+            algo = col[len(prefix):]
+            recall_col = f"Recall_{algo}"
+            if recall_col in df.columns:
+                algo_list.append(algo)
+    return sorted(algo_list)
+
+def sanitize_name(name):
+    return (
+        str(name)
+        .replace("+", "plus")
+        .replace("/", "_")
+        .replace(" ", "_")
+        .replace("-", "_")
+    )
+
+def build_candidate_set_name(algo_list):
+    return "__vs__".join(sanitize_name(algo) for algo in algo_list)
+
+def build_dataset_output_dir(dataset_name, config_name):
+    return os.path.join(
+        SELECT_MODELS_ROOT_DIR,
+        dataset_name,
+        SELECT_MODELS_RUN_DIR,
+        config_name
+    )
+
+def build_summary_output_dir(config_name):
+    return os.path.join(SUMMARY_ROOT_DIR, SUMMARY_RUN_DIR, config_name)
+
+def build_leave1_summary_output_dir(config_name):
+    return os.path.join(LEAVE1_SUMMARY_ROOT_DIR, SUMMARY_RUN_DIR, config_name)
+
+def get_min_recall_threshold(dataset_name):
+    return DATASET_MIN_RECALL_THRESHOLDS.get(dataset_name, MIN_RECALL_THRESHOLD)
+
+def get_margin_threshold(dataset_name):
+    return DATASET_MARGIN_THRESHOLDS.get(dataset_name, MARGIN_THRESHOLD)
+
+def label_best_algorithm_by_time(df, algo_list, time_prefix='L1_Time_ms', min_recall=MIN_RECALL_THRESHOLD, threshold=0.15):
     best_algos = []
     fuzzy_count = 0
     for idx, row in df.iterrows():
         candidates = []
-        for algo in ALGO_LIST:
+        for algo in algo_list:
             recall_col = f'Recall_{algo}'
             time_col = f'{time_prefix}_{algo}'
             if recall_col in row and time_col in row and pd.notna(row[recall_col]) and pd.notna(row[time_col]):
@@ -124,6 +227,88 @@ def generate_features(df):
     X.replace([np.inf, -np.inf], np.nan, inplace=True); X.fillna(0, inplace=True)
     
     return X
+
+def prepare_routing_training_data(df, dataset_name, algo_list, route_scope_name):
+    if len(algo_list) < 2:
+        print(f"❌ 候选算法数量不足 2 个: {algo_list}，跳过 {route_scope_name}。")
+        return None
+
+    missing_cols = []
+    for algo in algo_list:
+        time_col = f"L1_Time_ms_{algo}"
+        recall_col = f"Recall_{algo}"
+        if time_col not in df.columns:
+            missing_cols.append(time_col)
+        if recall_col not in df.columns:
+            missing_cols.append(recall_col)
+
+    if missing_cols:
+        print(f"❌ 缺少候选算法所需列，跳过 {route_scope_name}: {missing_cols}")
+        return None
+
+    min_recall_threshold = get_min_recall_threshold(dataset_name)
+    margin_threshold = get_margin_threshold(dataset_name)
+    print(f"🎯 {route_scope_name} 使用 min_recall={min_recall_threshold}, margin={margin_threshold}")
+
+    work_df = df.copy()
+    work_df['Global_Best'] = label_best_algorithm_by_time(
+        work_df, algo_list, time_prefix='L1_Time_ms', min_recall=min_recall_threshold, threshold=margin_threshold
+    )
+    work_df['Target'] = work_df['Global_Best']
+    unknown_count = int((work_df['Global_Best'] == 'Unknown').sum())
+    total_count = int(len(work_df))
+    unknown_rate = (unknown_count / total_count) if total_count else 0.0
+
+    X = generate_features(work_df)
+    valid_mask = (work_df['Global_Best'] != 'Unknown')
+    valid_indices = work_df[valid_mask].index
+
+    if len(valid_indices) < 2:
+        print(f"❌ {route_scope_name} 有效样本不足，跳过。")
+        return None
+
+    y_valid = work_df.loc[valid_indices, 'Target']
+    if y_valid.nunique() < 2:
+        print(
+            f"⚠️ {route_scope_name} 当前阈值下仅存在单一标签 {sorted(y_valid.unique())}，"
+            f"尝试使用更宽松阈值重打标: min_recall={SINGLE_LABEL_RETRY_MIN_RECALL}, "
+            f"margin={SINGLE_LABEL_RETRY_MARGIN_THRESHOLD}"
+        )
+        retry_df = df.copy()
+        retry_df['Global_Best'] = label_best_algorithm_by_time(
+            retry_df,
+            algo_list,
+            time_prefix='L1_Time_ms',
+            min_recall=SINGLE_LABEL_RETRY_MIN_RECALL,
+            threshold=SINGLE_LABEL_RETRY_MARGIN_THRESHOLD
+        )
+        retry_df['Target'] = retry_df['Global_Best']
+        retry_valid_mask = (retry_df['Global_Best'] != 'Unknown')
+        retry_valid_indices = retry_df[retry_valid_mask].index
+        retry_y_valid = retry_df.loc[retry_valid_indices, 'Target']
+
+        if len(retry_valid_indices) < 2 or retry_y_valid.nunique() < 2:
+            print(f"❌ {route_scope_name} 在放宽阈值后仍仅存在单一标签 {sorted(retry_y_valid.unique())}，跳过。")
+            return None
+
+        work_df = retry_df
+        X = generate_features(work_df)
+        valid_indices = retry_valid_indices
+        y_valid = retry_y_valid
+        unknown_count = int((work_df['Global_Best'] == 'Unknown').sum())
+        total_count = int(len(work_df))
+        unknown_rate = (unknown_count / total_count) if total_count else 0.0
+        print(f"✅ {route_scope_name} 放宽阈值后恢复为可训练数据。")
+
+    return {
+        "work_df": work_df,
+        "X": X,
+        "valid_indices": valid_indices,
+        "y_valid": y_valid,
+        "unknown_count": unknown_count,
+        "unknown_rate": unknown_rate,
+        "total_count": total_count
+    }
 
 def train_and_evaluate_model(X_train, y_train, X_test, y_test, target_map, model_type, use_smote=False):
     y_train_mapped = y_train.map(target_map)
@@ -289,31 +474,17 @@ def save_onnx_model(classifier, model_type, num_features, output_dir, filename, 
         print(f"❌ 导出 ONNX 模型时发生错误: {e}")
 
 # 移除了 ELS 相关的输入参数和判断逻辑
-def calculate_system_accuracy(X_test, y_global_best_test, 
-                              clf, real_classes, TARGET_MAP,
-                              majority_acorn_algo):
-    inv_map = {v: k for k, v in TARGET_MAP.items()}
-    
+def calculate_system_accuracy(X_test, y_global_best_test, clf, real_classes, target_map):
     preds_raw = clf.predict(X_test.values)
-    preds_mapped = [real_classes[int(idx)] for idx in preds_raw]
-    
-    final_preds = []
-    for i, mapped_idx in enumerate(preds_mapped):
-        decision = inv_map[mapped_idx]
-        
-        if decision == 'pre-filter':
-            final_preds.append('pre-filter')
-        elif decision == 'ACORN_Family':
-            final_preds.append(majority_acorn_algo) 
-        elif decision == 'UNG_Family': 
-            final_preds.append('UNG+')
-        else:
-            final_preds.append('Unknown')
+    inv_target_map = {v: k for k, v in target_map.items()}
+    preds_mapped = [inv_target_map[real_classes[int(idx)]] for idx in preds_raw]
             
     valid_mask = y_global_best_test != 'Unknown'
     y_true_valid = y_global_best_test[valid_mask]
-    final_preds_valid = [final_preds[j] for j, valid in enumerate(valid_mask) if valid]
+    final_preds_valid = [preds_mapped[j] for j, valid in enumerate(valid_mask) if valid]
     
+    if len(y_true_valid) == 0:
+        return 0.0
     return accuracy_score(y_true_valid, final_preds_valid)
 
 def generate_comparison_table(metrics_list, layer_name, feature_count):
@@ -325,49 +496,110 @@ def generate_comparison_table(metrics_list, layer_name, feature_count):
         lines.append(f"  {m['Model']:<16} | {m['Accuracy']:<18.4%} | {m['Train_Time_ms']:<18.2f} | {m['Pred_Latency_us']:<18.2f}")
     return "\n".join(lines) + "\n"
 
-# ==========================================
-# 3. 单一数据集处理总线
-# ==========================================
-def process_single_dataset(dataset_name):
-    print(f"\n{'='*70}")
-    print(f"🚀 开始处理单层路由数据集: {dataset_name}")
-    print(f"{'='*70}")
-    
-    csv_path = os.path.join(BASE_DIR, "EDA_Plots", dataset_name, f"{dataset_name}_aligned_results.csv")
-    output_dir = os.path.join(BASE_DIR, dataset_name, "SelectModels", "smart_route_4_features")
-    os.makedirs(output_dir, exist_ok=True)
-    report_path = os.path.join(output_dir, f"FastSmartRoute_Single_Report_{dataset_name}.txt")
-    
-    if not os.path.exists(csv_path):
-        print(f"❌ 找不到数据文件: {csv_path}，跳过。")
+def build_model_aggregate_summary(df_metrics):
+    metric_cols = ["Accuracy", "Train_Time_ms", "Pred_Latency_us"]
+    if df_metrics.empty or "Model" not in df_metrics.columns:
+        return pd.DataFrame(columns=["Mode", "Model"] + [f"{col}_{stat}" for col in metric_cols for stat in ["Sum", "Mean"]])
+
+    base_models = [model for model in MODELS_TO_TRY if model in set(df_metrics["Model"].dropna())]
+    if not base_models:
+        return pd.DataFrame(columns=["Mode", "Model"] + [f"{col}_{stat}" for col in metric_cols for stat in ["Sum", "Mean"]])
+
+    df_base = df_metrics[df_metrics["Model"].isin(base_models)].copy()
+    if df_base.empty:
+        return pd.DataFrame(columns=["Mode", "Model"] + [f"{col}_{stat}" for col in metric_cols for stat in ["Sum", "Mean"]])
+
+    for col in metric_cols:
+        if col in df_base.columns:
+            df_base[col] = pd.to_numeric(df_base[col], errors="coerce")
+
+    if "Mode" not in df_base.columns:
+        df_base["Mode"] = "Default"
+
+    agg_df = (
+        df_base.groupby(["Mode", "Model"], as_index=False)[metric_cols]
+        .agg(["sum", "mean"])
+        .reset_index()
+    )
+    agg_df.columns = [
+        col[0] if col[0] in {"Mode", "Model"} else f"{col[0]}_{col[1].capitalize()}"
+        for col in agg_df.columns.to_flat_index()
+    ]
+
+    agg_df["Model"] = pd.Categorical(agg_df["Model"], categories=base_models, ordered=True)
+    agg_df = agg_df.sort_values(["Mode", "Model"]).reset_index(drop=True)
+    agg_df["Model"] = agg_df["Model"].astype(str)
+    return agg_df
+
+def write_summary_outputs(global_metrics, global_ablation, global_importances, config_summary_dir):
+    print(f"📁 Summary 输出目录: {config_summary_dir}")
+    os.makedirs(config_summary_dir, exist_ok=True)
+
+    df_all = pd.DataFrame(global_metrics)
+    cols_order = [
+        "Mode", "Config", "Dataset", "Model", "Accuracy",
+        "Train_Time_ms", "Pred_Latency_us", "Test_Size",
+        "Unknown_Count", "Unknown_Rate", "Total_Samples"
+    ]
+    df_all = df_all[[c for c in cols_order if c in df_all.columns]]
+    csv1_path = os.path.join(config_summary_dir, "fast_all_datasets_metrics.csv")
+    df_all.to_csv(csv1_path, index=False)
+    print(f"\n✅ [全局报表 1] 各数据集单层算法明细已保存至: {csv1_path}")
+
+    df_model_agg = build_model_aggregate_summary(df_all)
+    csv_model_agg_path = os.path.join(config_summary_dir, "fast_model_aggregate_metrics.csv")
+    df_model_agg.to_csv(csv_model_agg_path, index=False)
+    print(f"✅ [全局报表 1.1] 各算法 Accuracy/Train_Time_ms/Pred_Latency_us 的总和与平均值已保存至: {csv_model_agg_path}")
+
+    if global_ablation:
+        df_abl = pd.DataFrame(global_ablation)
+        pivot_abl = df_abl.pivot_table(index=["Config", "Dataset", "Layer"], columns="Config", values="Accuracy").reset_index()
+        csv_abl_path = os.path.join(config_summary_dir, "fast_ablation_summary.csv")
+        pivot_abl.to_csv(csv_abl_path, index=False)
+        print(f"✅ [全局报表 2] 核心特征消融实验汇总已保存至: {csv_abl_path}")
+
+    if global_importances:
+        df_imp = pd.DataFrame(global_importances)
+        meta_cols = ["Config", "Dataset", "Layer", "Model"]
+        feat_cols = [c for c in df_imp.columns if c not in meta_cols]
+        df_imp = df_imp[meta_cols + feat_cols]
+        csv_imp_path = os.path.join(config_summary_dir, "fast_feature_importances.csv")
+        df_imp.to_csv(csv_imp_path, index=False)
+        print(f"✅ [全局报表 3] 全局特征重要性得分表已保存至: {csv_imp_path}\n")
+
+def train_routing_model_for_candidates(df, dataset_name, config_name, algo_list, output_dir, report_path, route_scope_name):
+    prepared = prepare_routing_training_data(df, dataset_name, algo_list, route_scope_name)
+    if prepared is None:
         return [], [], []
-        
-    df = pd.read_csv(csv_path)
-    
-    df['Global_Best'] = label_best_algorithm_by_time(df, time_prefix='L1_Time_ms', min_recall=0.90, threshold=MARGIN_THRESHOLD)
-    
-    # 映射为三大类，更新了 UNG 的映射逻辑
-    df['Target'] = df['Global_Best'].replace({a: 'ACORN_Family' for a in ACORN_FAMILY})
-    df['Target'] = df['Target'].replace({'UNG+': 'UNG_Family'})
-    
-    X = generate_features(df)
-    
-    valid_mask = (df['Global_Best'] != 'Unknown')
-    valid_indices = df[valid_mask].index
-    
-    train_idx, test_idx = train_test_split(valid_indices, test_size=0.2, random_state=42)
-    
-    # 移除了 X_ELS 的构建和切分
+
+    work_df = prepared["work_df"]
+    X = prepared["X"]
+    valid_indices = prepared["valid_indices"]
+    y_valid = prepared["y_valid"]
+    unknown_count = prepared["unknown_count"]
+    unknown_rate = prepared["unknown_rate"]
+    total_count = prepared["total_count"]
+
+    target_map = {algo: idx for idx, algo in enumerate(algo_list)}
+
+    stratify_labels = y_valid if y_valid.value_counts().min() >= 2 else None
+    train_idx, test_idx = train_test_split(
+        valid_indices,
+        test_size=0.2,
+        random_state=42,
+        stratify=stratify_labels
+    )
+
     X_train, X_test = X.loc[train_idx], X.loc[test_idx]
-    
-    y_train, y_test = df.loc[train_idx, 'Target'], df.loc[test_idx, 'Target']
-    y_Global_Best_test = df.loc[test_idx, 'Global_Best']
+    y_train, y_test = work_df.loc[train_idx, 'Target'], work_df.loc[test_idx, 'Target']
+    y_global_best_test = work_df.loc[test_idx, 'Global_Best']
 
-    # 移除了 ELS_Router 模型加载的逻辑
-
-    TARGET_MAP = {'UNG_Family': 0, 'ACORN_Family': 1, 'pre-filter': 2}
-
-    cache, metrics = run_arena_for_layer(X_train, y_train, X_test, y_test, TARGET_MAP, "Single Layer (单层路由)", use_smote=USE_SMOTE)
+    cache, metrics = run_arena_for_layer(
+        X_train, y_train, X_test, y_test, target_map, route_scope_name, use_smote=USE_SMOTE
+    )
+    if not metrics:
+        print(f"❌ {route_scope_name} 没有成功训练出的模型，跳过。")
+        return [], [], []
 
     current_strategy = ROUTE_STRATEGY
     if isinstance(ROUTE_STRATEGY, dict):
@@ -376,70 +608,53 @@ def process_single_dataset(dataset_name):
     if isinstance(current_strategy, str) and current_strategy != "auto":
         best_model = current_strategy
         strategy_desc = f"Manual ({best_model})"
-    else: 
+    else:
         best_model = max(metrics, key=lambda x: x['Accuracy'])['Model']
         strategy_desc = "Auto (自动取优)"
 
-    print(f"\n[策略选定] 胜出模型: {best_model}")
-    
+    print(f"\n[策略选定] {route_scope_name} 胜出模型: {best_model}")
     res = cache[best_model]
 
-    # ablation_study = run_layer_ablation(X_train, y_train, X_test, y_test, TARGET_MAP, best_model)
-    # dataset_ablation = []
-    # for config, acc in ablation_study.items():
-    #     dataset_ablation.append({"Dataset": dataset_name, "Layer": "Single_Layer", "Config": config, "Accuracy": acc})
-    
     dataset_ablation = []
-        
     dataset_importances = []
+    candidate_set_name = " vs ".join(algo_list)
     if res['importances_dict']:
         imp = res['importances_dict'].copy()
-        imp.update({"Dataset": dataset_name, "Layer": "Single_Layer", "Model": best_model})
+        imp.update({
+            "Dataset": dataset_name,
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Model": best_model,
+            "Candidate_Set": candidate_set_name
+        })
         dataset_importances.append(imp)
 
-    acorn_mask_train = df.loc[train_idx, 'Target'] == 'ACORN_Family'
-    if acorn_mask_train.sum() > 0:
-        majority_acorn_algo = df.loc[train_idx][acorn_mask_train]['Global_Best'].mode()[0]
-    else:
-        majority_acorn_algo = 'ACORN-gamma'
-        
-    cpp_algo_map = {'ACORN-gamma': 2, 'NaviX': 4}
-    with open(os.path.join(output_dir, "majority_acorn_id.txt"), "w") as f:
-        f.write(str(cpp_algo_map.get(majority_acorn_algo, 2)))
+    system_acc = calculate_system_accuracy(X_test, y_global_best_test, res['classifier'], res['real_classes'], target_map)
 
-    # 更新了函数调用，去除了 ELS 相关的参数
-    system_acc = calculate_system_accuracy(
-        X_test, y_Global_Best_test, 
-        res['classifier'], res['real_classes'], TARGET_MAP,
-        majority_acorn_algo
-    )
-
+    os.makedirs(output_dir, exist_ok=True)
     save_onnx_model(res['classifier'], best_model, X_train.shape[1], output_dir, "router.onnx", res['real_classes'])
+    save_class_labels(output_dir, algo_list)
 
-    # 汇总输出到 TXT 战报
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
         f.write("┃               Fast Single-Layer Routing Assessment Report          ┃\n")
         f.write("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n")
         f.write(f"┃ 数据集  : {dataset_name:<15} 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S'):<20} ┃\n")
+        f.write(f"┃ 配置    : {config_name:<52} ┃\n")
+        f.write(f"┃ 候选集  : {candidate_set_name:<52} ┃\n")
         f.write(f"┃ 选用策略: {strategy_desc:<52} ┃\n")
         f.write("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n")
-        
+
         f.write("【零 | 模型竞技与特征对比 (Model Arena Comparison)】\n")
         f.write("-" * 80 + "\n")
-        f.write(generate_comparison_table(metrics, "Single Layer - 单层路由", X_train.shape[1]) + "\n")
+        f.write(generate_comparison_table(metrics, route_scope_name, X_train.shape[1]) + "\n")
 
         f.write("【壹 | 端到端表现评估 (End-to-End Evaluation)】\n")
         f.write("-" * 80 + "\n")
         f.write(f"  ▶ 选定引擎 : {best_model}\n")
-        f.write(f"  ▶ 多数派短路兜底 (ACORN_Family): {majority_acorn_algo}\n\n")
+        f.write(f"  ▶ 候选算法 : {', '.join(algo_list)}\n\n")
+        f.write(f"  ▶ Unknown 样本数 : {unknown_count} / {total_count} ({unknown_rate:.4%})\n\n")
         f.write(f"  🚀 模拟流水线分发最终准确率 (System End-to-End Accuracy): {system_acc:.4%}\n\n")
-
-        # f.write("【贰 | 特征消融实验 (Feature Ablation Study)】\n")
-        # f.write("-" * 80 + "\n")
-        # for config, acc in ablation_study.items():
-        #     f.write(f"  - {config:<20} : {acc:.4%}\n")
-        # f.write("\n")
 
         f.write("【叁 | 胜出模型透视 (Selected Model Deep Dive)】\n")
         f.write("-" * 80 + "\n")
@@ -447,70 +662,851 @@ def process_single_dataset(dataset_name):
         f.write("  ▶ 详细分类报告:\n  " + res['cls_report'].replace('\n', '\n  ') + "\n")
         f.write("  ▶ 混淆矩阵:\n  " + res['cm_df'].to_string().replace('\n', '\n  ') + "\n\n")
         f.write("  ▶ 特征重要性:\n  " + res['importance_str'].replace('\n', '\n  ') + "\n\n")
-        
-    print(f"\n✅ 评估完成！详尽log已同步至: {report_path}")
-    
+
+    print(f"\n✅ {route_scope_name} 评估完成！详尽log已同步至: {report_path}")
+
     dataset_metrics = []
     for m in metrics:
         m_copy = m.copy()
-        m_copy.update({"Dataset": dataset_name, "Layer": "Single_Layer"})
+        m_copy.update({
+            "Dataset": dataset_name,
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Candidate_Set": candidate_set_name,
+            "Unknown_Count": unknown_count,
+            "Unknown_Rate": unknown_rate,
+            "Total_Samples": total_count
+        })
         dataset_metrics.append(m_copy)
-        
+
     dataset_metrics.append({
         "Dataset": dataset_name,
-        "Layer": "System_End_to_End",
+        "Config": config_name,
+        "Layer": f"{route_scope_name}_System_End_to_End",
         "Model": f"Single({best_model})",
         "Accuracy": system_acc,
-        "Train_Time_ms": np.nan, 
+        "Train_Time_ms": np.nan,
         "Pred_Latency_us": np.nan,
-        "Test_Size": len(y_Global_Best_test[y_Global_Best_test != 'Unknown'])
+        "Test_Size": len(y_global_best_test[y_global_best_test != 'Unknown']),
+        "Candidate_Set": candidate_set_name,
+        "Unknown_Count": unknown_count,
+        "Unknown_Rate": unknown_rate,
+        "Total_Samples": total_count
     })
-    
+
     return dataset_metrics, dataset_ablation, dataset_importances
 
-def main():
-    global_metrics = []
-    global_ablation = []
-    global_importances = []
+# ==========================================
+# 3. 单一数据集处理总线
+# ==========================================
+def save_class_labels(output_dir, algo_list):
+    labels_path = os.path.join(output_dir, "class_labels.txt")
+    with open(labels_path, "w", encoding="utf-8") as f:
+        for idx, algo in enumerate(algo_list):
+            f.write(f"{idx},{algo}\n")
+
+def process_single_dataset(
+    dataset_name,
+    config_name,
+    train_full_model=True,
+    train_pairwise_models=True
+):
+    print(f"\n{'='*70}")
+    print(f"🚀 开始处理单层路由数据集: {dataset_name} | 配置: {config_name}")
+    print(f"{'='*70}")
     
-    # 遍历所有数据集并收集统计指标
-    for dataset in DATASET_LIST:
-        res = process_single_dataset(dataset)
-        if res:
-            d_metrics, d_ablation, d_importances = res
-            global_metrics.extend(d_metrics)
-            global_ablation.extend(d_ablation)
-            global_importances.extend(d_importances)
-            
-    # 聚合生成全局 CSV
-    if global_metrics:
-        os.makedirs(SUMMARY_OUT_DIR, exist_ok=True)
+    csv_path = os.path.join(EDA_ROOT_DIR, config_name, dataset_name, f"{dataset_name}_aligned_results.csv")
+    output_dir = build_dataset_output_dir(dataset_name, config_name)
+    print(f"📁 单模型输出目录: {output_dir}")
+    os.makedirs(output_dir, exist_ok=True)
+    if not os.path.exists(csv_path):
+        print(f"❌ 找不到数据文件: {csv_path}，跳过。")
+        return [], [], []
         
-        # 1. 基础性能明细表
-        df_all = pd.DataFrame(global_metrics)
-        cols_order = ["Dataset", "Layer", "Model", "Accuracy", "Train_Time_ms", "Pred_Latency_us", "Test_Size"]
-        df_all = df_all[[c for c in cols_order if c in df_all.columns]]
-        csv1_path = os.path.join(SUMMARY_OUT_DIR, "fast_all_datasets_metrics.csv")
-        df_all.to_csv(csv1_path, index=False)
-        print(f"\n✅ [全局报表 1] 各数据集单层算法明细已保存至: {csv1_path}")
+    df = pd.read_csv(csv_path)
+    all_metrics = []
+    all_ablations = []
+    all_importances = []
+
+    algo_list = infer_algorithm_list(df)
+    if train_full_model:
+        full_report_path = os.path.join(output_dir, f"SmartRoute_Single_Report_{dataset_name}.txt")
+        full_metrics, full_ablation, full_importances = train_routing_model_for_candidates(
+            df=df,
+            dataset_name=dataset_name,
+            config_name=config_name,
+            algo_list=algo_list,
+            output_dir=output_dir,
+            report_path=full_report_path,
+            route_scope_name="Single Layer (单层路由)"
+        )
+        all_metrics.extend(full_metrics)
+        all_ablations.extend(full_ablation)
+        all_importances.extend(full_importances)
+
+    if train_pairwise_models:
+        for pair_algos in combinations(algo_list, 2):
+            pair_list = list(pair_algos)
+            pair_name = build_candidate_set_name(pair_list)
+            pair_output_dir = os.path.join(output_dir, "pairwise_models", pair_name)
+            pair_report_path = os.path.join(pair_output_dir, f"SmartRoute_Pair_Report_{dataset_name}_{pair_name}.txt")
+            pair_scope_name = f"Pairwise ({pair_list[0]} vs {pair_list[1]})"
+            print(f"\n--- 开始训练二选一模型: {pair_list[0]} vs {pair_list[1]} ---")
+            pair_metrics, pair_ablation, pair_importances = train_routing_model_for_candidates(
+                df=df,
+                dataset_name=dataset_name,
+                config_name=config_name,
+                algo_list=pair_list,
+                output_dir=pair_output_dir,
+                report_path=pair_report_path,
+                route_scope_name=pair_scope_name
+            )
+            all_metrics.extend(pair_metrics)
+            all_ablations.extend(pair_ablation)
+            all_importances.extend(pair_importances)
+
+    return all_metrics, all_ablations, all_importances
+
+def load_dataset_dataframe(dataset_name, config_name):
+    csv_path = os.path.join(EDA_ROOT_DIR, config_name, dataset_name, f"{dataset_name}_aligned_results.csv")
+    if not os.path.exists(csv_path):
+        print(f"❌ 找不到数据文件: {csv_path}")
+        return None
+    return pd.read_csv(csv_path)
+
+def select_common_algorithms(train_dataset_names, holdout_dataset_name, config_name):
+    algo_sets = []
+    ordered_reference = None
+
+    for dataset_name in train_dataset_names + [holdout_dataset_name]:
+        df = load_dataset_dataframe(dataset_name, config_name)
+        if df is None:
+            return None
+        current_algos = infer_algorithm_list(df)
+        if ordered_reference is None and dataset_name == holdout_dataset_name:
+            ordered_reference = current_algos
+        algo_sets.append(set(current_algos))
+
+    common_algos = set.intersection(*algo_sets) if algo_sets else set()
+    if not common_algos:
+        return []
+
+    if ordered_reference is None:
+        ordered_reference = sorted(common_algos)
+    return [algo for algo in ordered_reference if algo in common_algos]
+
+def train_multi_dataset_generalization_for_candidates(
+    target_dataset_name,
+    aux_dataset_names,
+    config_name,
+    algo_list,
+    output_dir,
+    report_path,
+    route_scope_name
+):
+    if len(aux_dataset_names) == 0:
+        print(f"❌ {route_scope_name} 没有可用的辅助训练数据集。")
+        return [], [], []
+
+    target_map = {algo: idx for idx, algo in enumerate(algo_list)}
+    train_feature_frames = []
+    train_target_frames = []
+    train_dataset_stats = []
+
+    df_target = load_dataset_dataframe(target_dataset_name, config_name)
+    if df_target is None:
+        return [], [], []
+
+    prepared_target = prepare_routing_training_data(
+        df_target,
+        target_dataset_name,
+        algo_list,
+        f"{route_scope_name} | Target: {target_dataset_name}"
+    )
+    if prepared_target is None:
+        return [], [], []
+
+    target_valid_indices = prepared_target["valid_indices"]
+    target_y_valid = prepared_target["work_df"].loc[target_valid_indices, "Target"]
+    target_stratify = target_y_valid if target_y_valid.value_counts().min() >= 2 else None
+    target_train_idx, target_test_idx = train_test_split(
+        target_valid_indices,
+        train_size=TARGET_DATASET_TRAIN_RATIO,
+        random_state=42,
+        stratify=target_stratify
+    )
+
+    train_feature_frames.append(prepared_target["X"].loc[target_train_idx].copy())
+    train_target_frames.append(prepared_target["work_df"].loc[target_train_idx, "Target"].copy())
+    train_dataset_stats.append({
+        "Dataset": f"{target_dataset_name} (target train {TARGET_DATASET_TRAIN_RATIO:.0%})",
+        "Valid_Samples": len(target_train_idx),
+        "Unknown_Count": prepared_target["unknown_count"],
+        "Unknown_Rate": prepared_target["unknown_rate"],
+        "Total_Samples": prepared_target["total_count"]
+    })
+
+    for source_dataset in aux_dataset_names:
+        df_source = load_dataset_dataframe(source_dataset, config_name)
+        if df_source is None:
+            continue
+
+        prepared_source = prepare_routing_training_data(
+            df_source,
+            source_dataset,
+            algo_list,
+            f"{route_scope_name} | Train Source: {source_dataset}"
+        )
+        if prepared_source is None:
+            continue
+
+        source_indices = prepared_source["valid_indices"]
+        train_feature_frames.append(prepared_source["X"].loc[source_indices].copy())
+        train_target_frames.append(prepared_source["work_df"].loc[source_indices, "Target"].copy())
+        train_dataset_stats.append({
+            "Dataset": source_dataset,
+            "Valid_Samples": len(source_indices),
+            "Unknown_Count": prepared_source["unknown_count"],
+            "Unknown_Rate": prepared_source["unknown_rate"],
+            "Total_Samples": prepared_source["total_count"]
+        })
+
+    if not train_feature_frames:
+        print(f"❌ {route_scope_name} 没有可用的跨数据集训练样本。")
+        return [], [], []
+
+    X_train = pd.concat(train_feature_frames, axis=0, ignore_index=True)
+    y_train = pd.concat(train_target_frames, axis=0, ignore_index=True)
+
+    X_test = prepared_target["X"].loc[target_test_idx].copy()
+    y_test = prepared_target["work_df"].loc[target_test_idx, "Target"].copy()
+    y_global_best_test = prepared_target["work_df"].loc[target_test_idx, "Global_Best"]
+
+    if y_train.nunique() < 2:
+        print(f"❌ {route_scope_name} 聚合后的训练标签仍然只有一个类别，无法训练。")
+        return [], [], []
+
+    print(f"\n[{route_scope_name} - 多数据集泛化训练启动 | Train: {target_dataset_name}(80%) + {aux_dataset_names} -> Test: {target_dataset_name}(20%)]")
+
+    selection_cache = {}
+    selection_metrics = []
+
+    for model_type in MODELS_TO_TRY:
+        try:
+            final_res = train_and_evaluate_model(
+                X_train,
+                y_train,
+                X_test,
+                y_test,
+                target_map,
+                model_type,
+                use_smote=USE_SMOTE
+            )
+            selection_cache[model_type] = final_res
+            selection_metrics.append({
+                "Mode": "MultiDatasetGeneralization",
+                "Model": model_type,
+                "Accuracy": final_res["acc"],
+                "Train_Time_ms": final_res["train_time_ms"],
+                "Pred_Latency_us": final_res["pred_latency_us"],
+                "Test_Size": final_res["test_size"]
+            })
+            print(f"  > {model_type:<15} | 目标域准确率: {final_res['acc']:.4%}")
+        except ImportError:
+            print(f"  > ⚠️ 缺少 {model_type} 引擎依赖库。")
+        except Exception as e:
+            print(f"  > ⚠️ {model_type} 训练失败: {e}")
+
+    if not selection_metrics:
+        print(f"❌ {route_scope_name} 没有成功训练出的模型，跳过。")
+        return [], [], []
+
+    best_model = max(selection_metrics, key=lambda x: x["Accuracy"])["Model"]
+    strategy_desc = "Target-Domain Test Accuracy"
+
+    res = selection_cache[best_model]
+    candidate_set_name = " vs ".join(algo_list)
+    system_acc = calculate_system_accuracy(X_test, y_global_best_test, res['classifier'], res['real_classes'], target_map)
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_onnx_model(res['classifier'], best_model, X_train.shape[1], output_dir, "router.onnx", res['real_classes'])
+    save_class_labels(output_dir, algo_list)
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
+        f.write("┃        Multi-Dataset Routing Generalization Assessment Report     ┃\n")
+        f.write("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n")
+        f.write(f"┃ 目标集  : {target_dataset_name:<15} 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S'):<20} ┃\n")
+        f.write(f"┃ 配置    : {config_name:<52} ┃\n")
+        f.write(f"┃ 候选集  : {candidate_set_name:<52} ┃\n")
+        f.write(f"┃ 训练源  : {', '.join([target_dataset_name + '(80%)'] + aux_dataset_names):<52} ┃\n")
+        f.write(f"┃ 选用策略: {strategy_desc:<52} ┃\n")
+        f.write("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n")
+
+        f.write("【零 | 训练源统计 (Train Source Summary)】\n")
+        f.write("-" * 80 + "\n")
+        for stat in train_dataset_stats:
+            f.write(
+                f"  ▶ {stat['Dataset']}: valid={stat['Valid_Samples']}, "
+                f"unknown={stat['Unknown_Count']}/{stat['Total_Samples']} ({stat['Unknown_Rate']:.4%})\n"
+            )
+        f.write(f"  ▶ 聚合训练样本数: {len(X_train)}\n")
+        f.write(f"  ▶ 目标数据集测试样本数(20%): {len(X_test)}\n\n")
+
+        f.write("【壹 | 泛化结果 (Generalization Evaluation)】\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"  ▶ 选定引擎 : {best_model}\n")
+        f.write(f"  ▶ 候选算法 : {', '.join(algo_list)}\n")
+        f.write(f"  ▶ 目标集 Unknown 样本数 : {prepared_target['unknown_count']} / {prepared_target['total_count']} ({prepared_target['unknown_rate']:.4%})\n")
+        f.write(f"  🚀 目标集 20% 分类准确率: {res['acc']:.4%}\n")
+        f.write(f"  🚀 目标集 20% 端到端分发准确率: {system_acc:.4%}\n\n")
+
+        f.write("【贰 | 胜出模型透视 (Selected Model Deep Dive)】\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"[胜出者: {best_model}]\n")
+        f.write("  ▶ 详细分类报告:\n  " + res['cls_report'].replace('\n', '\n  ') + "\n")
+        f.write("  ▶ 混淆矩阵:\n  " + res['cm_df'].to_string().replace('\n', '\n  ') + "\n\n")
+        f.write("  ▶ 特征重要性:\n  " + res['importance_str'].replace('\n', '\n  ') + "\n\n")
+
+    dataset_metrics = []
+    for m in selection_metrics:
+        m_copy = m.copy()
+        m_copy.update({
+            "Mode": "MultiDatasetGeneralization",
+            "Dataset": target_dataset_name,
+            "Train_Datasets": ",".join([f"{target_dataset_name}(80%)"] + aux_dataset_names),
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Candidate_Set": candidate_set_name,
+            "Unknown_Count": prepared_target["unknown_count"],
+            "Unknown_Rate": prepared_target["unknown_rate"],
+            "Total_Samples": prepared_target["total_count"]
+        })
+        dataset_metrics.append(m_copy)
+
+    dataset_metrics.append({
+        "Mode": "MultiDatasetGeneralization",
+        "Dataset": target_dataset_name,
+        "Train_Datasets": ",".join([f"{target_dataset_name}(80%)"] + aux_dataset_names),
+        "Config": config_name,
+        "Layer": f"{route_scope_name}_System_End_to_End",
+        "Model": f"MultiDataset({best_model})",
+        "Accuracy": system_acc,
+        "Train_Time_ms": np.nan,
+        "Pred_Latency_us": np.nan,
+        "Test_Size": len(y_global_best_test[y_global_best_test != 'Unknown']),
+        "Candidate_Set": candidate_set_name,
+        "Unknown_Count": prepared_target["unknown_count"],
+        "Unknown_Rate": prepared_target["unknown_rate"],
+        "Total_Samples": prepared_target["total_count"]
+    })
+
+    dataset_importances = []
+    if res['importances_dict']:
+        imp = res['importances_dict'].copy()
+        imp.update({
+            "Mode": "MultiDatasetGeneralization",
+            "Dataset": target_dataset_name,
+            "Train_Datasets": ",".join([f"{target_dataset_name}(80%)"] + aux_dataset_names),
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Model": best_model,
+            "Candidate_Set": candidate_set_name
+        })
+        dataset_importances.append(imp)
+
+    return dataset_metrics, [], dataset_importances
+
+def train_cross_dataset_holdout_for_candidates(
+    target_dataset_name,
+    aux_dataset_names,
+    config_name,
+    algo_list,
+    output_dir,
+    report_path,
+    route_scope_name
+):
+    if len(aux_dataset_names) == 0:
+        print(f"❌ {route_scope_name} 没有可用的训练数据集。")
+        return [], [], []
+
+    target_map = {algo: idx for idx, algo in enumerate(algo_list)}
+    train_feature_frames = []
+    train_target_frames = []
+    train_dataset_stats = []
+
+    for source_dataset in aux_dataset_names:
+        df_source = load_dataset_dataframe(source_dataset, config_name)
+        if df_source is None:
+            continue
+
+        prepared_source = prepare_routing_training_data(
+            df_source,
+            source_dataset,
+            algo_list,
+            f"{route_scope_name} | Train Source: {source_dataset}"
+        )
+        if prepared_source is None:
+            continue
+
+        source_indices = prepared_source["valid_indices"]
+        train_feature_frames.append(prepared_source["X"].loc[source_indices].copy())
+        train_target_frames.append(prepared_source["work_df"].loc[source_indices, "Target"].copy())
+        train_dataset_stats.append({
+            "Dataset": source_dataset,
+            "Valid_Samples": len(source_indices),
+            "Unknown_Count": prepared_source["unknown_count"],
+            "Unknown_Rate": prepared_source["unknown_rate"],
+            "Total_Samples": prepared_source["total_count"]
+        })
+
+    if not train_feature_frames:
+        print(f"❌ {route_scope_name} 没有可用的跨数据集训练样本。")
+        return [], [], []
+
+    df_target = load_dataset_dataframe(target_dataset_name, config_name)
+    if df_target is None:
+        return [], [], []
+
+    prepared_target = prepare_routing_training_data(
+        df_target,
+        target_dataset_name,
+        algo_list,
+        f"{route_scope_name} | Test Target: {target_dataset_name}"
+    )
+    if prepared_target is None:
+        return [], [], []
+
+    X_train = pd.concat(train_feature_frames, axis=0, ignore_index=True)
+    y_train = pd.concat(train_target_frames, axis=0, ignore_index=True)
+
+    target_test_indices = prepared_target["valid_indices"]
+    X_test = prepared_target["X"].loc[target_test_indices].copy()
+    y_test = prepared_target["work_df"].loc[target_test_indices, "Target"].copy()
+    y_global_best_test = prepared_target["work_df"].loc[target_test_indices, "Global_Best"]
+
+    if y_train.nunique() < 2:
+        print(f"❌ {route_scope_name} 聚合后的训练标签仍然只有一个类别，无法训练。")
+        return [], [], []
+
+    print(f"\n[{route_scope_name} - 纯跨数据集训练启动 | Train: {aux_dataset_names} -> Test: {target_dataset_name}(100% valid)]")
+
+    selection_cache = {}
+    selection_metrics = []
+
+    for model_type in MODELS_TO_TRY:
+        try:
+            final_res = train_and_evaluate_model(
+                X_train,
+                y_train,
+                X_test,
+                y_test,
+                target_map,
+                model_type,
+                use_smote=USE_SMOTE
+            )
+            selection_cache[model_type] = final_res
+            selection_metrics.append({
+                "Model": model_type,
+                "Accuracy": final_res["acc"],
+                "Train_Time_ms": final_res["train_time_ms"],
+                "Pred_Latency_us": final_res["pred_latency_us"],
+                "Test_Size": final_res["test_size"]
+            })
+            print(f"  > {model_type:<15} | 跨数据集目标域准确率: {final_res['acc']:.4%}")
+        except ImportError:
+            print(f"  > ⚠️ 缺少 {model_type} 引擎依赖库。")
+        except Exception as e:
+            print(f"  > ⚠️ {model_type} 训练失败: {e}")
+
+    if not selection_metrics:
+        print(f"❌ {route_scope_name} 没有成功训练出的模型，跳过。")
+        return [], [], []
+
+    best_model = max(selection_metrics, key=lambda x: x["Accuracy"])["Model"]
+    strategy_desc = "Cross-Dataset Holdout Accuracy"
+
+    res = selection_cache[best_model]
+    candidate_set_name = " vs ".join(algo_list)
+    system_acc = calculate_system_accuracy(X_test, y_global_best_test, res['classifier'], res['real_classes'], target_map)
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_onnx_model(res['classifier'], best_model, X_train.shape[1], output_dir, "router.onnx", res['real_classes'])
+    save_class_labels(output_dir, algo_list)
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
+        f.write("┃         Cross-Dataset Holdout Routing Assessment Report          ┃\n")
+        f.write("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n")
+        f.write(f"┃ 测试集  : {target_dataset_name:<15} 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S'):<20} ┃\n")
+        f.write(f"┃ 配置    : {config_name:<52} ┃\n")
+        f.write(f"┃ 候选集  : {candidate_set_name:<52} ┃\n")
+        f.write(f"┃ 训练源  : {', '.join(aux_dataset_names):<52} ┃\n")
+        f.write(f"┃ 选用策略: {strategy_desc:<52} ┃\n")
+        f.write("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n")
+
+        f.write("【零 | 训练源统计 (Train Source Summary)】\n")
+        f.write("-" * 80 + "\n")
+        for stat in train_dataset_stats:
+            f.write(
+                f"  ▶ {stat['Dataset']}: valid={stat['Valid_Samples']}, "
+                f"unknown={stat['Unknown_Count']}/{stat['Total_Samples']} ({stat['Unknown_Rate']:.4%})\n"
+            )
+        f.write(f"  ▶ 聚合训练样本数: {len(X_train)}\n")
+        f.write(f"  ▶ 目标数据集测试样本数(100% valid): {len(X_test)}\n\n")
+
+        f.write("【壹 | 测试结果 (Cross-Dataset Holdout Evaluation)】\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"  ▶ 选定引擎 : {best_model}\n")
+        f.write(f"  ▶ 候选算法 : {', '.join(algo_list)}\n")
+        f.write(f"  ▶ 目标集 Unknown 样本数 : {prepared_target['unknown_count']} / {prepared_target['total_count']} ({prepared_target['unknown_rate']:.4%})\n")
+        f.write(f"  🚀 目标集分类准确率: {res['acc']:.4%}\n")
+        f.write(f"  🚀 目标集端到端分发准确率: {system_acc:.4%}\n\n")
+
+        f.write("【贰 | 胜出模型透视 (Selected Model Deep Dive)】\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"[胜出者: {best_model}]\n")
+        f.write("  ▶ 详细分类报告:\n  " + res['cls_report'].replace('\n', '\n  ') + "\n")
+        f.write("  ▶ 混淆矩阵:\n  " + res['cm_df'].to_string().replace('\n', '\n  ') + "\n\n")
+        f.write("  ▶ 特征重要性:\n  " + res['importance_str'].replace('\n', '\n  ') + "\n\n")
+
+    dataset_metrics = []
+    for m in selection_metrics:
+        m_copy = m.copy()
+        m_copy.update({
+            "Mode": "CrossDatasetHoldout",
+            "Dataset": target_dataset_name,
+            "Train_Datasets": ",".join(aux_dataset_names),
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Candidate_Set": candidate_set_name,
+            "Unknown_Count": prepared_target["unknown_count"],
+            "Unknown_Rate": prepared_target["unknown_rate"],
+            "Total_Samples": prepared_target["total_count"]
+        })
+        dataset_metrics.append(m_copy)
+
+    dataset_metrics.append({
+        "Mode": "CrossDatasetHoldout",
+        "Dataset": target_dataset_name,
+        "Train_Datasets": ",".join(aux_dataset_names),
+        "Config": config_name,
+        "Layer": f"{route_scope_name}_System_End_to_End",
+        "Model": f"CrossDataset({best_model})",
+        "Accuracy": system_acc,
+        "Train_Time_ms": np.nan,
+        "Pred_Latency_us": np.nan,
+        "Test_Size": len(y_global_best_test[y_global_best_test != 'Unknown']),
+        "Candidate_Set": candidate_set_name,
+        "Unknown_Count": prepared_target["unknown_count"],
+        "Unknown_Rate": prepared_target["unknown_rate"],
+        "Total_Samples": prepared_target["total_count"]
+    })
+
+    dataset_importances = []
+    if res['importances_dict']:
+        imp = res['importances_dict'].copy()
+        imp.update({
+            "Mode": "CrossDatasetHoldout",
+            "Dataset": target_dataset_name,
+            "Train_Datasets": ",".join(aux_dataset_names),
+            "Config": config_name,
+            "Layer": route_scope_name,
+            "Model": best_model,
+            "Candidate_Set": candidate_set_name
+        })
+        dataset_importances.append(imp)
+
+    return dataset_metrics, [], dataset_importances
+
+def process_multi_dataset_generalization(
+    target_dataset_name,
+    config_name,
+    train_full_model=True,
+    train_pairwise_models=True
+):
+    print(f"\n{'='*70}")
+    print(f"🌍 开始 8 数据集泛化评估: Train({target_dataset_name} 80% + 其他数据集) -> Test({target_dataset_name} 20%) | 配置: {config_name}")
+    print(f"{'='*70}")
+
+    aux_dataset_names = [name for name in DATASET_LIST if name != target_dataset_name]
+    if not aux_dataset_names:
+        print(f"❌ 无法进行 target={target_dataset_name} 的多数据集训练：没有剩余辅助数据集。")
+        return [], [], []
+
+    output_dir = os.path.join(build_dataset_output_dir(target_dataset_name, config_name), "generalization_8datasets")
+    os.makedirs(output_dir, exist_ok=True)
+
+    all_metrics = []
+    all_importances = []
+
+    full_algo_list = select_common_algorithms(aux_dataset_names, target_dataset_name, config_name)
+    if full_algo_list is None:
+        return [], [], []
+
+    if train_full_model and len(full_algo_list) >= 2:
+        full_report_path = os.path.join(output_dir, f"SmartRoute_8Datasets_Report_{target_dataset_name}.txt")
+        full_metrics, _, full_importances = train_multi_dataset_generalization_for_candidates(
+            target_dataset_name=target_dataset_name,
+            aux_dataset_names=aux_dataset_names,
+            config_name=config_name,
+            algo_list=full_algo_list,
+            output_dir=output_dir,
+            report_path=full_report_path,
+            route_scope_name="MultiDataset Generalization (Full Candidate Set)"
+        )
+        all_metrics.extend(full_metrics)
+        all_importances.extend(full_importances)
+    elif train_full_model:
+        print(f"⚠️ {target_dataset_name} 与其余数据集没有共同的完整候选算法集合，跳过 full model。")
+
+    if train_pairwise_models and len(full_algo_list) >= 2:
+        for pair_algos in combinations(full_algo_list, 2):
+            pair_list = list(pair_algos)
+            pair_name = build_candidate_set_name(pair_list)
+            pair_output_dir = os.path.join(output_dir, "pairwise_models", pair_name)
+            pair_report_path = os.path.join(pair_output_dir, f"SmartRoute_8Datasets_Pair_Report_{target_dataset_name}_{pair_name}.txt")
+            pair_scope_name = f"MultiDataset Pairwise ({pair_list[0]} vs {pair_list[1]})"
+            pair_metrics, _, pair_importances = train_multi_dataset_generalization_for_candidates(
+                target_dataset_name=target_dataset_name,
+                aux_dataset_names=aux_dataset_names,
+                config_name=config_name,
+                algo_list=pair_list,
+                output_dir=pair_output_dir,
+                report_path=pair_report_path,
+                route_scope_name=pair_scope_name
+            )
+            all_metrics.extend(pair_metrics)
+            all_importances.extend(pair_importances)
+
+    return all_metrics, [], all_importances
+
+def process_cross_dataset_holdout(
+    target_dataset_name,
+    config_name,
+    train_full_model=True,
+    train_pairwise_models=True
+):
+    print(f"\n{'='*70}")
+    print(f"🌍 开始 7 训 1 测评估: Train(其他 7 个数据集) -> Test({target_dataset_name}) | 配置: {config_name}")
+    print(f"{'='*70}")
+
+    aux_dataset_names = [name for name in DATASET_LIST if name != target_dataset_name]
+    if not aux_dataset_names:
+        print(f"❌ 无法进行 target={target_dataset_name} 的 7 训 1 测：没有剩余训练数据集。")
+        return [], [], []
+
+    output_dir = os.path.join(
+        LEAVE1_SELECT_MODELS_ROOT_DIR,
+        target_dataset_name,
+        SELECT_MODELS_RUN_DIR,
+        config_name,
+        "cross_dataset_holdout"
+    )
+    os.makedirs(output_dir, exist_ok=True)
+
+    all_metrics = []
+    all_importances = []
+
+    full_algo_list = select_common_algorithms(aux_dataset_names, target_dataset_name, config_name)
+    if full_algo_list is None:
+        return [], [], []
+
+    if train_full_model and len(full_algo_list) >= 2:
+        full_report_path = os.path.join(output_dir, f"SmartRoute_CrossDataset_Report_{target_dataset_name}.txt")
+        full_metrics, _, full_importances = train_cross_dataset_holdout_for_candidates(
+            target_dataset_name=target_dataset_name,
+            aux_dataset_names=aux_dataset_names,
+            config_name=config_name,
+            algo_list=full_algo_list,
+            output_dir=output_dir,
+            report_path=full_report_path,
+            route_scope_name="CrossDataset Holdout (Full Candidate Set)"
+        )
+        all_metrics.extend(full_metrics)
+        all_importances.extend(full_importances)
+    elif train_full_model:
+        print(f"⚠️ {target_dataset_name} 与其余 7 个数据集没有共同的完整候选算法集合，跳过 full model。")
+
+    if train_pairwise_models and len(full_algo_list) >= 2:
+        for pair_algos in combinations(full_algo_list, 2):
+            pair_list = list(pair_algos)
+            pair_name = build_candidate_set_name(pair_list)
+            pair_output_dir = os.path.join(output_dir, "pairwise_models", pair_name)
+            pair_report_path = os.path.join(pair_output_dir, f"SmartRoute_CrossDataset_Pair_Report_{target_dataset_name}_{pair_name}.txt")
+            pair_scope_name = f"CrossDataset Pairwise ({pair_list[0]} vs {pair_list[1]})"
+            pair_metrics, _, pair_importances = train_cross_dataset_holdout_for_candidates(
+                target_dataset_name=target_dataset_name,
+                aux_dataset_names=aux_dataset_names,
+                config_name=config_name,
+                algo_list=pair_list,
+                output_dir=pair_output_dir,
+                report_path=pair_report_path,
+                route_scope_name=pair_scope_name
+            )
+            all_metrics.extend(pair_metrics)
+            all_importances.extend(pair_importances)
+
+    return all_metrics, [], all_importances
+
+def discover_configs():
+    if not os.path.exists(EDA_ROOT_DIR):
+        return []
+    return sorted([
+        name for name in os.listdir(EDA_ROOT_DIR)
+        if os.path.isdir(os.path.join(EDA_ROOT_DIR, name))
+    ])
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train SODA selector models for one or more routing config groups."
+    )
+    parser.add_argument(
+        "--configs",
+        nargs="+",
+        choices=SUPPORTED_ROUTING_CONFIGS,
+        help="Optional routing config groups to train. Example: --configs FAVOR ACORN-gamma",
+    )
+    parser.add_argument(
+        "--pairwise-only",
+        action="store_true",
+        help="Only train pairwise models for every 2-of-N candidate combination.",
+    )
+    parser.add_argument(
+        "--include-full-model",
+        action="store_true",
+        help="Train the original full multi-class model in addition to pairwise models.",
+    )
+    parser.add_argument(
+        "--full-model-only",
+        action="store_true",
+        help="Only train the original full multi-class model, for example FAVOR / UNG+ / pre-filter, without pairwise models.",
+    )
+    return parser.parse_args()
+
+def resolve_config_names(selected_configs=None):
+    discovered_configs = discover_configs()
+    target_configs = selected_configs if selected_configs else AVAILABLE_ROUTING_CONFIGS
+
+    unsupported_configs = [cfg for cfg in target_configs if cfg not in SUPPORTED_ROUTING_CONFIGS]
+    if unsupported_configs:
+        print(f"⚠️ 以下配置不在支持列表中，将跳过: {', '.join(unsupported_configs)}")
+
+    missing_configs = [cfg for cfg in target_configs if cfg not in discovered_configs]
+    if missing_configs:
+        print(f"⚠️ 以下配置目录不存在，将跳过: {', '.join(missing_configs)}")
+
+    return [
+        cfg for cfg in target_configs
+        if cfg in SUPPORTED_ROUTING_CONFIGS and cfg in discovered_configs
+    ]
+
+def main():
+    args = parse_args()
+    config_names = resolve_config_names(args.configs)
+    if not config_names:
+        print(f"❌ 在 {EDA_ROOT_DIR} 下未发现可训练的宽表配置目录。")
+        return
+
+    if args.pairwise_only and args.full_model_only:
+        print("❌ 参数冲突: --pairwise-only 与 --full-model-only 不能同时使用。")
+        return
+
+    pairwise_only = DEFAULT_PAIRWISE_ONLY
+    if args.pairwise_only:
+        pairwise_only = True
+    if args.include_full_model:
+        pairwise_only = False
+
+    full_model_only = DEFAULT_FULL_MODEL_ONLY
+    if args.full_model_only:
+        full_model_only = True
+
+    train_pairwise_models = not full_model_only
+
+    if full_model_only:
+        print("🧭 当前模式: 仅训练原始三分类模型（如 FAVOR / UNG+ / pre-filter）")
+    elif pairwise_only:
+        print("🧭 当前模式: 仅训练 pairwise 模型")
+    else:
+        print("🧭 当前模式: 同时训练原始三分类模型和 pairwise 模型")
+
+    if RUN_SINGLE_DATASET_TRAINING:
+        print("📦 已启用单数据集训练模式")
+    if RUN_MULTI_DATASET_GENERALIZATION:
+        print(f"🌍 已启用 8 数据集泛化训练，目标数据集: {', '.join(GENERALIZATION_TARGET_DATASETS)}")
+    if RUN_CROSS_DATASET_HOLDOUT:
+        print(f"🧪 已启用 7 训 1 测模式，目标数据集: {', '.join(GENERALIZATION_HOLDOUT_TARGET_DATASETS)}")
+
+    for config_name in config_names:
+        print(f"\n{'#' * 80}")
+        print(f"📦 开始训练配置: {config_name}")
+        print(f"{'#' * 80}")
+
+        standard_metrics = []
+        standard_ablation = []
+        standard_importances = []
+        leave1_metrics = []
+        leave1_ablation = []
+        leave1_importances = []
         
-        # 2. 消融实验汇总表 (利用 Pivot 透视表格式化)
-        if global_ablation:
-            df_abl = pd.DataFrame(global_ablation)
-            pivot_abl = df_abl.pivot_table(index=["Dataset", "Layer"], columns="Config", values="Accuracy").reset_index()
-            csv_abl_path = os.path.join(SUMMARY_OUT_DIR, "fast_ablation_summary.csv")
-            pivot_abl.to_csv(csv_abl_path, index=False)
-            print(f"✅ [全局报表 2] 核心特征消融实验汇总已保存至: {csv_abl_path}")
-            
-        # 3. 特征重要性汇总表
-        if global_importances:
-            df_imp = pd.DataFrame(global_importances)
-            meta_cols = ["Dataset", "Layer", "Model"]
-            feat_cols = [c for c in df_imp.columns if c not in meta_cols]
-            df_imp = df_imp[meta_cols + feat_cols]
-            csv_imp_path = os.path.join(SUMMARY_OUT_DIR, "fast_feature_importances.csv")
-            df_imp.to_csv(csv_imp_path, index=False)
-            print(f"✅ [全局报表 3] 全局特征重要性得分表已保存至: {csv_imp_path}\n")
+        if RUN_SINGLE_DATASET_TRAINING:
+            for dataset in DATASET_LIST:
+                res = process_single_dataset(
+                    dataset,
+                    config_name,
+                    train_full_model=not pairwise_only,
+                    train_pairwise_models=train_pairwise_models
+                )
+                if res:
+                    d_metrics, d_ablation, d_importances = res
+                    standard_metrics.extend(d_metrics)
+                    standard_ablation.extend(d_ablation)
+                    standard_importances.extend(d_importances)
+
+        if RUN_MULTI_DATASET_GENERALIZATION:
+            for target_dataset in GENERALIZATION_TARGET_DATASETS:
+                res = process_multi_dataset_generalization(
+                    target_dataset,
+                    config_name,
+                    train_full_model=not pairwise_only,
+                    train_pairwise_models=train_pairwise_models
+                )
+                if res:
+                    d_metrics, d_ablation, d_importances = res
+                    standard_metrics.extend(d_metrics)
+                    standard_ablation.extend(d_ablation)
+                    standard_importances.extend(d_importances)
+
+        if RUN_CROSS_DATASET_HOLDOUT:
+            for target_dataset in GENERALIZATION_HOLDOUT_TARGET_DATASETS:
+                res = process_cross_dataset_holdout(
+                    target_dataset,
+                    config_name,
+                    train_full_model=not pairwise_only,
+                    train_pairwise_models=train_pairwise_models
+                )
+                if res:
+                    d_metrics, d_ablation, d_importances = res
+                    leave1_metrics.extend(d_metrics)
+                    leave1_ablation.extend(d_ablation)
+                    leave1_importances.extend(d_importances)
+
+        if standard_metrics:
+            write_summary_outputs(
+                standard_metrics,
+                standard_ablation,
+                standard_importances,
+                build_summary_output_dir(config_name)
+            )
+
+        if leave1_metrics:
+            write_summary_outputs(
+                leave1_metrics,
+                leave1_ablation,
+                leave1_importances,
+                build_leave1_summary_output_dir(config_name)
+            )
 
 if __name__ == "__main__":
     main()
