@@ -1,0 +1,31 @@
+set(CMAKE_CXX_STANDARD 20)
+
+add_executable(generate_groundtruth generate_groundtruth.cpp)
+target_link_libraries(generate_groundtruth UTIL)
+target_compile_options(generate_groundtruth PRIVATE -Wall ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_groundtruth ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_groundtruth OpenMP::OpenMP_CXX)
+
+add_executable(generate_attribute generate_attribute.cpp)
+target_link_libraries(generate_attribute UTIL)
+target_compile_options(generate_attribute PRIVATE -Wall ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_attribute ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_attribute OpenMP::OpenMP_CXX)
+
+add_executable(build_index build_index.cpp)
+target_link_libraries(build_index UTIL)
+target_compile_options(build_index PRIVATE -Wall ${OpenMP_CXX_FLAGS})
+target_link_libraries(build_index ${OpenMP_CXX_FLAGS})
+target_link_libraries(build_index OpenMP::OpenMP_CXX)
+
+add_executable(search search.cpp)
+target_link_libraries(search UTIL)
+target_compile_options(search PRIVATE -Wall ${OpenMP_CXX_FLAGS})
+target_link_libraries(search ${OpenMP_CXX_FLAGS})
+target_link_libraries(search OpenMP::OpenMP_CXX)
+
+add_executable(generate_query_conditions generate_query_conditions.cpp)
+target_link_libraries(generate_query_conditions UTIL)
+target_compile_options(generate_query_conditions PRIVATE -Wall ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_query_conditions ${OpenMP_CXX_FLAGS})
+target_link_libraries(generate_query_conditions OpenMP::OpenMP_CXX)
