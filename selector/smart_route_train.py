@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from imblearn.over_sampling import SMOTE
 import joblib
 
-# ONNX 导出库支持
+# Optional dependencies for ONNX export
 try:
     from skl2onnx import convert_sklearn
     from skl2onnx.common.data_types import FloatTensorType as SklFloatTensorType
@@ -27,7 +27,7 @@ except ImportError:
     ONNXMLTOOLS_AVAILABLE = False
 
 # ==========================================
-# 1. 全局配置区域
+# 1. Global configuration
 # ==========================================
 ## "Amazon","BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"
 DATASET_LIST = ["Amazon", "BookReviews", "Genome", "Music", "Reviews", "Tiktok", "VariousImg", "Laion"]
@@ -38,7 +38,7 @@ EDA_ROOT_DIR = os.path.join(BASE_DIR, "EDA_Plots_try")
 # MODELS_TO_TRY = ["RandomForest", "XGBoost", "LightGBM", "DecisionTree"]
 MODELS_TO_TRY = ["XGBoost"]
 MIN_RECALL_THRESHOLD = 0.90
-# 按数据集覆盖 min recall。未命中的数据集回退到 MIN_RECALL_THRESHOLD。
+# Per-dataset min-recall overrides. Fall back to MIN_RECALL_THRESHOLD when unset.
 DATASET_MIN_RECALL_THRESHOLDS = {
     "Laion": 0.91,
 }
@@ -49,8 +49,8 @@ DATASET_MARGIN_THRESHOLDS = {
 }
 USE_SMOTE = False
 
-# 仅当 pairwise 训练出现“单一标签无法训练”时，自动放宽一次打标阈值后重试。
-# 这不会影响正常可训练的情况。
+# Retry once with looser labeling thresholds when pairwise training collapses
+# into a single class. This does not affect normally trainable cases.
 SINGLE_LABEL_RETRY_MIN_RECALL = 0.85
 SINGLE_LABEL_RETRY_MARGIN_THRESHOLD = 0.5
 
@@ -58,14 +58,14 @@ ROUTE_STRATEGY = {
     "default": "auto"
 }
 
-# 训练模式配置
+# Training mode configuration
 RUN_SINGLE_DATASET_TRAINING = False
-RUN_MULTI_DATASET_GENERALIZATION = False #目标数据集 80% + 其他 7 个数据集 训练，目标数据集 20% 测试
-RUN_CROSS_DATASET_HOLDOUT = True # 只用另外 7 个数据集训练，在目标数据集上纯测试
+RUN_MULTI_DATASET_GENERALIZATION = False # Train on 80% of the target dataset plus the other 7 datasets, then test on the remaining 20% of the target dataset
+RUN_CROSS_DATASET_HOLDOUT = True # Train on the other 7 datasets only, then evaluate on the target dataset as a pure holdout
 TARGET_DATASET_TRAIN_RATIO = 0.8
 GENERALIZATION_HOLDOUT_TARGET_DATASETS = DATASET_LIST.copy()
 
-# 输出路径配置。8 数据集泛化训练结果统一写到 models_8datasets 下。
+# Output paths. Results for the 8-dataset generalization runs are stored under models_8datasets.
 SELECT_MODELS_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets")
 SELECT_MODELS_RUN_DIR = "routing_models"
 SUMMARY_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets")
@@ -75,27 +75,27 @@ LEAVE1_SUMMARY_ROOT_DIR = os.path.join(BASE_DIR, "models_8datasets_leave1")
 
 SUPPORTED_ROUTING_CONFIGS = ["FAVOR"]
 
-# 默认训练哪些配置。
-# 可选值: "FAVOR", "ACORN-gamma", "NaviX"
-# 例如:
+# Default routing configs to train.
+# Supported values: "FAVOR", "ACORN-gamma", "NaviX"
+# Example:
 AVAILABLE_ROUTING_CONFIGS = ["FAVOR"]
 
-# 是否默认只训练“三选二”的 pairwise 模型。
+# Whether to train pairwise "two-out-of-three" models by default.
 # True:
-#   只训练 FAVOR vs UNG+、FAVOR vs pre-filter、UNG+ vs pre-filter
+#   Train only FAVOR vs UNG+, FAVOR vs pre-filter, and UNG+ vs pre-filter
 # False:
-#   同时训练原始三分类模型 + 上面三组 pairwise 模型
+#   Train both the original 3-way model and the three pairwise models above
 DEFAULT_PAIRWISE_ONLY = False
 
-# 是否默认只训练原始三分类模型。
+# Whether to train only the original 3-way model by default.
 # True:
-#   只训练完整候选集，例如 FAVOR / UNG+ / pre-filter
+#   Train only the full candidate set, such as FAVOR / UNG+ / pre-filter
 # False:
-#   是否训练 pairwise 由 DEFAULT_PAIRWISE_ONLY 和命令行参数决定
+#   Pairwise training is controlled by DEFAULT_PAIRWISE_ONLY and CLI flags
 DEFAULT_FULL_MODEL_ONLY = True
 
 # ==========================================
-# 2. 核心功能与特征
+# 2. Core utilities and features
 # ==========================================
 def create_classifier(model_type="RandomForest", **kwargs):
     if model_type == "RandomForest":
@@ -216,14 +216,14 @@ def label_best_algorithm_by_time(df, algo_list, time_prefix='L1_Time_ms', min_re
     return pd.Series(best_algos, index=df.index)
 
 def generate_features(df):
-    # 构建单层特征
+    # Build single-layer routing features.
     X = pd.DataFrame(index=df.index)
     X['GlobalPpass'] = df['GlobalPpass']
     X['NumDescendants'] = df['NumDescendants']
     X['QuerySize'] = df['QuerySize']
     X['CandSize'] = df['CandSize']
     
-    # 清理异常值 (NaN, inf) 
+    # Normalize invalid values (NaN, inf).
     X.replace([np.inf, -np.inf], np.nan, inplace=True); X.fillna(0, inplace=True)
     
     return X
@@ -389,20 +389,20 @@ def train_and_evaluate_model(X_train, y_train, X_test, y_test, target_map, model
     }
 
 def run_layer_ablation(X_train, y_train, X_test, y_test, target_map, best_model_type):
-    """专门为收集证明数据设计的消融函数"""
+    """Run ablations specifically for evidence-collection analysis."""
     results = {}
     # 1. Baseline
     res_base = train_and_evaluate_model(X_train, y_train, X_test, y_test, target_map, best_model_type)
     results["Baseline (All)"] = res_base["acc"]
     
-    # 2. 逐一剔除消融
+    # 2. Remove each feature group one at a time.
     for col in X_train.columns:
         ablated_cols = [c for c in X_train.columns if c != col]
         if not ablated_cols: continue
         res_abl = train_and_evaluate_model(X_train[ablated_cols], y_train, X_test[ablated_cols], y_test, target_map, best_model_type)
         results[f"Minus {col}"] = res_abl["acc"]
         
-    # 3. 直击痛点: 只有 GlobalPpass
+    # 3. Stress-test the core signal with GlobalPpass only.
     if 'GlobalPpass' in X_train.columns and len(X_train.columns) > 1:
         res_only_ppass = train_and_evaluate_model(X_train[['GlobalPpass']], y_train, X_test[['GlobalPpass']], y_test, target_map, best_model_type)
         results["Only GlobalPpass"] = res_only_ppass["acc"]
@@ -473,7 +473,7 @@ def save_onnx_model(classifier, model_type, num_features, output_dir, filename, 
     except Exception as e:
         print(f"❌ 导出 ONNX 模型时发生错误: {e}")
 
-# 移除了 ELS 相关的输入参数和判断逻辑
+# ELS-related inputs and branching logic have been removed.
 def calculate_system_accuracy(X_test, y_global_best_test, clf, real_classes, target_map):
     preds_raw = clf.predict(X_test.values)
     inv_target_map = {v: k for k, v in target_map.items()}
@@ -697,7 +697,7 @@ def train_routing_model_for_candidates(df, dataset_name, config_name, algo_list,
     return dataset_metrics, dataset_ablation, dataset_importances
 
 # ==========================================
-# 3. 单一数据集处理总线
+# 3. Single-dataset processing pipeline
 # ==========================================
 def save_class_labels(output_dir, algo_list):
     labels_path = os.path.join(output_dir, "class_labels.txt")
