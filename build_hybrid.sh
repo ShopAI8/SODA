@@ -1,18 +1,18 @@
 #!/bin/bash
 
 # ==============================================================================
-# build_hybrid.sh - 统一构建 UNG、ACORN、FAVOR 和 NaviX 索引
+# build_hybrid.sh - Build UNG, ACORN, FAVOR, and NaviX indexes in one place.
 #
-# 功能:
-# 1. 编译 UNG、ACORN、FAVOR 和 NaviX 的代码
-# 2. 检查并转换 fvecs -> bin 数据格式
-# 3. 根据 build_mode 构建索引(parallel, serial, ung_only, acorn_only, favor_only, navix_only)
+# Responsibilities:
+# 1. Compile the UNG, ACORN, FAVOR, and NaviX codebases.
+# 2. Check whether `fvecs` data needs to be converted to `bin`.
+# 3. Build indexes according to `build_mode` (`parallel`, `serial`, `ung_only`, `acorn_only`, `favor_only`, `navix_only`).
 # ==============================================================================
 
 set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# --- Step 1: 解析命令行参数 ---
+# --- Step 1: parse command-line arguments ---
 PARAMS=("$@")
 while [[ $# -gt 0 ]]; do
     if [[ $1 == --* ]]; then
@@ -46,9 +46,9 @@ case "$BUILD_MODE" in
         ;;
 esac
 
-# --- Step 2: 编译代码 ---
+# --- Step 2: compile code ---
 
-# 1. 先编译 NaviX (因为 UNG 依赖它)
+# 1. Build NaviX first because UNG depends on it.
 if [[ -z "${NAVIX_BUILD_DIR:-}" ]]; then
     NAVIX_BUILD_DIR="${SCRIPT_DIR}/NaviX/build"
 fi
@@ -68,7 +68,7 @@ else
     echo "[INFO] NaviX library found."
 fi
 
-# 2. 再编译 UNG（强制要求 Knowhere）
+# 2. Build UNG next. Knowhere is required.
 if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" || -z "${KNOWHERE_LIBRARY:-}" ]]; then
     echo "[ERROR] Knowhere is mandatory for Milvus baseline."
     echo "        Please export:"
@@ -116,7 +116,7 @@ if [[ ! -x "$UNG_EXECUTABLE" ]]; then
     exit 1
 fi
 
-# 3. 编译 ACORN
+# 3. Build ACORN.
 if [[ -z "${ACORN_BUILD_DIR:-}" ]]; then
     ACORN_BUILD_DIR="${SCRIPT_DIR}/ACORN/build"
 fi
@@ -137,21 +137,25 @@ else
     echo "[INFO] ACORN executable found."
 fi
 
-# 4. 编译 FAVOR
+# 4. Build FAVOR.
 if [[ -z "${FAVOR_BUILD_DIR:-}" ]]; then
     FAVOR_BUILD_DIR="${SCRIPT_DIR}/FAVOR/build"
 fi
 
 FAVOR_EXECUTABLE="${FAVOR_BUILD_DIR}/app/build_index"
 FAVOR_BUILD_SOURCE="${SCRIPT_DIR}/FAVOR/app/build_index.cpp"
+FAVOR_SOURCE_DIR="${SCRIPT_DIR}/FAVOR"
+
 if [ ! -f "$FAVOR_EXECUTABLE" ] || [ "$FAVOR_BUILD_SOURCE" -nt "$FAVOR_EXECUTABLE" ]; then
     if [ ! -f "$FAVOR_EXECUTABLE" ]; then
         echo "[INFO] FAVOR executable not found. Compiling..."
     else
         echo "[INFO] FAVOR source is newer than executable. Recompiling..."
     fi
+    echo "[INFO] Recreating FAVOR build directory before configuration..."
+    rm -rf "$FAVOR_BUILD_DIR"
     mkdir -p "$FAVOR_BUILD_DIR"
-    cmake -S "${SCRIPT_DIR}/FAVOR" -B "$FAVOR_BUILD_DIR" \
+    cmake -S "$FAVOR_SOURCE_DIR" -B "$FAVOR_BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     make -C "$FAVOR_BUILD_DIR" -j build_index
@@ -159,7 +163,7 @@ else
     echo "[INFO] FAVOR executable found."
 fi
 
-# --- Step 2.5: 检查并转换数据格式 ---
+# --- Step 2.5: validate and convert the data format ---
 echo "[INFO] Checking and converting data format (if necessary)..."
 FVECS_TO_BIN_TOOL="${UNG_BUILD_DIR}/tools/fvecs_to_bin"
 BASE_FVECS_FILE="${DATA_DIR}/${DATASET}_base.fvecs"
@@ -182,7 +186,7 @@ else
     echo "Target file '${BASE_BIN_FILE}' already exists. Skipping conversion."
 fi
 
-# --- Step 3: 构造与 search.sh 兼容的输出目录 ---
+# --- Step 3: prepare an output layout compatible with search.sh ---
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then
     INDEX_BASE_DIR="Index_parallel"
 else
@@ -211,7 +215,7 @@ NAVIX_MARKER_FILE="$INDEX_OUTPUT_DIR/navix_output/.navix_built"
 UNG_BUILD_STATUS="unknown"
 FAVOR_BUILD_STATUS="unknown"
 
-# --- Step 4: 定义构建函数 ---
+# --- Step 4: define build helpers ---
 
 reset_directory_contents() {
     local target_dir="$1"
@@ -550,7 +554,7 @@ build_navix() {
     touch "$NAVIX_MARKER_FILE"
 }
 
-# --- Step 5: 根据构建模式执行任务 ---
+# --- Step 5: run tasks for the selected build mode ---
 start_time_ms=$(date +%s%3N)
 
 if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "all" ]]; then

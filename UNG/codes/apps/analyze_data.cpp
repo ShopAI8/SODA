@@ -8,7 +8,7 @@
 #include <cmath>
 #include <iomanip>
 #include <random>
-#include <sstream> // 需要 sstream
+#include <sstream> // Required for stringstream parsing.
 #include <unordered_map>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -18,12 +18,12 @@
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 
-// ================== 新增的本地安全解析函数 ==================
+// ================== Local safe parser ==================
 /**
- * @brief 一个安全的、本地的 meta 文件解析器。
- * * 这个函数只负责按 '=' 分割键值对，并作为纯文本存入 map。
- * 它不进行任何数字转换，从而避免了 `stoul` 错误。
- * 它还能处理 Windows 的 \r\n 换行符。
+ * @brief Safe local parser for `meta` key-value files.
+ * This parser only splits on '=' and stores raw string pairs in a map.
+ * It does not perform numeric conversion, which avoids premature `stoul` failures.
+ * It also handles Windows `\r\n` line endings.
  */
 std::map<std::string, std::string> parse_kv_file_safe(const std::string& filename) {
     std::map<std::string, std::string> data;
@@ -34,7 +34,7 @@ std::map<std::string, std::string> parse_kv_file_safe(const std::string& filenam
     
     std::string line;
     while (std::getline(file, line)) {
-        // 移除 \r (Windows 换行符)
+        // Strip `\r` from Windows line endings.
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
@@ -42,24 +42,24 @@ std::map<std::string, std::string> parse_kv_file_safe(const std::string& filenam
         std::stringstream ss(line);
         std::string key, value;
         if (std::getline(ss, key, '=') && std::getline(ss, value)) {
-            // 你可以根据需要添加 trim whitespace 的逻辑，但为简单起见，这里假设没有前导/尾随空格
+            // Add whitespace trimming here if needed. For now we assume clean input.
             data[key] = value;
         }
     }
     file.close();
     return data;
 }
-// ================== 函数结束 ==================
+// ================== End parser ==================
 
 
-// 辅助函数：计算均值
+// Helper: compute the mean value.
 double calculate_mean(const std::vector<double>& v) {
     if (v.empty()) return 0.0;
     double sum = std::accumulate(v.begin(), v.end(), 0.0);
     return sum / v.size();
 }
 
-// 辅助函数：保存直方图 (map) 到 CSV
+// Helper: write a histogram map to CSV.
 template<typename K, typename V>
 void save_histogram_to_csv(const std::string& filename, const std::map<K, V>& histogram, const std::string& key_header, const std::string& value_header) {
     std::ofstream outfile(filename);
@@ -75,11 +75,11 @@ void save_histogram_to_csv(const std::string& filename, const std::map<K, V>& hi
     std::cout << "  - 分析结果已保存到: " << filename << std::endl;
 }
 
-// 辅助函数：安全地从 old_id 获取 new_id
+// Helper: safely map `old_id` to `new_id`.
 ANNS::IdxType get_new_id(ANNS::IdxType old_id, const std::unordered_map<ANNS::IdxType, ANNS::IdxType>& old_to_new_map) {
     auto it = old_to_new_map.find(old_id);
     if (it == old_to_new_map.end()) {
-        // 这是一个严重错误，说明映射不完整
+        // This is a hard failure: the ID mapping is incomplete.
         throw std::runtime_error("错误：在 old_to_new_map 中未找到 old_id: " + std::to_string(old_id));
     }
     return it->second;
@@ -113,10 +113,10 @@ int main(int argc, char** argv) {
     std::cout << "--- 数据集特征分析开始 ---" << std::endl;
     std::cout << "加载索引: " << index_path_prefix << std::endl;
 
-    // --- 0. 加载所有需要的数据 ---
+    // --- 0. Load all required inputs ---
     std::map<std::string, std::string> meta_data;
     std::vector<std::vector<ANNS::LabelType>> group_id_to_label_set;
-    std::vector<std::vector<ANNS::IdxType>> group_id_to_vec_ids; // 存储的是 OLD IDs
+    std::vector<std::vector<ANNS::IdxType>> group_id_to_vec_ids; // Stores OLD IDs.
     std::vector<double> lng_coverage_ratio;
     std::vector<ANNS::IdxType> new_to_old_vec_ids;
     std::shared_ptr<ANNS::IStorage> base_storage;
@@ -125,12 +125,12 @@ int main(int argc, char** argv) {
     ANNS::IdxType num_groups = 0;
 
     try {
-        // ================== 修改点: 使用本地的安全解析器 ==================
+        // ================== Use the local safe parser ==================
         meta_data = parse_kv_file_safe(index_path_prefix + "meta");
-        // ================== 修改结束 ==================
+        // ================== End local parser block ==================
 
-        // 现在 stoul 是安全的，因为 map 只包含纯文本
-        num_points = std::stoul(meta_data.at("num_points")); // 使用 .at() 在键不存在时会抛出更清晰的异常
+        // `stoul` is safe here because the map now contains plain text only.
+        num_points = std::stoul(meta_data.at("num_points")); // `.at()` gives a clearer error if the key is missing.
         num_groups = std::stoul(meta_data.at("num_groups"));
         std::cout << "  - meta: num_points=" << num_points << ", num_groups=" << num_groups << std::endl;
 
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
         std::cout << "  - new_to_old_vec_ids 加载完毕" << std::endl;
 
         base_storage = ANNS::create_storage(data_type, false);
-        base_storage->load_from_file(base_bin_file, ""); // 分析时不需要标签文件
+        base_storage->load_from_file(base_bin_file, ""); // No label file is needed for this analysis.
         std::cout << "  - base_storage (vecs.bin) 加载完毕" << std::endl;
 
         distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
@@ -159,22 +159,22 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // --- 分析 1: 标签集（组）的长度分布 ---
+    // --- Analysis 1: label-set length distribution ---
     std::cout << "\n[分析 1: 标签集长度分布]" << std::endl;
     std::map<size_t, size_t> length_histogram;
     for (const auto& label_set : group_id_to_label_set) {
-        if (label_set.size() > 0) { // 忽略 group 0
+        if (label_set.size() > 0) { // Skip group 0.
             length_histogram[label_set.size()]++;
         }
     }
     save_histogram_to_csv(output_prefix + "_label_set_length_dist.csv", length_histogram, "LabelSetLength", "GroupCount");
 
-    // --- 分析 2: 标签集（组）的流行度（大小）分布 ---
+    // --- Analysis 2: group popularity (size) distribution ---
     std::cout << "\n[分析 2: 组流行度分布]" << std::endl;
     std::map<size_t, size_t> popularity_histogram;
     size_t total_vecs_in_groups = 0;
     for (const auto& vec_list : group_id_to_vec_ids) {
-        if (vec_list.size() > 0) { // 忽略 group 0
+        if (vec_list.size() > 0) { // Skip group 0.
             popularity_histogram[vec_list.size()]++;
             total_vecs_in_groups += vec_list.size();
         }
@@ -182,9 +182,9 @@ int main(int argc, char** argv) {
     std::cout << "  - 检查: num_points=" << num_points << ", total_vecs_in_groups=" << total_vecs_in_groups << std::endl;
     save_histogram_to_csv(output_prefix + "_group_popularity_dist.csv", popularity_histogram, "GroupSize", "GroupCount");
 
-    // --- 分析 3: 覆盖率（选择性）分布 ---
+    // --- Analysis 3: coverage/selectivity distribution ---
     std::cout << "\n[分析 3: 覆盖率分布]" << std::endl;
-    std::map<int, size_t> coverage_histogram; // 按百分比分箱
+    std::map<int, size_t> coverage_histogram; // Bucket by percentage.
     for (double ratio : lng_coverage_ratio) {
         if (ratio > 0) {
             int bin = static_cast<int>(std::floor(ratio * 100));
@@ -193,16 +193,16 @@ int main(int argc, char** argv) {
     }
     save_histogram_to_csv(output_prefix + "_coverage_dist.csv", coverage_histogram, "CoveragePercent_Bin", "GroupCount");
 
-    // --- 分析 4: 向量空间聚类性 (R 值) ---
+    // --- Analysis 4: vector-space clustering (R value) ---
     std::cout << "\n[分析 4: 向量空间聚类性 (R 值)]" << std::endl;
     
-    // 4.1 创建 old_id -> new_id 映射
+    // 4.1 Build the old_id -> new_id map.
     std::unordered_map<ANNS::IdxType, ANNS::IdxType> old_to_new_map;
     old_to_new_map.reserve(new_to_old_vec_ids.size());
     for (ANNS::IdxType new_id = 0; new_id < new_to_old_vec_ids.size(); ++new_id) {
         old_to_new_map[new_to_old_vec_ids[new_id]] = new_id;
     }
-    // 4.2 创建 old_id -> group_id 映射 (用于快速检查)
+    // 4.2 Build the old_id -> group_id map for quick membership checks.
     std::unordered_map<ANNS::IdxType, ANNS::IdxType> old_id_to_group_id;
     old_id_to_group_id.reserve(num_points);
     for (ANNS::IdxType group_id = 1; group_id < group_id_to_vec_ids.size(); ++group_id) {
@@ -223,15 +223,15 @@ int main(int argc, char** argv) {
     std::vector<double> intra_distances;
     std::vector<double> inter_distances;
     std::mt19937 gen(std::random_device{}());
-    std::uniform_int_distribution<ANNS::IdxType> group_dist(1, num_groups); // 从 group 1 开始
+    std::uniform_int_distribution<ANNS::IdxType> group_dist(1, num_groups); // Groups start at 1.
     std::uniform_int_distribution<ANNS::IdxType> point_dist(0, num_points - 1);
 
-    // 4.3 计算组内距离 (Intra-Group)
+    // 4.3 Compute intra-group distances.
     std::cout << "  - 计算组内距离 (采样 " << groups_to_sample << " 个组)..." << std::endl;
     intra_distances.reserve(groups_to_sample * pairs_per_group);
     for (int i = 0; i < groups_to_sample; ++i) {
         ANNS::IdxType group_id = group_dist(gen);
-        if (group_id >= group_id_to_vec_ids.size()) continue; // 安全检查
+        if (group_id >= group_id_to_vec_ids.size()) continue; // Safety check.
         const auto& old_id_list = group_id_to_vec_ids[group_id];
         if (old_id_list.size() < 2) continue;
 
@@ -253,23 +253,23 @@ int main(int argc, char** argv) {
         }
     }
 
-    // 4.4 计算组间距离 (Inter-Group)
+    // 4.4 Compute inter-group distances.
     std::cout << "  - 计算组间距离 (采样 " << total_inter_pairs << " 对)..." << std::endl;
     inter_distances.reserve(total_inter_pairs);
     while (inter_distances.size() < total_inter_pairs) {
         ANNS::IdxType new_id_1 = point_dist(gen);
         ANNS::IdxType new_id_2 = point_dist(gen);
         if (new_id_1 == new_id_2) continue;
-        if (new_id_1 >= new_to_old_vec_ids.size() || new_id_2 >= new_to_old_vec_ids.size()) continue; // 安全检查
+        if (new_id_1 >= new_to_old_vec_ids.size() || new_id_2 >= new_to_old_vec_ids.size()) continue; // Safety check.
 
         ANNS::IdxType old_id_1 = new_to_old_vec_ids[new_id_1];
         ANNS::IdxType old_id_2 = new_to_old_vec_ids[new_id_2];
 
-        // 检查是否在同一组
+        // Skip pairs that belong to the same group.
         auto it1 = old_id_to_group_id.find(old_id_1);
         auto it2 = old_id_to_group_id.find(old_id_2);
         if (it1 != old_id_to_group_id.end() && it2 != old_id_to_group_id.end() && it1->second == it2->second) {
-            continue; // 在同一组，跳过
+            continue; // Same group, so skip.
         }
 
         const char* v1 = base_storage->get_vector(new_id_1);
@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
         inter_distances.push_back(distance_handler->compute(v1, v2, dim));
     }
 
-    // 4.5 计算并打印 R 值
+    // 4.5 Compute and report the R value.
     double avg_intra_dist = calculate_mean(intra_distances);
     double avg_inter_dist = calculate_mean(inter_distances);
     double r_value = (avg_inter_dist == 0) ? 0 : (avg_intra_dist / avg_inter_dist);
@@ -292,4 +292,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-

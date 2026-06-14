@@ -1033,7 +1033,7 @@ namespace ANNS
          {
             std::cout << "\n--- [分析] 正在统计 LNG 边数 ---" << std::endl;
             uint64_t total_lng_edges = 0;
-            for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)// 遍历所有组，累加它们的“出度”（即子节点/超集数量）
+            for (IdxType group_id = 1; group_id <= _num_groups; ++group_id)// Walk all groups and sum their out-degree (child/superset count).
             {
                total_lng_edges += _label_nav_graph->out_neighbors[group_id].size();
             }
@@ -1062,7 +1062,7 @@ namespace ANNS
          else
          {
             _num_cross_edges = _num_cross_edges / 2;
-            finalize_intra_group_graphs(); // fxy_add:从 build_cross_group_edges中拎出转换id新旧转换的部分
+            finalize_intra_group_graphs(); // Extract the local-to-global ID conversion step from `build_cross_group_edges`.
 
             add_new_distance_oriented_edges(
                 dataset,
@@ -1165,10 +1165,10 @@ namespace ANNS
 
       // obtain the candidates
       std::vector<std::shared_ptr<TrieNode>> candidates;
-      _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment); // 搜索候选超集
+      _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment); // Search candidate supersets.
 
       // ================= [DEBUG] =================
-      // 如果候选集数量超过1000000，说明这个组非常容易导致卡死
+      // Warn when the candidate set is so large that it can easily stall the query.
       if (candidates.size() > 1000000) 
       {
          #pragma omp critical
@@ -1193,7 +1193,7 @@ namespace ANNS
       }
 
       // obtain the minimum size
-      // 所有candidates 按照其标签集的尺寸 label_set_size 从小到大排序
+      // Sort all candidates by label-set size in ascending order.
       std::sort(candidates.begin(), candidates.end(),
                 [](const std::shared_ptr<TrieNode> &a, const std::shared_ptr<TrieNode> &b)
                 {
@@ -1236,7 +1236,7 @@ namespace ANNS
                                               bool skip_group_id_check)
    {
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
-      // --- 计时器变量定义 ---
+      // --- Timer variables ---
       double time_trie_lookup = 0.0;
       double time_sorting = 0.0;
       double time_filtering_loop = 0.0;
@@ -1245,7 +1245,7 @@ namespace ANNS
 
       min_super_set_ids.clear();
 
-      // --- 1. 测量Trie查找候选者的时间 ---
+      // --- 1. Measure trie candidate lookup time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_trie = std::chrono::high_resolution_clock::now();
 // #endif
@@ -1262,7 +1262,7 @@ namespace ANNS
 
       if (is_new_trie_method)
       {
-         // --- 调用新方法 (Recursive) ---
+         // --- Run the new recursive method ---
          TrieSearchMetricsRecursive trie_metrics_m2 = {};
          if (is_rec_more_start)
             _trie_index.get_super_set_entrances_new_more_sp_debug(query_label_set, candidates, avoid_self, need_containment, print_counter, trie_metrics_m2);
@@ -1278,7 +1278,7 @@ namespace ANNS
       }
       else
       {
-         // --- 调用旧方法 (Shortcut) ---
+         // --- Run the legacy shortcut method ---
          TrieMethod1Metrics trie_metrics_m1 = {};
          _trie_index.get_super_set_entrances_debug(query_label_set, candidates, avoid_self, need_containment, print_counter, trie_metrics_m1, skip_group_id_check);
          stats.successful_checks = trie_metrics_m1.successful_checks;
@@ -1295,7 +1295,7 @@ namespace ANNS
       time_trie_lookup = std::chrono::duration<double, std::milli>(end_trie - start_trie).count();
 // #endif
 
-      // 特殊情况处理
+      // Handle trivial cases early.
       if (candidates.empty())
          return;
       if (candidates.size() == 1)
@@ -1303,11 +1303,11 @@ namespace ANNS
          min_super_set_ids.emplace_back(candidates[0]->group_id);
          return;
       }
-      bool skip_filter = this->skip_els_filter;  // 控制开关，如果为 true 则跳过过滤步骤直接返回所有候选者的 group_id
+      bool skip_filter = this->skip_els_filter;  // If true, skip filtering and return every candidate group id directly.
       //bool skip_filter = false; //TODO
       if (skip_filter)
       {
-         // 快速路径：跳过排序和过滤，直接将候选者 group_id 加入结果
+         // Fast path: skip sorting and filtering, and return candidate group ids as-is.
          for (const auto& candidate : candidates)
          {
             min_super_set_ids.emplace_back(candidate->group_id);
@@ -1315,7 +1315,7 @@ namespace ANNS
       }
       
       
-      // --- 2. 测量排序时间 ---
+      // --- 2. Measure sorting time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_sort = std::chrono::high_resolution_clock::now();
 // #endif
@@ -1333,7 +1333,7 @@ namespace ANNS
       time_sorting = std::chrono::duration<double, std::milli>(end_sort - start_sort).count();
 // #endif
 
-      // --- 3. 测量过滤循环的时间 ---
+      // --- 3. Measure filtering-loop time ---
 // #if ENABLE_ENTRY_DEBUG_OUTPUT
       auto start_filter = std::chrono::high_resolution_clock::now();
 // #endif
@@ -1366,7 +1366,7 @@ namespace ANNS
                filtered_ids.emplace_back(cur_group_id);
             }
          }
-         // 覆盖原始结果
+         // Replace the original result set with the filtered ids.
          min_super_set_ids = std::move(filtered_ids);
       }
       
@@ -1376,7 +1376,7 @@ namespace ANNS
 
       auto function_total_time = std::chrono::duration<double, std::milli>(end_filter - function_start_time).count();
 
-      // ljk_add 将时间记录到 stats 中
+      // Record the timing breakdown in `stats`.
       stats.els_trie_time = time_trie_lookup;
       stats.els_sort_time = time_sorting;
       stats.els_filter_time = time_filtering_loop;
@@ -1384,16 +1384,16 @@ namespace ANNS
 // #endif
    }
 
-   // 为了方便排序，定义一个结构体来存储候选组及其评分
+   // Store candidate groups with scores so sorting stays simple.
    struct ScoredCandidate
    {
       double score;
       ANNS::IdxType group_id;
 
-      // 重载小于运算符，方便使用 std::sort 进行降序排序
+      // Reverse the comparison so `std::sort` yields descending scores.
       bool operator<(const ScoredCandidate &other) const
       {
-         return score > other.score; // score 越大越靠前
+         return score > other.score; // Larger scores rank earlier.
       }
    };
 
@@ -1416,13 +1416,13 @@ namespace ANNS
          return {};
       }
 
-      // --- 步骤 1: 运行BFS，并收集所有可达的候选节点 ---
+      // --- Step 1: run BFS and collect reachable candidate nodes ---
       std::queue<ANNS::IdxType> q;
       std::vector<int> lng_distance(_num_groups + 1, -1);
 
-      // === 核心优化 1: 创建一个容器，仅用于存储BFS访问过的、距离大于0的节点 ===
+      // === Core optimization 1: keep a compact list of BFS-reached nodes with positive distance ===
       std::vector<ANNS::IdxType> reachable_nodes;
-      reachable_nodes.reserve(_num_groups / 10); // 预分配一些内存，避免多次重分配
+      reachable_nodes.reserve(_num_groups / 10); // Pre-allocate to reduce reallocations.
 
       for (const auto &group_id : minimum_entry_sets)
       {
@@ -1447,17 +1447,17 @@ namespace ANNS
             {
                lng_distance[child_group] = lng_distance[current_group] + 1;
                q.push(child_group);
-               // === 核心优化 2: 将新发现的候选节点存入列表 ===
+               // === Core optimization 2: append newly discovered candidates to the compact list ===
                reachable_nodes.push_back(child_group);
             }
          }
       }
 
-      // --- 步骤 2: 仅对可达节点进行评分 ---
+      // --- Step 2: score only the reachable nodes ---
       std::vector<ANNS::ScoredCandidate> candidates;
       candidates.reserve(reachable_nodes.size());
 
-      // === 核心优化 3: 直接遍历数量少得多的 reachable_nodes 列表 ===
+      // === Core optimization 3: iterate over the much smaller `reachable_nodes` list ===
       for (const auto group_id : reachable_nodes)
       {
          const double group_size = static_cast<double>(_group_id_to_vec_ids[group_id].size());
@@ -1469,14 +1469,14 @@ namespace ANNS
          else
          { // SizeAndDistance with new formula
             const int dist = lng_distance[group_id];
-            // 新评分公式: 深度优先，大小作为次要排序依据
+            // New scoring rule: prioritize depth first, then break ties by group size.
             score = static_cast<double>(dist) * static_cast<double>(_num_points) + group_size;
          }
          candidates.push_back({score, group_id});
       }
 
-      // --- 步骤 3: 部分排序并选择 ---
-      size_t num_to_sort = std::min(candidates.size(), top_k + 5); // +5 作为安全缓冲
+      // --- Step 3: partially sort and select ---
+      size_t num_to_sort = std::min(candidates.size(), top_k + 5); // Keep a small safety buffer.
       if (num_to_sort > 0)
       {
          std::partial_sort(candidates.begin(),
@@ -1518,7 +1518,7 @@ namespace ANNS
          }
       }
 
-      // --- 精简后的日志输出 ---
+      // --- Condensed debug logging ---
       if (verbose)
       {
          if (oracle_injected)
@@ -1629,7 +1629,7 @@ namespace ANNS
       std::cout << "\r- Finished in " << _build_graph_time << " ms" << std::endl;
    }
 
-   // fxy_add：构建全局Vamana图
+   // Build the global Vamana graph.
    void UniNavGraph::build_global_vamana_graph()
    {
       std::cout << "Building global Vamana graph..." << std::endl;
@@ -1646,19 +1646,19 @@ namespace ANNS
 
       std::cout << "- Global Vamana graph built in " << build_time << " ms" << std::endl;
    }
-   //=====================================begin 数据预处理：构建向量-属性二分图=========================================
-   // fxy_add: 构建向量-属性二分图
+   //===================================== Begin preprocessing: build the vector-attribute bipartite graph =========================================
+   // Build the vector-attribute bipartite graph.
    void UniNavGraph::build_vector_and_attr_graph()
    {
       std::cout << "Building vector-attribute bipartite graph..." << std::endl;
       auto start_time = std::chrono::high_resolution_clock::now();
 
-      // 初始化属性到ID的映射和反向映射
+      // Reset the attribute-to-id and reverse-id mappings.
       _attr_to_id.clear();
       _id_to_attr.clear();
       _vector_attr_graph.clear();
 
-      // 第一遍：收集所有唯一属性并分配ID
+      // First pass: collect all unique attributes and assign ids.
       AtrType attr_id = 0;
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id)
       {
@@ -1674,10 +1674,10 @@ namespace ANNS
          }
       }
 
-      // 初始化图结构（向量节点 + 属性节点）
+      // Initialize the graph storage for vector nodes plus attribute nodes.
       _vector_attr_graph.resize(_num_points + static_cast<size_t>(attr_id));
 
-      // 第二遍：构建图结构
+      // Second pass: populate the graph edges.
       for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id)
       {
          const auto &label_set = _base_storage->get_label_set(vec_id);
@@ -1685,15 +1685,15 @@ namespace ANNS
          {
             AtrType a_id = _attr_to_id[label];
 
-            // 添加双向边
-            // 向量节点ID范围: [0, _num_points-1]
-            // 属性节点ID范围: [_num_points, _num_points+attr_id-1]
+            // Add bidirectional edges.
+            // Vector node ids are in [0, _num_points - 1].
+            // Attribute node ids are in [_num_points, _num_points + attr_id - 1].
             _vector_attr_graph[vec_id].push_back(_num_points + static_cast<IdxType>(a_id));
             _vector_attr_graph[_num_points + static_cast<IdxType>(a_id)].push_back(vec_id);
          }
       }
 
-      // 统计信息
+      // Update summary statistics.
       _num_attributes = attr_id;
       _build_vector_attr_graph_time = std::chrono::duration<double, std::milli>(
                                           std::chrono::high_resolution_clock::now() - start_time)
@@ -1701,11 +1701,11 @@ namespace ANNS
       std::cout << "- Finish in " << _build_vector_attr_graph_time << " ms" << std::endl;
       std::cout << "- Total edges: " << count_graph_edges() << std::endl;
 
-      // 可选：保存图结构供调试
+      // Optional: persist the graph for debugging.
       // save_bipartite_graph_info();
    }
 
-   // fxy_add: 计算向量-属性二分图的边数
+   // Count edges in the vector-attribute bipartite graph.
    size_t UniNavGraph::count_graph_edges() const
    {
       size_t total_edges = 0;
@@ -1713,10 +1713,10 @@ namespace ANNS
       {
          total_edges += neighbors.size();
       }
-      return total_edges / 2; // 因为是双向边，实际边数是总数的一半
+      return total_edges / 2; // Each undirected edge is stored twice.
    }
 
-   // fxy_add: 保存二分图信息到txt文件调试用
+   // Save bipartite-graph debug information as text.
    void UniNavGraph::save_bipartite_graph_info() const
    {
       std::ofstream outfile("bipartite_graph_info.txt");
@@ -1732,7 +1732,7 @@ namespace ANNS
       outfile << "Total attributes: " << _num_attributes << "\n";
       outfile << "Total edges: " << count_graph_edges() << "\n\n";
 
-      // 输出属性映射
+      // Dump the attribute-id mapping.
       outfile << "Attribute to ID Mapping:\n";
       for (const auto &pair : _attr_to_id)
       {
@@ -1740,7 +1740,7 @@ namespace ANNS
       }
       outfile << "\n";
 
-      // 输出部分图结构示例
+      // Dump a small sample of graph connectivity.
       outfile << "Sample Graph Connections (first 10 vectors and attributes):\n";
       outfile << "Vector connections:\n";
       for (IdxType i = 0; i < std::min(_num_points, static_cast<IdxType>(10)); ++i)
@@ -1783,7 +1783,7 @@ namespace ANNS
       return sum;
    }
 
-   // fxy_add: 保存二分图到文件
+   // Save the bipartite graph to disk.
    void UniNavGraph::save_bipartite_graph(const std::string &filename)
    {
       std::ofstream out(filename, std::ios::binary);
@@ -1792,39 +1792,39 @@ namespace ANNS
          throw std::runtime_error("Cannot open file for writing: " + filename);
       }
 
-      // 1. 写入文件头标识和版本
+      // 1. Write the file header and version marker.
       const char header[8] = {'B', 'I', 'P', 'G', 'R', 'P', 'H', '1'};
       out.write(header, 8);
 
-      // 2. 写入基本元数据
+      // 2. Write basic metadata.
       out.write(reinterpret_cast<const char *>(&_num_points), sizeof(IdxType));
       out.write(reinterpret_cast<const char *>(&_num_attributes), sizeof(AtrType));
 
-      // 3. 写入属性映射表
-      // 3.1 先写入条目数量
+      // 3. Write the attribute mapping table.
+      // 3.1 Write the number of entries first.
       uint64_t map_size = _attr_to_id.size();
       out.write(reinterpret_cast<const char *>(&map_size), sizeof(uint64_t));
 
-      // 3.2 写入每个映射条目（LabelType是uint16_t，直接存储）
+      // 3.2 Write each mapping entry. `LabelType` is `uint16_t`, so we can store it directly.
       for (const auto &[label, id] : _attr_to_id)
       {
          out.write(reinterpret_cast<const char *>(&label), sizeof(LabelType));
          out.write(reinterpret_cast<const char *>(&id), sizeof(AtrType));
       }
 
-      // 4. 写入邻接表数据
-      // 4.1 先写入节点总数
+      // 4. Write adjacency-list data.
+      // 4.1 Write the total node count first.
       uint64_t total_nodes = _vector_attr_graph.size();
       out.write(reinterpret_cast<const char *>(&total_nodes), sizeof(uint64_t));
 
-      // 4.2 写入每个节点的邻居列表
+      // 4.2 Write each node's neighbor list.
       for (const auto &neighbors : _vector_attr_graph)
       {
-         // 先写入邻居数量
+         // Write the neighbor count first.
          uint32_t neighbor_count = neighbors.size();
          out.write(reinterpret_cast<const char *>(&neighbor_count), sizeof(uint32_t));
 
-         // 写入邻居ID列表
+         // Then write the neighbor ids.
          if (!neighbors.empty())
          {
             out.write(reinterpret_cast<const char *>(neighbors.data()),
@@ -1832,7 +1832,7 @@ namespace ANNS
          }
       }
 
-      // 5. 写入文件尾校验和
+      // 5. Write the trailing checksum.
       uint32_t checksum = compute_checksum();
       out.write(reinterpret_cast<const char *>(&checksum), sizeof(uint32_t));
 
@@ -1840,7 +1840,7 @@ namespace ANNS
                 << " (" << out.tellp() << " bytes)" << std::endl;
    }
 
-   // fxy_add: 读取二分图
+   // Load the bipartite graph from disk.
    void UniNavGraph::load_bipartite_graph(const std::string &filename)
    {
       std::cout << "Loading bipartite graph from " << filename << std::endl;
@@ -1851,7 +1851,7 @@ namespace ANNS
          throw std::runtime_error("Cannot open file for reading: " + filename);
       }
 
-      // 1. 验证文件头
+      // 1. Validate the file header.
       char header[8];
       in.read(header, 8);
       if (std::string(header, 8) != "BIPGRPH1")
@@ -1859,19 +1859,19 @@ namespace ANNS
          throw std::runtime_error("Invalid file format");
       }
 
-      // 2. 读取基本元数据
+      // 2. Read the basic metadata.
       in.read(reinterpret_cast<char *>(&_num_points), sizeof(IdxType));
       in.read(reinterpret_cast<char *>(&_num_attributes), sizeof(AtrType));
 
-      // 3. 读取属性映射表
+      // 3. Read the attribute mapping table.
       _attr_to_id.clear();
       _id_to_attr.clear();
 
-      // 3.1 读取条目数量
+      // 3.1 Read the number of entries.
       uint64_t map_size;
       in.read(reinterpret_cast<char *>(&map_size), sizeof(uint64_t));
 
-      // 3.2 读取每个映射条目
+      // 3.2 Read each mapping entry.
       for (uint64_t i = 0; i < map_size; ++i)
       {
          LabelType label;
@@ -1884,15 +1884,15 @@ namespace ANNS
          _id_to_attr[id] = label;
       }
 
-      // 4. 读取邻接表数据
+      // 4. Read adjacency-list data.
       _vector_attr_graph.clear();
 
-      // 4.1 读取节点总数
+      // 4.1 Read the total node count.
       uint64_t total_nodes;
       in.read(reinterpret_cast<char *>(&total_nodes), sizeof(uint64_t));
       _vector_attr_graph.resize(total_nodes);
 
-      // 4.2 读取每个节点的邻居列表
+      // 4.2 Read each node's neighbor list.
       for (uint64_t i = 0; i < total_nodes; ++i)
       {
          uint32_t neighbor_count;
@@ -1906,7 +1906,7 @@ namespace ANNS
          }
       }
 
-      // 5. 验证校验和
+      // 5. Verify the checksum.
       uint32_t stored_checksum;
       in.read(reinterpret_cast<char *>(&stored_checksum), sizeof(uint32_t));
 
@@ -1924,10 +1924,10 @@ namespace ANNS
                 << " ms" << std::endl;
    }
 
-   // fxy_add: 比较两个向量-属性二分图
+   // Compare two vector-attribute bipartite graphs.
    bool UniNavGraph::compare_graphs(const ANNS::UniNavGraph &g1, const ANNS::UniNavGraph &g2)
    {
-      // 1. 验证基本属性
+      // 1. Validate basic graph properties.
       if (g1._num_points != g2._num_points)
       {
          std::cerr << "Mismatch in _num_points: "
@@ -1942,7 +1942,7 @@ namespace ANNS
          return false;
       }
 
-      // 2. 验证属性映射
+      // 2. Validate the attribute mappings.
       if (g1._attr_to_id.size() != g2._attr_to_id.size())
       {
          std::cerr << "Mismatch in _attr_to_id size" << std::endl;
@@ -1965,7 +1965,7 @@ namespace ANNS
          }
       }
 
-      // 3. 验证反向属性映射
+      // 3. Validate the reverse attribute mappings.
       for (const auto &[id, label] : g1._id_to_attr)
       {
          auto it = g2._id_to_attr.find(id);
@@ -1982,7 +1982,7 @@ namespace ANNS
          }
       }
 
-      // 4. 验证邻接表
+      // 4. Validate the adjacency lists.
       if (g1._vector_attr_graph.size() != g2._vector_attr_graph.size())
       {
          std::cerr << "Mismatch in graph size" << std::endl;
@@ -2015,43 +2015,43 @@ namespace ANNS
 
       return true;
    }
-   //=====================================end 数据预处理：构建向量-属性二分图=========================================
+   //===================================== End preprocessing: build the vector-attribute bipartite graph =========================================
 
-   //=====================================begein 查询过程：计算bitmap=========================================
+   //===================================== Begin query-time bitmap computation =========================================
 
-   // fxy_add: 构建bitmap
+   // Build the query bitmap.
    std::pair<std::bitset<10000001>, double> UniNavGraph::compute_attribute_bitmap(const std::vector<LabelType> &query_attributes) const
    {
-      // 1. 初始化全true的bitmap（表示开始时所有点都满足条件）
+      // 1. Start from an all-true bitmap, meaning every point is initially valid.
       std::bitset<10000001> bitmap;
-      bitmap.set(); // 设置所有位为1
+      bitmap.set(); // Set every bit to 1.
       double per_query_bitmap_time = 0.0;
 
-      // 2. 处理每个查询属性
+      // 2. Process each query attribute.
       for (LabelType attr_label : query_attributes)
       {
-         //  2.1 查找属性ID
+         // 2.1 Look up the attribute id.
          auto it = _attr_to_id.find(attr_label);
          if (it == _attr_to_id.end())
          {
-            // 属性不存在，没有任何点能满足所有条件
+            // Missing attribute means no point can satisfy the full conjunction.
             return {std::bitset<10000001>(), 0.0};
          }
 
-         // 2.2 获取属性节点ID
+         // 2.2 Convert it to the attribute-node id.
          AtrType attr_id = it->second;
          IdxType attr_node_id = _num_points + static_cast<IdxType>(attr_id);
 
-         // 2.3 创建临时bitmap记录当前属性的满足情况
+         // 2.3 Build a temporary bitmap for the current attribute.
          std::bitset<10000001> temp_bitmap;
          auto start_time = std::chrono::high_resolution_clock::now();
          for (IdxType vec_id : _vector_attr_graph[attr_node_id])
          {
-            temp_bitmap.set(vec_id); // 使用set()方法设置对应的位为1
+            temp_bitmap.set(vec_id); // Mark matching vectors with bit value 1.
          }
 
-         // 2.4 与主bitmap进行AND操作
-         bitmap &= temp_bitmap; // 使用&=操作符进行位与操作
+         // 2.4 Intersect it with the running bitmap.
+         bitmap &= temp_bitmap; // Use bitwise AND for conjunction.
 
          per_query_bitmap_time += std::chrono::duration<double, std::milli>(
                                       std::chrono::high_resolution_clock::now() - start_time)
@@ -2061,23 +2061,23 @@ namespace ANNS
       return {bitmap, per_query_bitmap_time};
    }
 
-   // fxy_add: 通过分组ID计算bitmap
+   // Build a bitmap from group ids.
    roaring::Roaring UniNavGraph::compute_bitmap_from_groups(const std::vector<IdxType> &group_ids) const
    {
       roaring::Roaring final_bitmap;
       for (IdxType group_id : group_ids)
       {
-         // 确保group_id有效
+         // Ignore invalid group ids.
          if (group_id > 0 && group_id <= _num_groups)
          {
-            // 对每个分组的覆盖集（_covered_sets_rb）执行并集操作
+            // Union in the coverage set for each group.
             final_bitmap |= _covered_sets_rb[group_id];
          }
       }
       return final_bitmap;
    }
 
-   // fxy_add: 批量计算UNG过滤的bitmaps
+   // Batch-compute bitmaps produced by UNG filtering.
    std::vector<roaring::Roaring> UniNavGraph::batch_compute_ung_bitmaps(
        const ANNS::UniNavGraph &index,
        const std::shared_ptr<ANNS::IStorage> &query_storage,
@@ -2091,31 +2091,31 @@ namespace ANNS
 // omp_set_num_threads(num_threads);
 #pragma omp parallel
       {
-         // 为每个线程创建一个独立的原子计数器，避免在循环中重复创建. static 确保了多线程环境下只有一个实例
+         // Keep one shared atomic counter instead of recreating it inside the loop.
          static std::atomic<int> trie_debug_print_counter{0};
 
 #pragma omp for
          for (int id = 0; id < num_queries; ++id)
          {
-            // 1. 获取当前查询的标签
+            // 1. Read the current query labels.
             const auto &query_labels = query_storage->get_label_set(id);
 
-            // 2. 获取最小超集分组
+            // 2. Compute the minimum superset groups.
             std::vector<ANNS::IdxType> entry_group_ids;
 
-            // 为 get_min_super_sets_debug 创建一个临时的、仅在此作用域有效的 stats 对象
+            // Create a temporary stats object for `get_min_super_sets_debug`.
             ANNS::QueryStats dummy_stats;
 
             const_cast<ANNS::UniNavGraph &>(index).get_min_super_sets_debug(
                 query_labels,
                 entry_group_ids,
-                false, true, // avoid_self=false, need_containment=true 是通常的默认值
+                false, true, // Default behavior: `avoid_self=false`, `need_containment=true`.
                 trie_debug_print_counter,
                 is_new_trie_method,
                 is_rec_more_start,
                 dummy_stats,false);
 
-            // 3. 利用分组ID高效计算bitmap
+            // 3. Convert the group ids into a bitmap efficiently.
             all_bitmaps[id] = index.compute_bitmap_from_groups(entry_group_ids);
          }
       }
@@ -2128,7 +2128,7 @@ namespace ANNS
       size_t& cand_size,
       bool use_optimized) const
    {
-      // 复用内存，使用智能指针转移到堆上，防止 thread_local 撑爆线程栈
+      // Reuse heap-backed buffers to avoid blowing up the thread-local stack.
       static thread_local std::unique_ptr<std::bitset<16000000>> final_bitmap_ptr;
       static thread_local std::unique_ptr<std::bitset<16000000>> temp_bitmap_ptr;
       if (!final_bitmap_ptr) final_bitmap_ptr = std::make_unique<std::bitset<16000000>>();
@@ -2136,7 +2136,7 @@ namespace ANNS
       auto& final_bitmap = *final_bitmap_ptr;
       auto& temp_bitmap = *temp_bitmap_ptr;
       
-      // 特殊情况：空查询，退化为全集
+      // Special case: an empty query degenerates to the full set.
       if (query_labels.empty()) {
          final_bitmap.set(); 
          cand_size = _num_points;
@@ -2160,7 +2160,7 @@ namespace ANNS
 
       if (use_optimized) {
          // ==========================================
-         // 开启大优化：SODA 系列或强制开启时走这里
+         // Use the optimized path for SODA-family modes or when forced on.
          // ==========================================
       std::sort(valid_vec_lists.begin(), valid_vec_lists.end(), 
          [](const std::vector<IdxType>* a, const std::vector<IdxType>* b) {
@@ -2183,12 +2183,12 @@ namespace ANNS
       }
       } else {
          // ==========================================
-         // 朴素 Baseline：仅测试算法基础能力
+         // Naive baseline path for measuring the raw algorithm behavior.
          // ==========================================
-         final_bitmap.set(); // 慢操作：全集置1
+         final_bitmap.set(); // Expensive: mark the entire universe as valid.
          for (size_t i = 0; i < valid_vec_lists.size(); ++i) {
                const auto& vec_list = *valid_vec_lists[i];
-               temp_bitmap.reset(); // 慢操作：全体清零
+               temp_bitmap.reset(); // Expensive: clear the entire bitmap.
                for (IdxType vec_id : vec_list) temp_bitmap.set(vec_id);
                final_bitmap &= temp_bitmap;
          }
@@ -2217,17 +2217,17 @@ namespace ANNS
 
       if (use_optimized_bitset) {
          // =======================================================
-         // 【优化版】 FastSmartRoute 使用：字块级跳过 + 硬件指令加速
+         // Optimized FastSmartRoute path: word-level skipping plus hardware bit ops.
          // =======================================================
          const uint64_t* bit_words = reinterpret_cast<const uint64_t*>(&final_bitmap);
          size_t num_words = _num_points / 64 + (_num_points % 64 != 0 ? 1 : 0);
 
          for (size_t w = 0; w < num_words; ++w) {
                uint64_t word = bit_words[w];
-               if (word == 0) continue; // 直接跳过全0的64个向量
+               if (word == 0) continue; // Skip 64-vector blocks that are entirely zero.
 
                while (word != 0) {
-                  // 硬件指令极速定位为1的bit位
+                  // Use a hardware primitive to locate the next set bit quickly.
                   int bit_idx = __builtin_ctzll(word);
                   IdxType vec_id = w * 64 + bit_idx;
                   
@@ -2243,15 +2243,15 @@ namespace ANNS
                      top_k_heap.push({dist, vec_id});
                   }
                   
-                  word &= (word - 1); // 清除已处理的最低位的 1
+                  word &= (word - 1); // Clear the lowest set bit that was just processed.
                }
          }
       } else {
          // =======================================================
-         // 【原始版】 单独跑 pre-filter baseline 使用：逐位判断
+         // Original baseline path for standalone pre-filter runs: check one bit at a time.
          // =======================================================
          for (IdxType vec_id = 0; vec_id < _num_points; ++vec_id) {
-               if (final_bitmap.test(vec_id)) { // 保留带有边界检查的原始写法
+               if (final_bitmap.test(vec_id)) { // Keep the original form with bounds-safe access.
                   float dist = _distance_handler->compute(query, _base_storage->get_vector(vec_id), dim);
                   num_distance_calcs++;
 

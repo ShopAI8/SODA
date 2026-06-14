@@ -1,10 +1,10 @@
 #!/bin/bash
 
-set -e # 如果任何命令失败，则立即退出
+set -e # Exit immediately if any command fails.
 
 IS_NEW_TRIE_METHOD=false
 
-# --- 定位脚本和配置文件 ---
+# --- Resolve script and config paths ---
 if [ -z "$1" ]; then
     echo "错误: 请提供一个 JSON 配置文件作为第一个参数。"
     echo "用法: ./exp.sh [config_file.json]"
@@ -29,7 +29,7 @@ echo "开始执行实验..."
 
 while read -r dataset_config; do
     
-    # --- 【步骤A】提取所有共享参数作为默认值 ---
+    # --- Step A: read shared parameters as defaults ---
     DATASET=$(echo "$dataset_config" | jq -r '.dataset_name')
     SHARED_CONFIG=$(echo "$dataset_config" | jq '.shared_config')
     
@@ -47,7 +47,7 @@ while read -r dataset_config; do
     LSEARCH_STEP=$(echo "$SHARED_CONFIG" | jq -r '.Lsearch_step')
     NUM_THREADS=$(echo "$SHARED_CONFIG" | jq -r '.num_threads')
     NUM_REPEATS=$(echo "$SHARED_CONFIG" | jq -r '.num_repeats')
-    # 读取共享的ACORN构建参数
+    # Read shared ACORN build parameters.
     ACORN_N=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.N')
     ACORN_M=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.M')
     ACORN_M_BETA=$(echo "$SHARED_CONFIG" | jq -r '.acorn_params.M_beta')
@@ -61,14 +61,14 @@ while read -r dataset_config; do
     ROUTER_ZERO_ALGORITHM_DEFAULT=$(echo "$SHARED_CONFIG" | jq -r '.router_zero_algorithm // ""')
     RESULT_NAME_SUFFIX_DEFAULT=$(echo "$SHARED_CONFIG" | jq -r '.result_name_suffix // ""')
 
-    # 项目根路径：优先用外部传入，其次自动从当前脚本位置推导
+    # Resolve the project root from PROJECT_ROOT, or infer it from this script.
     PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
     export UNG_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/ung"
     export ACORN_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/acorn"
     export NAVIX_BUILD_DIR="${PROJECT_ROOT}/build_para_${DATASET}/navix"
     BUILD_ONLY_INDEX_PREPARED=false
 
-    # Knowhere 路径：若未显式设置，则尝试使用当前仓库下的默认位置
+    # Resolve Knowhere paths, falling back to the local repo defaults.
     if [[ -z "${KNOWHERE_INCLUDE_DIR:-}" ]]; then
         export KNOWHERE_INCLUDE_DIR="${SCRIPT_DIR}/knowhere/include"
     fi
@@ -81,11 +81,11 @@ while read -r dataset_config; do
     # export NAVIX_BUILD_DIR="/home/fengxiaoyao/FilterVector/build_para/navix"
 
     
-    # --- 中层循环: 遍历任务 (查询) ---
+    # --- Middle loop: iterate over query tasks ---
     while read -r task; do
         QUERY_DIR_NAME=$(echo "$task" | jq -r '.query_dir_name')
 
-        # --- 加载并覆盖任务专属参数 ---
+        # --- Load and override task-specific parameters ---
         ACORN_EFS_START=$(echo "$task" | jq -r '.acorn_search_params.acorn_efs_start')
         ACORN_EFS_STEP_SLOW=$(echo "$task" | jq -r '.acorn_search_params.acorn_efs_step_slow')
         ACORN_EFS_STEP_FAST=$(echo "$task" | jq -r '.acorn_search_params.acorn_efs_step_fast')
@@ -108,13 +108,13 @@ while read -r dataset_config; do
             EFFECTIVE_RESULT_NAME_SUFFIX="$TASK_RESULT_NAME_SUFFIX"
         fi
 
-        # 检查是否成功读取，如果为null或空，则给出错误提示
+        # Fail fast if the required task parameter is missing.
         if [[ "$ACORN_EFS_START" == "null" || -z "$ACORN_EFS_START" ]]; then
             echo "错误: 任务 '$QUERY_DIR_NAME' 缺少 'acorn_efs_start' 参数！"
             exit 1
         fi
 
-        # --- 内层循环: 遍历算法名称 ---
+        # --- Inner loop: iterate over algorithm names ---
         while read -r ALGORITHM_NAME; do
             
             echo -e "\n=========================================================="
@@ -122,7 +122,7 @@ while read -r dataset_config; do
             echo "Using ACORN search params: efs_start=${ACORN_EFS_START}, efs_step_slow=${ACORN_EFS_STEP_SLOW}, efs_step_fast=${ACORN_EFS_STEP_FAST}"
             echo "=========================================================="
 
-            # 根据算法名称设置详细参数
+            # Map the algorithm name to its runtime parameters.
             case "$ALGORITHM_NAME" in
                 "UNG-nTfalse")    ROUTING_MODE=0; BASELINE_ALG=0 ; IS_REC_MORE_START=false;;
                 "ACORN-gamma")    ROUTING_MODE=0; BASELINE_ALG=2 ; IS_REC_MORE_START=false;;
@@ -141,15 +141,15 @@ while read -r dataset_config; do
                     exit 1;;
             esac
 
-            # 默认遵循 JSON 配置；仅对少数算法做强制覆盖
+            # Follow the JSON config by default, with targeted overrides when needed.
             UNG_DISTANCE_MODE="$UNG_DISTANCE_MODE_DEFAULT"
             if [[ "$ALGORITHM_NAME" == "SmartRoute++" || "$ALGORITHM_NAME" == "SmartRoute+++" ]]; then
                 UNG_DISTANCE_MODE="rabitq"
             fi
 
-            # 默认遵循 JSON 的 build_rabitq_side_index
+            # Use the JSON-configured RabitQ side-index setting by default.
             EFFECTIVE_BUILD_RABITQ_SIDE_INDEX="$BUILD_RABITQ_SIDE_INDEX"
-            # SmartRoute++ / SmartRoute+++ 必定需要 RabitQ side index
+            # SmartRoute++ and SmartRoute+++ always require a RabitQ side index.
             if [[ "$ALGORITHM_NAME" == "SmartRoute++" || "$ALGORITHM_NAME" == "SmartRoute+++" ]]; then
                 if [[ "$BUILD_RABITQ_SIDE_INDEX" != "true" ]]; then
                     echo "[WARN] 算法 '$ALGORITHM_NAME' 强制使用 rabitq，已自动将 build_rabitq_side_index 从 '$BUILD_RABITQ_SIDE_INDEX' 切换为 true。"
@@ -166,8 +166,8 @@ while read -r dataset_config; do
             fi
             ALGO_RESULT_DIR="${SHARED_DATASET_DIR}/Results/${RESULT_ALGORITHM_NAME}"
 
-            # --- 调用 build_hybrid.sh ---
-            # build_hybrid.sh 内部会负责编译、数据转换和索引构建
+            # --- Call build_hybrid.sh ---
+            # build_hybrid.sh handles compilation, data conversion, and index building.
             if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "acorn_only" || "$BUILD_MODE" == "navix_only" || "$BUILD_MODE" == "ung_only" || "$BUILD_MODE" == "favor_only" ]]; then
                 if [[ "$BUILD_ONLY_INDEX_PREPARED" == true ]]; then
                     echo "Preparing build index..."
@@ -198,21 +198,21 @@ while read -r dataset_config; do
                    --rabitq_total_bits "$RABITQ_TOTAL_BITS"
             fi
             
-            # 新增判断：某些 build_mode 只做构建，不进行 GT 和搜索。
+            # Some build modes are build-only and should skip GT generation and search.
             if [[ "$BUILD_MODE" == "parallel" || "$BUILD_MODE" == "acorn_only" || "$BUILD_MODE" == "navix_only" || "$BUILD_MODE" == "ung_only" || "$BUILD_MODE" == "favor_only" ]]; then
                echo "[INFO] Skipping GT generation and search steps."
                echo "--- The current experimental configuration processing has been completed (BUILD ONLY) ---"
                continue
             fi
             
-            # --- 调用 generate_gt.sh ---
+            # --- Call generate_gt.sh ---
             echo "Preparing Ground Truth (K=$K)..."
             ./generate_gt.sh \
                --dataset "$DATASET" --data_dir "$DATA_DIR" --exp_output_dir "$SHARED_DATASET_DIR" --build_dir "$UNG_BUILD_DIR" \
                --query_dir_name "$QUERY_DIR_NAME" \
                --K "$K"
 
-            # --- 调用 search.sh ---
+            # --- Call search.sh ---
             INDEX_DIR_NAME="M${MAX_DEGREE}_LB${LBUILD}_alpha${ALPHA}_C${NUM_CROSS_EDGES}_EP${NUM_ENTRY_POINTS}_AN${ACORN_N}_AM${ACORN_M}_AMB${ACORN_M_BETA}_AG${ACORN_GAMMA}"
             if [[ "$EFFECTIVE_BUILD_RABITQ_SIDE_INDEX" == "true" ]]; then
                INDEX_DIR_NAME="${INDEX_DIR_NAME}_RQB${RABITQ_TOTAL_BITS}"
